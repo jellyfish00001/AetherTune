@@ -1,0 +1,21 @@
+# VCClient RVC latency／buffer／斷音矩陣
+
+日期：2026-09-21（Asia/Taipei）
+
+## 使用方式
+
+```powershell
+& .\tools\vcclient-rvc-latency-matrix.ps1 `
+  -SlotIndex 8 `
+  -FfmpegPath 'C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe'
+```
+
+矩陣先測 `0.25 / 0.50 / 0.75 / 1.00 s`，每個 chunk 記錄 HTTP round-trip latency、response bytes、全零輸出與 RMS。短測全部 `PASS` 且零 dropout 才會建立 600 秒 input 並執行長測；短測失敗時長測記錄 `BLOCKED`，不會產生假穩定性數據。probe 雖可能產生整體非零 WAV，但只要某些 chunk 只有 4-byte 全零 response，矩陣就標 `DEGRADED`。
+
+## 最新結果
+
+最新 artifact：`artifacts/vcclient-rvc-latency-matrix/`。
+
+目前 Wukong role 的短測已顯示 packaged conversion 對 chunk size 敏感：0.25/0.50 秒只得到 4-byte 全零 response，0.75 秒可形成非零 WAV 但仍有 13/20 dropout；因此不能當成穩定 PASS。另有 slot lifecycle／`SlotInfo.chunk_sec` HTTP 500 證據，600 秒測試依 gate 未執行。
+
+這個矩陣是驗收工具與證據格式，不是把離線 FCPE GPU RTF 當成 realtime latency。需等 packaged frontend 修復或改用相容的 realtime host 後重新跑。

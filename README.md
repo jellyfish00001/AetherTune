@@ -61,6 +61,8 @@ Set-Location D:\AetherTune
 
 再使用 `tools/vcclient-rvc-probe.ps1` 驗證有效非零 WAV；若出現 packaged API error，請看上述 report，不要把服務 HTTP 200 視為可用。
 
+要測 RVC realtime chunk／dropout／10 分鐘 gate，使用 [`tools/vcclient-rvc-latency-matrix.ps1`](tools/vcclient-rvc-latency-matrix.ps1)；最新證據與判定規則見 [`docs/vcclient-rvc-latency-matrix-latest.md`](docs/vcclient-rvc-latency-matrix-latest.md)。
+
 ### RVC：先準備資料與註冊模型
 
 RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：

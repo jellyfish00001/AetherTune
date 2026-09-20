@@ -7,6 +7,7 @@ param(
     [string]$OutputRoot = '.\artifacts\vcclient-rvc-test',
     [switch]$ConfigureSlot,
     [switch]$InitializeAfterConfigure,
+    [switch]$OverrideSlotChunkSec,
     [double]$ChunkSec = 0.5
 )
 
@@ -103,7 +104,7 @@ try {
     }
 
     $inputBytes = [IO.File]::ReadAllBytes((Resolve-Path $inputRaw).Path)
-    $chunkSec = if ($slot.PSObject.Properties.Name -contains 'chunk_sec' -and $slot.chunk_sec) { [double]$slot.chunk_sec } else { $ChunkSec }
+    $chunkSec = if (-not $OverrideSlotChunkSec -and $slot.PSObject.Properties.Name -contains 'chunk_sec' -and $slot.chunk_sec) { [double]$slot.chunk_sec } else { $ChunkSec }
     $chunkBytes = [Math]::Max(4, [int]([Math]::Round(48000 * $chunkSec)) * 4)
     $totalChunks = [int][Math]::Ceiling($inputBytes.Length / $chunkBytes)
     $converted = [System.Collections.Generic.List[byte]]::new()
@@ -214,6 +215,7 @@ $report = [ordered]@{
     output_peak = [Math]::Round($outputPeak, 8)
     output_nonzero_samples = $outputNonzeroSamples
     output_finite_samples = $outputFiniteSamples
+    configured_chunk_sec = $chunkSec
     latency_p50_ms = $latencyP50Ms
     latency_p95_ms = $latencyP95Ms
     chunk_metrics = @($chunkMetrics)
