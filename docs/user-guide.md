@@ -122,16 +122,16 @@ Set-Location D:\AetherTune
 
 ## 5. 使用 STT → TTS
 
-這條路線目前是分階段建立：
+這條路線已可用 `tools/speech-reconstruction-run.ps1` 一鍵串接；若要可追溯與正式 clone，仍建議分階段核對：
 
 1. 先對 source WAV 做 STT。
 2. 人工核對 transcript，特別是 reference audio 的 prompt text。
 3. 將文字與 reference audio 送入 CosyVoice 或 Breeze。
 4. 保存 STT model/revision、transcript、reference hash、TTS model、輸出 hash 與 RTF。
 
-CosyVoice2 的 zero-shot TTS 已可在 WSL2 直接產生 WAV；完整 STT→TTS 仍需另外接 STT 並人工核對 transcript。`tools/speech-reconstruction-run.ps1` 仍是尚未完成的總流程 placeholder，不是 CosyVoice/Breeze 的實際 runner。先使用 [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) 的可重跑命令。
+Faster-Whisper STT、CosyVoice2 與 Breeze TTS 2 都已在獨立 WSL2 環境完成安裝與實際 WAV 測試。快速使用 `tools/speech-reconstruction-run.ps1`；單獨驗證則使用 [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md)、[`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md) 與 `tools/breeze-tts2-run.ps1`。
 
-詳細狀態：[`backends/speech-reconstruction/README.md`](../backends/speech-reconstruction/README.md)、[`docs/cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md)。
+詳細狀態：[`backends/speech-reconstruction/README.md`](../backends/speech-reconstruction/README.md)、[`docs/cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md)、[`docs/breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md)。
 
 ## 6. 常用檔案位置
 

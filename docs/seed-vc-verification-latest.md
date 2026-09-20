@@ -34,4 +34,4 @@ Set-Location D:\AetherTune
 - 本次執行期間上游曾嘗試連線檢查 campplus、BigVGAN、Whisper-small 的 HuggingFace HEAD，受到本機網路 socket 限制；本地 cache 足以完成兩次輸出，但若清除 cache 後重跑，需先允許下載。
 - 尚未執行 `realtime-tiny` 官方 GUI／即時延遲測試。
 - 尚未做人工聽測、MOS／相似度比較、長音檔與多說話者測試。
-- 這個 PASS 只涵蓋離線 WAV 產生；CosyVoice2 另有 zero-shot TTS PASS，Breeze TTS 2 與完整 STT→TTS 維持 `PLANNED`／`WAITING`。
+- 這個 PASS 只涵蓋離線 WAV 產生；CosyVoice2 與 Breeze TTS 2 也已各自完成 CUDA TTS 輸出，但人工音質與即時 latency 仍需分開評估。

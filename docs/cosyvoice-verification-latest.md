@@ -5,10 +5,11 @@
 ## 結論
 
 - CosyVoice2 官方 zero-shot TTS：`PASS`，已在 WSL2 RTX 5060 Ti 產生可解碼 WAV。
-- 完整 `STT → TTS`：`WAITING`，尚未把 STT 與使用者自己的 reference transcript 接成單一流程。
-- Breeze TTS 2：`PLANNED`，尚未安裝與驗證。
+- Faster-Whisper STT：`PASS`（CPU draft），男女 reference 均成功辨識為日文。
+- CosyVoice2 男／女 reference clone：`PASS`（runtime）；transcript 仍標為 STT draft，尚需人工逐字確認。
+- Breeze TTS 2：另見 [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md)，已完成安裝與輸出測試。
 
-因此現在可以直接試 CosyVoice2 的離線 TTS；不能把整條 STT→TTS 或 Breeze 宣稱完成。
+因此現在可以直接試 CosyVoice2 的離線 TTS、男女 reference clone 與統一 STT → TTS wrapper；完整流程的剩餘品質 gate 是人工確認 STT transcript 與聽測。
 
 ## 實際證據
 
@@ -19,12 +20,15 @@
 | CosyVoice2 class import | PASS | `from cosyvoice.cli.cosyvoice import CosyVoice2` |
 | Model load | PASS | 本機 `CosyVoice2-0.5B` 載入成功；`speakers=[]` 對 zero-shot 是預期狀態 |
 | Zero-shot TTS | PASS | [cosyvoice-official-zero-shot.wav](/D:/AetherTune/artifacts/speech-reconstruction/cosyvoice-official-zero-shot.wav)；24 kHz、10.76 秒、516,558 bytes |
+| Male reference clone | PASS（runtime） | `cosyvoice-clone-male.wav`；24 kHz、12.64 秒；SHA-256 `6b43f5a6d59e0c1d6d64d364415f13aa9df3606020b323e1d6bb187f0acb9712` |
+| Female reference clone | PASS（runtime） | `cosyvoice-clone-female.wav`；24 kHz、14.72 秒；SHA-256 `6679331a48fc0f4e79c4840945b2a257185c64bb726fb5a621b3f94f103145b6` |
 | Output hash | PASS | `e92b0516f2eaee16911fe248832695a331398b0d1b8cb5d26a3ef42c9603908b` |
 | Inference speed | PASS（離線） | load 30.13 s、inference 12.98 s、RTF `1.2059` |
 | FFmpeg decode | PASS | WAV 可解碼，無 error |
 | ONNX frontend CUDA provider | WAITING（非阻塞） | `libcudnn.so.8` 缺失，frontend fallback 到 CPU；主模型仍以 CUDA 完成輸出 |
-| 使用者自己的 M1/F1 reference | WAITING | 尚未取得每個 reference audio 的人工核對 exact transcript |
-| STT pipeline | WAITING | 尚未安裝／接入 Faster-Whisper 或 FunASR |
+| Faster-Whisper STT | PASS（draft） | `artifacts/stt/voice-male-m1.json`、`voice-female-f1.json`；language=`ja` |
+| Exact transcript 人工核對 | WAITING | 女聲 STT 有「いっている／言っている」文字差異；clone smoke 已完成，但正式 voice clone 仍應人工聽核 |
+| Unified `speech-reconstruction-run.ps1` | PASS | `cosyvoice-wrapper-smoke-fixed.wav`、24 kHz、CUDA runtime、workflow manifest |
 
 ## 可重跑命令
 
@@ -60,8 +64,6 @@ CosyVoice source 需要把下列兩個路徑放入 `PYTHONPATH`：
 
 ## 尚未完成
 
-1. 為 `voice-male-m1.wav`、`voice-female-f1.wav` 取得 STT 初稿並人工逐字核對。
-2. 將 STT→TTS 包裝成單一可重跑流程，保存 transcript 與版本證據。
-3. 以使用者 reference 實際生成男聲／女聲結果並人工聽測。
-4. 若需要 ONNX frontend GPU 加速，在 WSL 安裝相容 cuDNN 8；目前 CPU fallback 可用但不是 GPU frontend PASS。
-5. Breeze TTS 2 仍需獨立評估、安裝與 license／輸出驗證。
+1. 人工逐字聽核男女 reference transcript，確認 draft 是否為 exact transcript。
+2. 完成 CosyVoice 男／女輸出人工聽測與相似度備註。
+3. 若需要 ONNX frontend GPU 加速，在 WSL 安裝相容 cuDNN 8；目前 CPU fallback 可用但不是 GPU frontend PASS。

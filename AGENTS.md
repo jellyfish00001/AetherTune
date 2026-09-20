@@ -4,13 +4,14 @@
 
 ## 1. 專案目的
 
-AetherTune 同時管理三條語音路線：
+AetherTune 管理四個 backend、三條語音路線：
 
 | backend | 輸入→輸出 | 是否訓練 | 主要入口 |
 |---|---|---:|---|
 | RVC + FCPE/RMVPE | source／麥克風 → 即時變聲 → VCClient／虛擬音訊 | 要訓練角色模型 | `docs/model-training-guide.md`、`docs/operation-guide.md` |
 | Seed-VC | source WAV + reference WAV → output WAV | 不要 | `tools/seed-vc-setup.ps1`、`tools/seed-vc-run.ps1` |
-| STT → TTS | source WAV → transcript → CosyVoice／Breeze + reference → output WAV | 不要一般角色訓練 | `backends/speech-reconstruction/README.md` |
+| CosyVoice2 | source WAV → reference clone TTS → output WAV | 不要一般角色訓練 | `tools/cosyvoice-infer.py` |
+| Breeze TTS 2 | text／reference → Voice Design 或 clone → output WAV | 不要一般角色訓練 | `tools/breeze-tts2-run.ps1` |
 
 不要把 Seed-VC 或 TTS checkpoint 放進 RVC `.pth/.index` 流程，也不要把 STT → TTS 的重建輸出描述成保留原始聲學表演。
 
@@ -28,10 +29,10 @@ AetherTune 同時管理三條語音路線：
 
 ## 3. 目前已知狀態
 
-- RVC：基礎環境與 FCPE/RMVPE probe 已有證據；四組角色模型已登錄為 `candidate`，VCClient 已完成 role slot/pipeline 選擇層，但 REST conversion probe 被 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 阻塞；metadata 欄位仍有 `unknown`，尚不可視為 `ready`。
+- RVC：四組角色模型已透過專案 RVC WebUI pipeline 完成 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型仍是 `candidate`，metadata 與 VCClient 即時鏈路尚未完成。VCClient packaged REST probe 目前只能算 API smoke test，輸出 WAV 仍無效。
 - Seed-VC：`offline-v1` 男→女與女→男已產生 WAV，manifest 在 `artifacts/seed-vc/`；realtime tiny 與人工聽測尚未完成。
-- CosyVoice：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 已建立；WSL CUDA tensor gate WAITING，不能宣稱 TTS 可用。
-- Breeze TTS 2：PLANNED。
+- CosyVoice2：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 與 CUDA TTS 輸出已完成；主模型 CUDA PASS，ONNX frontend 因 `libcudnn.so.8` 缺失 fallback CPU。
+- Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot 與 Voice Design／男女 reference clone CUDA 輸出已完成；flash-attn、fast-all 與人工音質評估仍 WAITING。
 
 狀態必須使用 `PASS`、`WAITING`、`PLANNED` 或更明確的 `candidate / unregistered`；不得把未驗證項目改成 `ready`。
 
@@ -53,7 +54,19 @@ Set-Location D:\AetherTune
 # RVC 環境與 FCPE 探針
 & .\.venv\Scripts\python.exe -m pip check
 & .\.venv\Scripts\python.exe tools\fcpe_probe.py --skip-vcclient --artifact artifacts\fcpe-probe.json
+& .\.venv\Scripts\python.exe tools\rvc-fcpe-gpu-infer.py `
+  --model .\models\weights\Sage_CN_HeroicFemale.pth `
+  --index .\models\indexes\Sage_CN_HeroicFemale.index `
+  --input .\dataset\reference-voices\voice-male-m1.wav `
+  --output .\artifacts\rvc-fcpe-gpu\Sage_CN_HeroicFemale.wav
 & .\tools\verify_wiring.ps1 -RunInferenceProbes -OutFile .\docs\wiring-verification-latest.md
+
+# STT → TTS；不提供 -TextFile 時先跑 Faster-Whisper draft
+& .\tools\speech-reconstruction-run.ps1 `
+  -InputWav .\dataset\reference-voices\voice-male-m1.wav `
+  -Backend cosyvoice `
+  -Output cosyvoice-from-stt.wav
+# Breeze 使用 -Backend breeze-tts-2；正式 clone 請提供人工核對的 -ReferenceTextFile
 ```
 
 資料 audit：

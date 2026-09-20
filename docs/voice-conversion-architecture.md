@@ -45,10 +45,10 @@
 
 ## Windows 執行邊界
 
-- 現有 RVC `.venv` 保持穩定，不安裝 CosyVoice/Breeze 的大型或 Linux-specific 依賴。
+- 現有 RVC `.venv` 保持穩定；CosyVoice、Breeze 與 STT 使用各自的 WSL2／Python environment，不混裝大型或 Linux-specific 依賴。
 - Seed-VC 已使用獨立 Python 3.10 環境完成 offline-v1 雙向 WAV 推論；real-time tiny model 仍待 latency 測試。
-- CosyVoice 官方安裝文件以 Python 3.10、Conda 與 Linux 依賴為基線；本機已改用 WSL2 + uv 建立環境並下載模型，但 CUDA tensor gate 未通過前狀態是 `waiting`。
-- Breeze TTS 2 官方 quick start 目前要求 Linux、CUDA 與約 12 GB 以上 VRAM；本機 16 GB 顯存可作為候選，但需逐項驗證，不能由規格推導成功。
+- CosyVoice 官方安裝文件以 Python 3.10、Conda 與 Linux 依賴為基線；本機已用 WSL2 + uv 建立環境並完成 GPU zero-shot／reference clone 輸出。
+- Breeze TTS 2 官方 quick start 要求 Linux、CUDA 與約 12 GB 以上 VRAM；本機 16 GB 顯存已完成 eager CUDA 安裝與 Voice Design／reference clone 輸出。
 
 ## 驗收順序
 

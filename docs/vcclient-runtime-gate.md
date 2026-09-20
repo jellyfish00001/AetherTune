@@ -6,7 +6,7 @@
 
 - AetherTune `.venv`：Torch `2.7.1+cu128`，RTX 5060 Ti `sm_120`，實際 CUDA tensor op 成功。
 - VCClient `2.1.4-alpha cuda`：embedded Torch `2.7.0+cu118`；啟動 log 顯示 CUDA build `11.8`，並曾警告 `sm_120` 不在該 PyTorch build 的相容清單。官方 runtime repair 已可重現恢復 module/sample assets。
-- 最新 probe 已以官方 ONNX sample 取得非零輸出 WAV；這證明 packaged RVC offline path 可用，但不是四組自有角色模型、GPU provider 或即時音訊鏈路的完整證據。
+- 最新 probe 可以送出官方 ONNX sample 的 chunk request，但 artifact 只有 120 bytes、WAV 不是有效可播放輸出；因此 packaged RVC offline path 仍未通過，不能拿來證明四組自有角色模型、GPU provider 或即時音訊鏈路。
 
 因此不能用專案 venv 的 PASS 代替 VCClient PASS，也不能因 Web UI `HTTP 200` 或 sample slot 存在就宣布即時變聲可用。
 
@@ -24,4 +24,4 @@
 - 若前端的 ONNX 模式可推論但 CUDA provider 失敗：保留 CPU/DirectML 作為相容性實驗，重新量測延遲；不能把 CPU 輸出標為 GPU 即時方案。
 - 若只能載入模型、不能產生輸出：保留 WAITING/BLOCKED，並將錯誤 log 與測試 artifact 登記到報告。
 
-目前狀態：`PASS（official sample offline）/WAITING（custom roles, GPU provider, realtime chain）`。最新短音檔證據見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)；四組自有角色仍須各自輸出驗收。
+目前狀態：`WAITING（packaged sample output, custom roles in VCClient, GPU provider, realtime chain）`。AetherTune RVC WebUI 的四組 `FCPE + cuda:0` 離線證據另見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)；兩條 runtime 不可互相代替。

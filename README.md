@@ -1,14 +1,14 @@
 # AetherTune
 
-Windows 語音變聲與語音重建實驗專案。這個專案同時保留三種不同路線，請先依「要不要即時、要不要訓練、要不要保留原始表演」選擇方法，不要把三種模型混在同一個 RVC 流程裡。
+Windows 語音變聲與語音重建實驗專案。這個專案同時保留四個可比較的後端：RVC、Seed-VC、CosyVoice2、Breeze TTS 2。請先依「要不要即時、要不要訓練、要不要保留原始表演」選擇方法，不要把不同模型混在同一個 RVC 流程裡。
 
 ## 先看這張選擇表
 
 | 你想要的結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
-| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 官方 sample 離線轉換 `PASS`；四組自有角色與即時音訊鏈路仍 `WAITING` |
+| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 四組自有角色 `FCPE + cuda:0` 離線推論 `PASS`；即時音訊鏈路仍 `WAITING` |
 | 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向離線產檔 `PASS`；人工聽測與即時性仍待補 |
-| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice zero-shot TTS `PASS`；完整 STT 與 Breeze `WAITING/PLANNED` |
+| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | STT、CosyVoice2、Breeze TTS 2 安裝與輸出 `PASS`；transcript 人工聽核仍待補 |
 
 最簡單的判斷：
 
@@ -47,7 +47,7 @@ Set-Location D:\AetherTune
 
 ### RVC：先用官方 sample 驗證離線轉換
 
-VCClient 官方 sample slot 0 已完成短音檔轉換驗證。先啟動 VCClient，再執行：
+VCClient 官方 sample slot 0 的 REST probe 可以送出 30 個 chunk，但目前舊 artifact 只有 120 bytes、WAV 不是有效可播放輸出，因此只能算 API smoke test `WAITING`，不是 RVC 完成證據。先啟動 VCClient，再執行：
 
 ```powershell
 & .\tools\vcclient-rvc-probe.ps1 `
@@ -56,7 +56,7 @@ VCClient 官方 sample slot 0 已完成短音檔轉換驗證。先啟動 VCClien
   -FfmpegPath 'C:\Users\User\AppData\Local\CapCut\Apps\8.5.0.3590\ffmpeg.exe'
 ```
 
-這是「官方 sample + packaged VCClient」的離線 PASS，不代表目前四組自有 `.pth/.index` 已可用，也不代表 Discord／OBS 即時 loopback 已通過。角色模型仍須依 [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md) 補 metadata、註冊 slot 並重新驗收。
+本專案目前真正的 RVC `FCPE + GPU` 證據是 `tools/rvc-fcpe-gpu-infer.py` 的四組角色矩陣；VCClient sample probe 仍需修復非零 WAV 輸出後才可升級。角色模型仍須依 [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md) 補 metadata、註冊 slot 並重新驗收。
 
 ### RVC：先準備資料與註冊模型
 
@@ -69,9 +69,20 @@ RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：
 
 RVC 的音高策略是 **FCPE 首選、RMVPE 備用**。FCPE 的實際 provider 與延遲以 `tools/fcpe_probe.py` 的 artifact 為準；不要只因套件存在就宣稱 FCPE runtime 已通過。
 
-### CosyVoice 2：可直接做 zero-shot TTS；STT 仍需另外接上
+### CosyVoice2 與 Breeze TTS 2：可直接做 STT → TTS
 
-CosyVoice 2 已在 WSL2 GPU 產生官方 zero-shot WAV。執行方式、reference transcript 契約與完整證據見 [`docs/cosyvoice-verification-latest.md`](docs/cosyvoice-verification-latest.md)。目前仍需先以 STT 取得並人工核對 source／reference transcript；Breeze TTS 2 尚未安裝。
+Faster-Whisper、CosyVoice2 與 Breeze TTS 2 都已建立獨立環境並完成實際 WAV 輸出。要一鍵跑完整流程，可使用 `tools/speech-reconstruction-run.ps1`；單獨測試則看 [`docs/cosyvoice-verification-latest.md`](docs/cosyvoice-verification-latest.md) 與 [`docs/breeze-tts2-verification-latest.md`](docs/breeze-tts2-verification-latest.md)。reference transcript 目前是 STT draft，正式 voice clone 前仍應人工逐字確認。
+
+一鍵 STT → CosyVoice2（未提供 `-TextFile` 時會自動先跑 Faster-Whisper）：
+
+```powershell
+& .\tools\speech-reconstruction-run.ps1 `
+  -InputWav .\dataset\reference-voices\voice-male-m1.wav `
+  -Backend cosyvoice `
+  -Output cosyvoice-from-stt.wav
+```
+
+把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze；若已有人工核對的文字，請加上 `-TextFile` 與 `-ReferenceTextFile`，避免把 STT draft 當成 exact transcript。
 
 ## 三種方法的資料流
 
@@ -112,12 +123,12 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 
 ## 目前缺少什麼
 
-- RVC 四組現有 `.pth/.index` 已完成檔案與 hash 的 candidate 登錄，但來源、授權、f0、取樣率、revision 與 dataset metadata 尚未補齊；目前 PASS 是官方 sample slot，不是這四組自有角色。
-- RVC 官方 sample 短音檔 conversion 已取得非零輸出 WAV；GPU provider、四組自有角色、即時 latency、長時間穩定性與 Light Host loopback 仍未驗收。
+- RVC 四組現有 `.pth/.index` 已各自通過 `FCPE + cuda:0` 離線推論並產生非零 WAV；來源、授權、f0、取樣率、revision 與 dataset metadata 仍需人工補齊。
+- RVC 即時 latency、長時間穩定性、Light Host chain、VB-CABLE／Voicemeeter／Discord／OBS loopback 仍未驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。
-- CosyVoice2 官方 zero-shot TTS 已 PASS；完整 STT→TTS、個人 reference 的 exact transcript 與人工聽測仍 `WAITING`。
-- Breeze TTS 2 與 STT pipeline 尚未建立，維持 `PLANNED`／`WAITING`。
+- CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。
+- Breeze TTS 2 已完成 WSL2、CUDA、Voice Design 男女與 reference clone 男女測試；flash-attn、fast-all 與人工音質評估仍待補。
 
 狀態意義：`PASS` 是指定檢查或實際流程通過；`WAITING` 是有明確阻塞或尚未完成；`PLANNED` 是尚未開始或仍需選擇。檔案存在、模型下載、UI 可開啟都不等於端到端語音可用。
 
