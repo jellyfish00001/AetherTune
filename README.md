@@ -135,7 +135,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已完成雙向離線、60 秒長音檔與 realtime-tiny headless latency；仍缺人工聽測、多說話者、PortAudio 麥克風端到端與長時間 realtime 穩定性。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。
-- Breeze TTS 2 已完成 WSL2、CUDA、Voice Design 男女、reference clone 男女與 `fast-all` CUDA graph 輸出；flash-attn／SoX 仍 WAITING，人工音質評估仍待補。`fast-all` 本機 RTF `11.4196`，不能套用 H100 benchmark。
+- Breeze TTS 2 已完成 WSL2、CUDA、Voice Design 男女、reference clone 男女、`fast-all` CUDA graph 與 project-local SoX runner；flash-attn 仍 WAITING，system SoX 未安裝，人工音質評估仍待補。`fast-all` 本機 RTF 約 `11.4196`，不能套用 H100 benchmark。
 
 狀態意義：`PASS` 是指定檢查或實際流程通過；`WAITING` 是有明確阻塞或尚未完成；`PLANNED` 是尚未開始或仍需選擇。檔案存在、模型下載、UI 可開啟都不等於端到端語音可用。
 

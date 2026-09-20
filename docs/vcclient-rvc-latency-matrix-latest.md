@@ -14,8 +14,18 @@
 
 ## 最新結果
 
-最新 artifact：`artifacts/vcclient-rvc-latency-matrix/`。
+最新 artifact：`artifacts/vcclient-rvc-latency-matrix-final/4903f51e-a371-49c4-92a3-4b6b0a9953e5/vcclient-rvc-latency-matrix.json`。
 
-目前 Wukong role 的短測已顯示 packaged conversion 對 chunk size 敏感：0.25/0.50 秒只得到 4-byte 全零 response，0.75 秒可形成非零 WAV 但仍有 13/20 dropout；因此不能當成穩定 PASS。另有 slot lifecycle／`SlotInfo.chunk_sec` HTTP 500 證據，600 秒測試依 gate 未執行。
+修正 probe 的逐 chunk gate 後，Wukong role 最新結果如下：
+
+| chunk | 狀態 | chunks | dropout | p50／p95 |
+|---:|---|---:|---:|---:|
+| 0.25 s | `DEGRADED` | 60 | 58 | 1.547／16.024 ms |
+| 0.50 s | `DEGRADED` | 30 | 22 | 1.720／21.891 ms |
+| 0.75 s | `DEGRADED` | 20 | 15 | 2.331／24.906 ms |
+| 1.00 s | `DEGRADED` | 15 | 11 | 2.421／21.755 ms |
+| 600 s | `BLOCKED` | — | — | 短測未全部 PASS，依 gate 不執行 |
+
+所有短測仍能形成整體 finite/non-zero WAV，但逐 chunk 有 4-byte 全零 response；因此不能當成穩定 PASS。另有 slot lifecycle／`SlotInfo.chunk_sec` HTTP 500 證據。
 
 這個矩陣是驗收工具與證據格式，不是把離線 FCPE GPU RTF 當成 realtime latency。需等 packaged frontend 修復或改用相容的 realtime host 後重新跑。

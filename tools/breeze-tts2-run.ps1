@@ -36,6 +36,18 @@ $modelPath = Convert-ToWslPath (Join-Path $projectRoot 'models\speech-reconstruc
 $runnerPath = Convert-ToWslPath (Join-Path $projectRoot 'tools\breeze-tts2-infer.py')
 $pythonPath = '/mnt/d/AetherTune/tools/venvs/breeze-tts-wsl/bin/python'
 $breezeRepo = '/mnt/d/AetherTune/tools/external/breeze-tts'
+$wslEnv = @("PYTHONPATH=$breezeRepo")
+$defaultWslPath = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+$localSoxRoot = Join-Path $projectRoot 'artifacts\sox-local'
+if (Test-Path -LiteralPath (Join-Path $localSoxRoot 'usr\bin\sox')) {
+    # SoX 可能以無 sudo 的 .deb extraction 存在；只注入這個被 gitignore 的
+    # local runtime，避免改動 WSL 系統套件或把 binary 放進 repository。
+    $soxBin = Convert-ToWslPath (Join-Path $localSoxRoot 'usr\bin')
+    $soxLib = Convert-ToWslPath (Join-Path $localSoxRoot 'usr\lib\x86_64-linux-gnu')
+    $wslEnv += ("PATH={0}:{1}" -f $soxBin, $defaultWslPath)
+    $wslEnv += ("LD_LIBRARY_PATH={0}:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu" -f $soxLib)
+    Write-Output "Breeze project-local SoX: $soxBin/sox"
+}
 
 $arguments = @(
     $runnerPath,
@@ -54,7 +66,7 @@ if ($ReferenceAudio) {
     $arguments += @('--reference-text-file', (Convert-ToWslPath $ReferenceTextFile))
 }
 
-& wsl.exe -d $Distro -- env "PYTHONPATH=$breezeRepo" $pythonPath @arguments
+& wsl.exe -d $Distro -- env @wslEnv $pythonPath @arguments
 if ($LASTEXITCODE -ne 0) {
     throw "Breeze TTS 2 inference failed with exit=$LASTEXITCODE"
 }

@@ -25,7 +25,9 @@ Breeze TTS 2 已完成獨立 WSL2 安裝與 CUDA 實際輸出，狀態為 `PASS`
 | Output WAV decode | PASS | 產出 WAV 可由 FFmpeg／soundfile 讀取 |
 | `fast-all` eager CUDA graph | PASS | `breeze-fast-all.wav`、24 kHz、11.36 s；graph capture 成功；RTF `11.4196`；manifest `artifacts/speech-reconstruction/breeze-fast-all.json` |
 | `flash_attention_2` | WAITING | `flash-attn==2.8.3` build 嘗試未產生可 import package；目前不能把此路徑標成 PASS |
-| SoX | WAITING | Ubuntu repository 有 `14.4.2`，但 WSL 使用者沒有非互動 sudo，`sox` 仍未安裝 |
+| SoX system package | WAITING | Ubuntu repository 有 `14.4.2`，但 WSL 使用者沒有 sudo 密碼，不能寫入系統 package |
+| SoX project-local extraction | PASS | `artifacts/sox-local/usr/bin/sox`，SoX `14.4.2`；搭配 local `libltdl7` 可執行，runner 會自動注入 PATH／LD_LIBRARY_PATH |
+| fast-all + project-local SoX runner | PASS | `breeze-fast-all-sox-local.wav`、24 kHz、11.36 s、545,324 bytes；runner stdout 確認使用 `/mnt/d/AetherTune/artifacts/sox-local/usr/bin/sox` |
 | Exact transcript | WAITING | 男女 reference 已有 Faster-Whisper STT draft；仍需人工逐字聽核 |
 
 ## 可重跑命令
@@ -66,5 +68,5 @@ Voice Design：
 
 - 官方建議 eager inference 約 7.7 GiB VRAM；本機 16 GB GPU 已完成 `--fast-all` graph capture 與輸出，但 RTF `11.4196`，速度不代表官方 H100 benchmark。
 - `flash-attn==2.8.3` 已嘗試安裝；專用 venv 原先缺少 pip，改用 uv 並補 setuptools／ninja 後仍未產生可 import package，因此目前使用 manual PyTorch path。
-- SoX 套件可由 Ubuntu repository 取得，但目前 WSL 使用者沒有 sudo 權限；`sox not found` warning 尚未消除，不影響本次 WAV 產生。
+- SoX 系統套件仍未安裝（sudo 需要密碼），但已用 Ubuntu `.deb` 在被忽略的 `artifacts/sox-local/` 完成 portable runtime；`breeze-tts2-run.ps1` 會在該目錄存在時自動注入 local PATH／LD_LIBRARY_PATH，且 fast-all runner 已實際驗證通過。
 - Breeze source code 是 Apache-2.0；model weights、derivatives 與 self-hosted outputs 受 [BreezeBlue Research and Non-Commercial License](https://huggingface.co/BreezeBlue/Breeze-TTS-2/blob/main/LICENSE) 管轄，只可研究／非商業使用。官方安裝與 VRAM 條件見 [Breeze TTS 2 官方 README](https://github.com/breezeblue-ai/breeze-tts#readme)。

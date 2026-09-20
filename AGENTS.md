@@ -33,7 +33,7 @@ AetherTune 管理四個 backend、三條語音路線：
 - RVC：四組角色模型已透過專案 RVC WebUI pipeline 完成 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型 hash／配對 audit `PASS`，但仍是 `candidate`，來源、授權、訓練 metadata、dataset audit 與 VCClient 即時鏈路尚未完成。模型 audit 見 `docs/rvc-model-audit-latest.md`。
 - Seed-VC：`offline-v1` 男→女／女→男、60 秒長音檔、`realtime-tiny` 3 block smoke 與 200 block／60 秒 headless GPU benchmark 已 PASS；官方 GUI、PortAudio 麥克風端到端、人工聽測與 10 分鐘以上 realtime 仍 WAITING。
 - CosyVoice2：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 與 CUDA TTS 輸出已完成；主模型 CUDA PASS，隔離 cuDNN 8 probe 證明 speech tokenizer Node 可用 CUDA，但 CampPlus 上游固定 CPU，因此 frontend 仍是 partial CUDA。
-- Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot、Voice Design／男女 reference clone 與 `fast-all` CUDA graph 輸出已 PASS；flash-attn、SoX、人工音質評估仍 WAITING。`fast-all` 本機 RTF `11.4196`，不能套用 H100 benchmark。
+- Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot、Voice Design／男女 reference clone、`fast-all` CUDA graph 與 project-local SoX runner 已 PASS；flash-attn、system SoX、人工音質評估仍 WAITING。`fast-all` 本機 RTF 約 `11.4196`，不能套用 H100 benchmark。
 
 狀態必須使用 `PASS`、`WAITING`、`PLANNED` 或更明確的 `candidate / unregistered`；不得把未驗證項目改成 `ready`。
 
