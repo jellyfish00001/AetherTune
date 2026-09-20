@@ -110,6 +110,7 @@ RVC 是「角色模型推論」；Seed-VC 是「參考聲音條件式轉換」�
 5. [`docs/voice-conversion-architecture.md`](docs/voice-conversion-architecture.md)：架構、資料契約與比較方式。
 6. 各後端 README：[`backends/rvc/README.md`](backends/rvc/README.md)、[`backends/seed-vc/README.md`](backends/seed-vc/README.md)、[`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md)。
 7. `docs/*-verification-latest.md`：只看最新實際驗證，不把計畫當成通過。
+8. [`docs/audio-quality-comparison-latest.md`](docs/audio-quality-comparison-latest.md)：四種後端的 WAV 訊號層批次比較；它不是 MOS 或人工音質結論。
 
 給 Agent 使用時，先讀根目錄 [`AGENTS.md`](AGENTS.md)，再依任務讀指定文件。根目錄 AGENTS 是專案規則與導航，不取代本 README。
 
