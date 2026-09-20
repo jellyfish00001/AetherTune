@@ -93,4 +93,4 @@ Faster-Whisper 的輸出是 `STT draft`，voice clone 前仍應人工核對 refe
 - Breeze eager 與 `-FastAll` CUDA graph 都已在本機 RTX 5060 Ti 產生 WAV；`fast-all` 實測 RTF `11.4196`，官方 H100 benchmark 的 RTF 不適用本機。
 - Breeze `flash-attn==2.8.3` 已嘗試安裝但仍無法 import，現在使用 manual PyTorch path；不要把 `-AttentionImplementation flash_attention_2` 當成可用預設。
 - Breeze runner 曾顯示 `sox not found`；Ubuntu 套件可取得但本機 WSL 使用者無 sudo，SoX 仍 WAITING，不影響已通過的 WAV 輸出。
-- CosyVoice frontend 仍因 `libcudnn.so.8` 缺少而 fallback CPU，主模型 CUDA 推論不受阻塞。
+- CosyVoice 主模型 CUDA 已 PASS；用隔離 cuDNN 8 library path 測得 speech tokenizer 的實際 ONNX Node provider 可用 CUDA，但上游 CampPlus embedding 明確固定 CPU，因此目前是 partial frontend GPU，不是全 frontend GPU。證據見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。

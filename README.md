@@ -8,7 +8,7 @@ Windows 語音變聲與語音重建實驗專案。這個專案同時保留四個
 |---|---|---:|---|---|
 | 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 四組自有角色 `FCPE + cuda:0` 離線推論 `PASS`；即時音訊鏈路仍 `WAITING` |
 | 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向／60 秒長檔與 `realtime-tiny` headless GPU `PASS`；麥克風端到端仍 `WAITING` |
-| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | STT、CosyVoice2、Breeze TTS 2 安裝與輸出 `PASS`；transcript 人工聽核仍待補 |
+| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | STT、CosyVoice2、Breeze TTS 2 輸出 `PASS`；CosyVoice speech tokenizer partial CUDA、transcript／人工聽核仍待補 |
 
 最簡單的判斷：
 
