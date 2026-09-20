@@ -131,7 +131,8 @@ try {
                 throw "convert_chunk_bulk HTTP $([int]$response.StatusCode): $detail"
             }
             $chunkMetrics.Add([ordered]@{
-                    chunk_index = $totalChunks
+                    # 以輸入位移計算實際 chunk 編號；總 chunk 數不是目前 chunk 的 index。
+                    chunk_index = [int][Math]::Floor($offset / $chunkBytes)
                     input_bytes = $length
                     output_bytes = $responseBytes.Length
                     latency_ms = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)

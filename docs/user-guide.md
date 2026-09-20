@@ -85,7 +85,7 @@ Set-Location D:\AetherTune
 - `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
 - `docs/seed-vc-verification-latest.md`：目前實際驗證摘要。
 
-目前已驗證 `offline-v1` 可以產生 WAV；但聲音品質、長音檔、多說話者、人工聽測與 realtime tiny 尚未完成。
+目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔與 `realtime-tiny` headless GPU block；但官方 GUI、PortAudio 麥克風端到端、人工聽測與長時間 realtime 穩定性仍待補。
 
 ## 4. 使用 RVC
 

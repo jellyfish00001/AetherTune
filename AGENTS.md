@@ -24,6 +24,7 @@ AetherTune 管理四個 backend、三條語音路線：
 5. `backends/<name>/README.md`：後端輸入契約、命令與限制。
 6. `docs/*verification-latest.md`：實際驗證證據與剩餘風險。
 7. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
+8. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
 
 若文件與 runtime 證據衝突，以最新可重跑 artifact、實際命令輸出與 verifier 為準，並修正文檔；不要用「模型檔存在」覆蓋 runtime WAITING。
 

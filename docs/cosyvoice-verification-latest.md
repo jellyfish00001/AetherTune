@@ -25,7 +25,7 @@
 | Output hash | PASS | `e92b0516f2eaee16911fe248832695a331398b0d1b8cb5d26a3ef42c9603908b` |
 | Inference speed | PASS（離線） | load 30.13 s、inference 12.98 s、RTF `1.2059` |
 | FFmpeg decode | PASS | WAV 可解碼，無 error |
-| ONNX frontend CUDA provider | WAITING（非阻塞） | `libcudnn.so.8` 缺失，frontend fallback 到 CPU；主模型仍以 CUDA 完成輸出 |
+| ONNX frontend CUDA provider（預設環境） | WAITING（非阻塞） | `libcudnn.so.8` 缺失，預設 frontend fallback 到 CPU；主模型仍以 CUDA 完成輸出 |
 | speech tokenizer + cuDNN 8 isolated probe | PASS（partial） | `artifacts/cosyvoice-frontend/cudnn8-gpu.json`；實際 Node provider 包含 `CUDAExecutionProvider`，輸出 finite |
 | Faster-Whisper STT | PASS（draft） | `artifacts/stt/voice-male-m1.json`、`voice-female-f1.json`；language=`ja` |
 | Exact transcript 人工核對 | WAITING | 女聲 STT 有「いっている／言っている」文字差異；clone smoke 已完成，但正式 voice clone 仍應人工聽核 |
