@@ -23,6 +23,9 @@ Breeze TTS 2 已完成獨立 WSL2 安裝與 CUDA 實際輸出，狀態為 `PASS`
 | Unified `speech-reconstruction-run.ps1` | PASS | `breeze-unified-wrapper-smoke.wav`、24 kHz、10.88 s、CUDA runtime、workflow manifest |
 | CUDA runtime | PASS | `torch.cuda.is_available=True`、device=`NVIDIA GeForce RTX 5060 Ti` |
 | Output WAV decode | PASS | 產出 WAV 可由 FFmpeg／soundfile 讀取 |
+| `fast-all` eager CUDA graph | PASS | `breeze-fast-all.wav`、24 kHz、11.36 s；graph capture 成功；RTF `11.4196`；manifest `artifacts/speech-reconstruction/breeze-fast-all.json` |
+| `flash_attention_2` | WAITING | `flash-attn==2.8.3` build 嘗試未產生可 import package；目前不能把此路徑標成 PASS |
+| SoX | WAITING | Ubuntu repository 有 `14.4.2`，但 WSL 使用者沒有非互動 sudo，`sox` 仍未安裝 |
 | Exact transcript | WAITING | 男女 reference 已有 Faster-Whisper STT draft；仍需人工逐字聽核 |
 
 ## 可重跑命令
@@ -36,6 +39,19 @@ Set-Location D:\AetherTune
   -Output .\artifacts\speech-reconstruction\breeze-clone-male.wav
 ```
 
+嘗試官方 fast path：
+
+```powershell
+& .\tools\breeze-tts2-run.ps1 `
+  -TextFile .\tools\fixtures\breeze-target-text.txt `
+  -ReferenceAudio .\dataset\reference-voices\voice-male-m1.wav `
+  -ReferenceTextFile .\tools\fixtures\breeze-reference-male-text.txt `
+  -Output .\artifacts\speech-reconstruction\breeze-fast-all.wav `
+  -FastAll
+```
+
+程式也接受 `-AttentionImplementation flash_attention_2`；只有 WSL venv 成功安裝並可 import `flash_attn` 後才應使用。預設仍是 eager，避免把失敗的 optional path 當成主路線。
+
 Voice Design：
 
 ```powershell
@@ -48,7 +64,7 @@ Voice Design：
 
 ## 限制與授權
 
-- 官方建議 eager inference 約 7.7 GiB VRAM；本機 16 GB GPU 可運行。`--fast-all` 約需 14.4 GiB，尚未列入本次 PASS。
-- 未安裝 flash-attn，使用 manual PyTorch path；輸出成功但速度不代表官方 H100 benchmark。
-- 本次執行曾出現 `sox not found` warning，但不影響實際 WAV 產生；可在 WSL 安裝 sox 消除 warning。
+- 官方建議 eager inference 約 7.7 GiB VRAM；本機 16 GB GPU 已完成 `--fast-all` graph capture 與輸出，但 RTF `11.4196`，速度不代表官方 H100 benchmark。
+- `flash-attn==2.8.3` 已嘗試安裝；專用 venv 原先缺少 pip，改用 uv 並補 setuptools／ninja 後仍未產生可 import package，因此目前使用 manual PyTorch path。
+- SoX 套件可由 Ubuntu repository 取得，但目前 WSL 使用者沒有 sudo 權限；`sox not found` warning 尚未消除，不影響本次 WAV 產生。
 - Breeze source code 是 Apache-2.0；model weights、derivatives 與 self-hosted outputs 受 [BreezeBlue Research and Non-Commercial License](https://huggingface.co/BreezeBlue/Breeze-TTS-2/blob/main/LICENSE) 管轄，只可研究／非商業使用。官方安裝與 VRAM 條件見 [Breeze TTS 2 官方 README](https://github.com/breezeblue-ai/breeze-tts#readme)。

@@ -55,6 +55,14 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cfg-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--fast-all", action=argparse.BooleanOptionalAction, default=False,
+        help="啟用官方 fast streaming 全階段 CUDA graph；需要較多 VRAM。",
+    )
+    parser.add_argument(
+        "--attention-implementation", choices=("eager", "flash_attention_2"), default="eager",
+        help="Breeze backbone attention backend；flash_attention_2 需要可 import flash_attn。",
+    )
     args = parser.parse_args()
 
     text = read_value(args.text, args.text_file, "text")
@@ -81,7 +89,7 @@ def main() -> int:
     tokenizer, model, audio_tokenizer = load_runtime(
         args.model_dir,
         device=device,
-        attn_implementation="eager",
+        attn_implementation=args.attention_implementation,
     )
     update_generation_config_for_breeze(model)
     runtime = FastBreezeStreamingRuntime(
@@ -90,7 +98,7 @@ def main() -> int:
         FastStreamingConfig(
             max_new_tokens=1500,
             max_seq_len=2048,
-            fast_all=False,
+            fast_all=args.fast_all,
             fast_text_encoder=False,
             fast_backbone_prefill=False,
             fast_backbone_decode=False,
@@ -169,6 +177,8 @@ def main() -> int:
         "template": template_name,
         "cfg_scale": args.cfg_scale,
         "seed": args.seed,
+        "fast_all": args.fast_all,
+        "attention_implementation": args.attention_implementation,
     }
     manifest_path = args.output.with_suffix(".json")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

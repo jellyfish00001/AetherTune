@@ -90,7 +90,7 @@ Faster-Whisper 的輸出是 `STT draft`，voice clone 前仍應人工核對 refe
 
 ## 已知限制
 
-- Breeze 使用 eager CUDA path；本機 RTX 5060 Ti 可運行，但官方 H100 benchmark 的 RTF 不適用本機。
-- Breeze 未安裝 flash-attn 時會使用 manual PyTorch path，速度較慢但可輸出。
-- Breeze runner 顯示 `sox not found` warning，但本次 voice design／clone WAV 均成功產生；若要消除 warning，可在 WSL 安裝 `sox`。
+- Breeze eager 與 `-FastAll` CUDA graph 都已在本機 RTX 5060 Ti 產生 WAV；`fast-all` 實測 RTF `11.4196`，官方 H100 benchmark 的 RTF 不適用本機。
+- Breeze `flash-attn==2.8.3` 已嘗試安裝但仍無法 import，現在使用 manual PyTorch path；不要把 `-AttentionImplementation flash_attention_2` 當成可用預設。
+- Breeze runner 曾顯示 `sox not found`；Ubuntu 套件可取得但本機 WSL 使用者無 sudo，SoX 仍 WAITING，不影響已通過的 WAV 輸出。
 - CosyVoice frontend 仍因 `libcudnn.so.8` 缺少而 fallback CPU，主模型 CUDA 推論不受阻塞。

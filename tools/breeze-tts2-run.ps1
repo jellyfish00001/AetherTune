@@ -7,6 +7,8 @@ param(
     [string]$Instruction = '',
     [double]$CfgScale = 1.0,
     [int]$Seed = 42,
+    [switch]$FastAll,
+    [ValidateSet('eager', 'flash_attention_2')][string]$AttentionImplementation = 'eager',
     [string]$Distro = 'Ubuntu'
 )
 
@@ -41,8 +43,10 @@ $arguments = @(
     '--text-file', $textPath,
     '--output', $outputPath,
     '--cfg-scale', $CfgScale.ToString([Globalization.CultureInfo]::InvariantCulture),
-    '--seed', $Seed.ToString()
+    '--seed', $Seed.ToString(),
+    '--attention-implementation', $AttentionImplementation
 )
+if ($FastAll) { $arguments += '--fast-all' }
 if ($Instruction) { $arguments += @('--instruction', $Instruction) }
 if ($ReferenceAudio) {
     if (-not $ReferenceTextFile) { throw 'ReferenceAudio 需要同時提供 ReferenceTextFile' }
