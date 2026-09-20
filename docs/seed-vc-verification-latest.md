@@ -4,7 +4,7 @@
 
 ## 結論
 
-`offline-v1` 已在本機 RTX 5060 Ti 上完成男聲／女聲雙向實際推論，並完成 60 秒長音檔測試；`realtime-tiny` 也已完成官方 `custom_infer` 的 headless GPU block benchmark。這些是「可執行並產檔」的 PASS，不等同人工音質、PortAudio 麥克風端到端或長時間即時穩定性已驗收。
+`offline-v1` 已在本機 RTX 5060 Ti 上完成男聲／女聲雙向實際推論，並完成 60 秒長音檔測試；`realtime-tiny` 已完成 3 block smoke 與 200 block／60 秒連續 headless GPU streaming。這些是「可執行並產檔」的 PASS，不等同 PortAudio 麥克風端到端或官方 GUI 裝置鏈路已驗收。
 
 | 測試 | 狀態 | RTF | 輸出 | manifest |
 |---|---|---:|---|---|
@@ -16,6 +16,7 @@
 | 測試 | 狀態 | 實測結果 | 證據 |
 |---|---|---|---|
 | realtime-tiny headless GPU | PASS | 3 個 0.3 秒 block 均 finite／non-zero；warmup 後 p50 `190.6 ms`，steady-state RTF 約 `0.633` | `artifacts/seed-vc/realtime-tiny/seed-vc-realtime-tiny-test.json` |
+| realtime-tiny 60 秒連續 headless GPU | PASS | 200 個 0.3 秒 block；p50 `122.0 ms`、p95 `146.6 ms`、mean RTF `0.4312`、200/200 finite／non-zero | `artifacts/seed-vc/realtime-long-60s/seed-vc-realtime-tiny-test.json` |
 | realtime-tiny warmup | INFO | 首個 block 約 `9.34 s`；模型載入約 `38.69 s`，不可當成穩態延遲 | 同上 |
 | PortAudio／麥克風端到端 | WAITING | headless 測試刻意繞過 PortAudio，尚未驗證實際音訊裝置與回聲／斷音 | 同上 `audio_device_e2e` |
 
@@ -39,7 +40,7 @@ Set-Location D:\AetherTune
 
 - 上游推論流程提示應明確傳入 `sampling_rate`；目前仍能產生結果，但應在後續 wrapper 修補或向上游確認。
 - checkpoint 載入時略過 `estimator.input_pos` 與 `estimator.f0_embedder.weight` 兩個 shape mismatch keys；本次沒有因此中止，但尚未完成品質回歸。
-- 本次執行期間上游曾嘗試連線檢查 campplus、BigVGAN、Whisper-small 的 HuggingFace HEAD，受到本機網路 socket 限制；本地 cache 足以完成兩次輸出，但若清除 cache 後重跑，需先允許下載。
-- `realtime-tiny` 已完成官方 streaming inference 的 headless latency 測試；官方 GUI、PortAudio、實際麥克風與回放端到端仍未驗證。
-- 尚未做人工聽測、MOS／相似度比較、長時間 realtime 穩定性與多說話者測試；60 秒 offline 長音檔已完成，不能替代 realtime 長測。
+- `realtime-tiny` wrapper 現在 local-first 並預設離線；本機 cache 包含 CampPlus、HiFT 與 Whisper assets。若 cache 不完整，需明確加 `--allow-network-assets`。
+- `realtime-tiny` 已完成 60 秒／200 block headless streaming latency 測試；官方 GUI、PortAudio、實際麥克風與回放端到端仍未驗證。
+- 尚未做人工聽測、MOS／相似度比較、10 分鐘以上 realtime 穩定性與多說話者測試；60 秒 headless PASS 不能替代實體裝置 E2E。
 - 這個 PASS 只涵蓋離線 WAV 產生；CosyVoice2 與 Breeze TTS 2 也已各自完成 CUDA TTS 輸出，但人工音質與即時 latency 仍需分開評估。

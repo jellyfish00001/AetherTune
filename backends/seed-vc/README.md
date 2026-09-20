@@ -1,6 +1,6 @@
 # Seed-VC／Zero-Shot VC
 
-Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。官方同時提供離線 VC 與即時 GUI；本專案已完成 `offline-v1` 男／女雙向與 60 秒長音檔推論，以及 `realtime-tiny` headless GPU streaming benchmark。實際麥克風／PortAudio 端到端仍需另外驗證。
+Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。官方同時提供離線 VC 與即時 GUI；本專案已完成 `offline-v1` 男／女雙向與 60 秒長音檔推論，以及 `realtime-tiny` 的 3 block smoke 與 200 block／60 秒 headless GPU streaming。實際麥克風／PortAudio 端到端仍需另外驗證。
 
 ## 輸入契約
 
@@ -41,6 +41,18 @@ Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔
   --output-dir .\artifacts\seed-vc\realtime-tiny
 ```
 
+使用本機 cache 做 60 秒連續 headless streaming：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-realtime-tiny-test.py `
+  --source .\artifacts\seed-vc\long\source-60s.wav `
+  --target .\dataset\reference-voices\voice-female-f1.wav `
+  --blocks 200 --block-time 0.30 --diffusion-steps 10 --fp16 `
+  --output-dir .\artifacts\seed-vc\realtime-long-60s
+```
+
+測試預設 `local-first` 且設定 Hugging Face offline mode；若本機 cache 不完整，才明確加上 `--allow-network-assets`。
+
 長音檔可先產生 60 秒 source，再用一般 offline runner：
 
 ```powershell
@@ -63,8 +75,9 @@ New-Item -ItemType Directory -Force .\artifacts\seed-vc\long | Out-Null
 - 女聲 → 男聲：RTF `0.3997`，結果與 manifest 位於 `artifacts/seed-vc/female-to-male/`。
 - 60 秒男聲 → 女聲：RTF `0.3165`，結果與 manifest 位於 `artifacts/seed-vc/long/male-to-female/`。
 - realtime-tiny：3 個 block 均產生 finite／non-zero output；warmup 後 p50 `190.6 ms`、steady-state RTF 約 `0.633`。
+- realtime-tiny 60 秒連續：200 個 block 均產生 finite／non-zero output；p50 `122.0 ms`、p95 `146.6 ms`、mean RTF `0.4312`。
 
-這代表「可以執行並產生 WAV」與「headless GPU streaming 可跑」已通過；聲音相似度、自然度、PortAudio 麥克風端到端、長時間 realtime 穩定性仍需人工聽測及獨立驗收。所有測試都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/seed-vc-verification-latest.md`](../../docs/seed-vc-verification-latest.md)。
+這代表「可以執行並產生 WAV」與「60 秒 headless GPU streaming 可跑」已通過；聲音相似度、自然度、PortAudio 麥克風端到端、官方 GUI 與 10 分鐘以上穩定性仍需獨立驗收。所有測試都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/seed-vc-verification-latest.md`](../../docs/seed-vc-verification-latest.md)。
 
 官方 repo：<https://github.com/Plachtaa/seed-vc>
 

@@ -15,6 +15,7 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Callable
 
 import librosa
 import numpy as np
@@ -34,6 +35,47 @@ def load_official_module(repo: Path):
     return module
 
 
+def find_local_hf_asset(repo: Path, repo_id: str, filename: str) -> Path | None:
+    """先找專案內已下載的 HF asset，避免測試時無預警連線。"""
+    direct = repo / filename
+    if direct.is_file():
+        return direct
+    cache_root = repo / "checkpoints" / f"models--{repo_id.replace('/', '--')}" / "snapshots"
+    if cache_root.is_dir():
+        for snapshot in sorted(cache_root.iterdir(), reverse=True):
+            candidate = snapshot / filename
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def make_asset_loader(repo: Path, allow_network: bool) -> Callable:
+    """把官方 loader 的網路依賴變成可審計的 local-first 行為。"""
+    from hf_utils import load_custom_model_from_hf as upstream_loader
+
+    def load_asset(repo_id: str, model_filename: str = "pytorch_model.bin", config_filename: str | None = None):
+        model_path = find_local_hf_asset(repo, repo_id, model_filename)
+        if model_path is None:
+            if not allow_network:
+                raise FileNotFoundError(
+                    f"找不到本機 Seed-VC asset：repo={repo_id} file={model_filename}；"
+                    "請先準備 checkpoints cache，或明確傳入 --allow-network-assets"
+                )
+            model_path = Path(upstream_loader(repo_id, model_filename, None))
+        if config_filename is None:
+            return str(model_path)
+        config_path = find_local_hf_asset(repo, repo_id, config_filename)
+        if config_path is None:
+            if not allow_network:
+                raise FileNotFoundError(
+                    f"找不到本機 Seed-VC config：repo={repo_id} file={config_filename}"
+                )
+            config_path = Path(upstream_loader(repo_id, config_filename, None))
+        return str(model_path), str(config_path)
+
+    return load_asset
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True)
@@ -46,6 +88,11 @@ def main() -> int:
     parser.add_argument("--block-time", type=float, default=0.30)
     parser.add_argument("--diffusion-steps", type=int, default=10)
     parser.add_argument("--fp16", action="store_true")
+    parser.add_argument(
+        "--allow-network-assets",
+        action="store_true",
+        help="本機 assets 不足時允許官方 Hugging Face downloader；預設離線可重跑。",
+    )
     args = parser.parse_args()
 
     root = Path.cwd()
@@ -65,7 +112,15 @@ def main() -> int:
     device = torch.device("cuda:0")
     # 官方 real-time-gui.py 以 repo cwd 解析 hifigan/config/cache 相對路徑。
     os.chdir(repo)
+    if not args.allow_network_assets:
+        # WhisperModel / AutoFeatureExtractor 由 transformers 自己解析 cache；
+        # 將離線模式設在 import 前，避免已存在的本機 cache 仍被拿去做 HEAD。
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
     module = load_official_module(repo)
+    # 官方 real-time-gui.py 會從 Hugging Face 下載 CampPlus／HiFT；本專案
+    # 已保存可重跑的 local cache，優先使用它，避免網路狀態改變測試結果。
+    module.load_custom_model_from_hf = make_asset_loader(repo, args.allow_network_assets)
     module.device = device
     model_args = SimpleNamespace(checkpoint_path=str(checkpoint), config_path=str(config), fp16=bool(args.fp16))
 
@@ -146,6 +201,7 @@ def main() -> int:
         "p50_latency_ms": float(np.percentile(latencies, 50)) if latencies.size else None,
         "p95_latency_ms": float(np.percentile(latencies, 95)) if latencies.size else None,
         "mean_rtf": float(np.mean([row["rtf"] for row in rows])) if rows else None,
+        "asset_mode": "local-first-network-opt-in" if not args.allow_network_assets else "local-first-network-allowed",
         "output_wav": str(output_wav.relative_to(root)),
         "audio_device_e2e": "WAITING; this test bypasses PortAudio/microphone",
     }
