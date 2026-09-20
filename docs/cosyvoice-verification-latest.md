@@ -26,7 +26,7 @@
 | Inference speed | PASS（離線） | load 30.13 s、inference 12.98 s、RTF `1.2059` |
 | FFmpeg decode | PASS | WAV 可解碼，無 error |
 | ONNX frontend CUDA provider（預設環境） | WAITING（非阻塞） | `libcudnn.so.8` 缺失，預設 frontend fallback 到 CPU；主模型仍以 CUDA 完成輸出 |
-| speech tokenizer + cuDNN 8 isolated probe | PASS（partial） | `artifacts/cosyvoice-frontend/cudnn8-gpu.json`；實際 Node provider 包含 `CUDAExecutionProvider`，輸出 finite |
+| speech tokenizer + cuDNN 8 isolated probe | PASS（partial） | `artifacts/cosyvoice-frontend/cudnn8-gpu-final.json`；`session_providers` 含 `CUDAExecutionProvider`、`executed_providers` 含 CUDA，輸出 finite |
 | Faster-Whisper STT | PASS（draft） | `artifacts/stt/voice-male-m1.json`、`voice-female-f1.json`；language=`ja` |
 | Exact transcript 人工核對 | WAITING | 女聲 STT 有「いっている／言っている」文字差異；clone smoke 已完成，但正式 voice clone 仍應人工聽核 |
 | Unified `speech-reconstruction-run.ps1` | PASS | `cosyvoice-wrapper-smoke-fixed.wav`、24 kHz、CUDA runtime、workflow manifest |
@@ -67,18 +67,26 @@ CosyVoice source 需要把下列兩個路徑放入 `PYTHONPATH`：
 
 1. 人工逐字聽核男女 reference transcript，確認 draft 是否為 exact transcript。
 2. 完成 CosyVoice 男／女輸出人工聽測與相似度備註。
-3. 已用隔離 `/tmp` wheel 測得 speech tokenizer 的 cuDNN 8 + CUDA provider；正式 CosyVoice wrapper 尚未把這個 library path 設為預設，避免覆蓋目前 PyTorch cuDNN 9 runtime。
+3. 預設 CosyVoice 主流程仍不強制載入 cuDNN 8；目前以獨立 probe wrapper 驗證 speech tokenizer CUDA，避免覆蓋正式 PyTorch cuDNN 9 runtime。CampPlus embedding 仍由上游固定使用 CPU。
 
 ## cuDNN 8 partial probe
 
-目前 CosyVoice venv 裝的是 `nvidia-cudnn-cu12==9.7.1.26`，ONNX Runtime `1.18.0` 未設定 library path 時先因 `libcublasLt.so.12`／cuDNN 相依性無法建立 CUDA session，實際 fallback CPU。用隔離的 `nvidia-cudnn-cu12==8.9.7.29` wheel 與 venv CUDA libraries，在程序啟動前設定 `LD_LIBRARY_PATH` 後，probe 實測：
+目前 CosyVoice venv 裝的是 `nvidia-cudnn-cu12==9.7.1.26`，ONNX Runtime `1.18.0` 未設定 library path 時先因 `libcublasLt.so.12`／cuDNN 相依性無法建立 CUDA session，實際 fallback CPU。用隔離的 `nvidia-cudnn-cu12==8.9.7.29` wheel 與 CUDA libraries，在程序啟動前設定 `LD_LIBRARY_PATH` 後，持久化 probe 實測通過：
 
-```bash
-export LD_LIBRARY_PATH=/tmp/aethertune-cudnn8-probe/lib/python3.10/site-packages/nvidia/cudnn/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cublas/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cuda_runtime/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cufft/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/curand/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cusolver/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/cusparse/lib:/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/lib/python3.10/site-packages/nvidia/nvjitlink/lib
-export PYTHONPATH=/mnt/d/AetherTune/tools/external/CosyVoice:/mnt/d/AetherTune/tools/external/CosyVoice/third_party/Matcha-TTS
-/mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/bin/python /mnt/d/AetherTune/tools/cosyvoice-frontend-probe.py \
-  --model /mnt/d/AetherTune/models/speech-reconstruction/cosyvoice/speech_tokenizer_v2.onnx \
-  --output /mnt/d/AetherTune/artifacts/cosyvoice-frontend/cudnn8-gpu.json
+先建立一次隔離 probe env（不要安裝到正式 CosyVoice venv）：
+
+```powershell
+wsl.exe -d Ubuntu -- bash -lc 'set -e; uv venv --python 3.10 /mnt/d/AetherTune/artifacts/cosyvoice-frontend/cudnn8-probe; uv pip install --python /mnt/d/AetherTune/artifacts/cosyvoice-frontend/cudnn8-probe/bin/python nvidia-cudnn-cu12==8.9.7.29'
 ```
+
+再由 PowerShell 執行專案 wrapper；它會在 Python 啟動前設定 `LD_LIBRARY_PATH`，並把結果寫入 canonical artifact：
+
+```powershell
+& .\tools\cosyvoice-frontend-cudnn8-probe.ps1
+```
+
+等價的低階命令與 library 清單不再需要手動拼接；wrapper 會檢查 `artifacts/cosyvoice-frontend/cudnn8-probe/lib/python3.10/site-packages/nvidia/cudnn/lib/libcudnn.so.8`。整個 probe env 位於 ignored artifacts，不會進 Git，也不會覆蓋正式 CosyVoice venv。
+
+最新結果：`artifacts/cosyvoice-frontend/cudnn8-gpu-final.json`，`status=PASS`、`onnxruntime=1.18.0`、`session_providers` 含 `CUDAExecutionProvider`、`executed_providers` 含 `CUDAExecutionProvider`，且 `finite_outputs=true`。wrapper 內部已固定使用 probe env 的 cuBLAS/cuBLASLt，避免 PowerShell scalar／array 串接造成 library path 損壞。
 
 這個 partial PASS 不能改寫上游 `EmbeddingExtractor` 的設計：`campplus_session` 仍明確指定 `CPUExecutionProvider`。因此目前正式語音重建仍可用，但狀態應寫成「主模型 CUDA + speech tokenizer 可選 CUDA；CampPlus CPU」，不是全 frontend GPU。

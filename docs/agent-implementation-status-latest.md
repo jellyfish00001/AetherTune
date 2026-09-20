@@ -14,7 +14,7 @@
 | 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 10 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
 | 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash | 現有四組仍是 `candidate`；source、license、f0、sample rate、revision、dataset 等仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
 | 6 | Breeze `sox`、`flash-attn`、`fast-all` | `fast-all PASS`；project-local SoX `PASS`；flash-attn `WAITING` | Breeze eager、`-FastAll` 與 local SoX runtime 可用 | system SoX 尚未安裝；`flash-attn==2.8.3` 尚未成功 import；人工聽測未完成 | [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md) |
-| 7 | CosyVoice frontend cuDNN 8 GPU | partial `PASS` | 主模型 CUDA；隔離 cuDNN 8 probe 證明 speech tokenizer node 實際使用 CUDA | 預設 wrapper 不載入隔離 cuDNN 8；CampPlus 上游明確固定 CPU，因此不是全 frontend GPU | [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) |
+| 7 | CosyVoice frontend cuDNN 8 GPU | partial `PASS` | 主模型 CUDA；持久化專案 wrapper 可重跑隔離 cuDNN 8 probe，且最新 artifact 證明 speech tokenizer node 實際使用 CUDA | 預設主流程不載入隔離 cuDNN 8；CampPlus 上游明確固定 CPU，因此不是全 frontend GPU | [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) |
 | 8 | RVC training data audit、訓練命令、模型註冊 | tooling `PASS`；資料 `BLOCKED` | 可依 guide audit、dry-run register、驗證 hash 與 provenance 欄位 | `dataset/raw` 目前沒有 WAV，audit 正確回傳 exit 2；必須放入有授權乾聲並補完整 metadata 才能訓練／ready | [`model-training-guide.md`](model-training-guide.md)、[`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
 
 ## 目前可直接使用的路線
@@ -35,7 +35,7 @@
 - Seed-VC：可補 PortAudio／官方 GUI、實體 loopback 與長時間穩定性；目前 headless 測試不涵蓋麥克風權限與裝置 buffer。
 - 四方法比較：可加入人工聽測表或固定評分規則，但需要使用者實際聽音與確認評分，不應由 Agent 代填主觀音質結論。
 - RVC provenance：可在使用者提供有授權的 raw WAV、來源、license、訓練設定後重新 audit、register 與 ready gate。
-- Breeze／CosyVoice：SoX、flash-attn、正式 cuDNN 8 default wrapper 都需要額外 runtime 決策；目前已有可重跑的部分驗證命令。
+- Breeze／CosyVoice：system SoX、flash-attn、人工音質與預設 runtime 仍有可選優化；CosyVoice 隔離 cuDNN 8 probe 已有可重跑 GPU 證據，但不會覆蓋預設 PyTorch cuDNN 9 runtime。
 
 ## 建議下一步
 
