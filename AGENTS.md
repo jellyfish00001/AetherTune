@@ -28,7 +28,7 @@ AetherTune 同時管理三條語音路線：
 
 ## 3. 目前已知狀態
 
-- RVC：基礎環境與 FCPE/RMVPE probe 已有證據；四組角色模型已登錄為 `candidate`，但 metadata 欄位仍有 `unknown`，尚不可視為 `ready`。
+- RVC：基礎環境與 FCPE/RMVPE probe 已有證據；四組角色模型已登錄為 `candidate`，VCClient 已完成 role slot/pipeline 選擇層，但 REST conversion probe 被 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 阻塞；metadata 欄位仍有 `unknown`，尚不可視為 `ready`。
 - Seed-VC：`offline-v1` 男→女與女→男已產生 WAV，manifest 在 `artifacts/seed-vc/`；realtime tiny 與人工聽測尚未完成。
 - CosyVoice：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 已建立；WSL CUDA tensor gate WAITING，不能宣稱 TTS 可用。
 - Breeze TTS 2：PLANNED。

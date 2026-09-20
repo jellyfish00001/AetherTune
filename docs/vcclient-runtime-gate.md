@@ -5,7 +5,7 @@
 專案 `.venv` 與 VCClient 是兩個不同 runtime。現在的本機證據是：
 
 - AetherTune `.venv`：Torch `2.7.1+cu128`，RTX 5060 Ti `sm_120`，實際 CUDA tensor op 成功。
-- VCClient `2.1.4-alpha cuda`：embedded Torch `2.7.0+cu118`；啟動 log 顯示 CUDA build `11.8`，並曾警告 `sm_120` 不在該 PyTorch build 的相容清單。
+- VCClient `2.1.4-alpha cuda`：embedded Torch `2.7.0+cu118`；啟動 log 顯示 CUDA build `11.8`，並曾警告 `sm_120` 不在該 PyTorch build 的相容清單。最新重啟又出現 module/sample 檔案缺失，服務未能維持。
 - VCClient log 已證明 GPU discovery、sample ONNX model import 與 input/output shape 解析；這仍不是角色模型的實際音訊推論證據。
 
 因此不能用專案 venv 的 PASS 代替 VCClient PASS，也不能因 Web UI `HTTP 200` 或 sample slot 存在就宣布即時變聲可用。
@@ -24,4 +24,4 @@
 - 若前端的 ONNX 模式可推論但 CUDA provider 失敗：保留 CPU/DirectML 作為相容性實驗，重新量測延遲；不能把 CPU 輸出標為 GPU 即時方案。
 - 若只能載入模型、不能產生輸出：保留 WAITING/BLOCKED，並將錯誤 log 與測試 artifact 登記到報告。
 
-目前狀態：`WAITING — role model inference not yet executed; embedded cu118/sm_120 compatibility not proven`。
+目前狀態：`BLOCKED/WAITING — role model pipeline selected and REST conversion attempted, but packaged API raises missing vc_chunk_sec/chunk_sec attributes; output WAV and stable embedded cu118/sm_120 inference are not proven`。最新短音檔證據見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)。

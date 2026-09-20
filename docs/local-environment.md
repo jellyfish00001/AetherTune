@@ -1,12 +1,12 @@
 # 本機環境盤點
 
-盤點日期：2026-09-19（Asia/Taipei）
+盤點日期：2026-09-20（Asia/Taipei）
 
 ## Repository
 
 - 工作目錄：`D:\AetherTune`
 - 遠端：`https://github.com/jellyfish00001/AetherTune.git`
-- 狀態：空倉庫，`main` 尚無 commit；本次建立第一批文件與目錄骨架。
+- 狀態：`main` 已推送多個可追蹤階段；第三方 runtime 與模型仍由 `.gitignore` 排除，Git 只保存架構、manifest、工具與驗證文件。
 
 ## 已觀察到的能力
 
@@ -18,7 +18,7 @@
 | Python launcher | `py -0p` 在本次 shell 未列出 3.12 | 以專案 venv 絕對路徑為準；新 shell 再重新確認 launcher |
 | FFmpeg | Gyan FFmpeg 9.0.1；`ffmpeg.exe` 與 `ffprobe.exe` 已以絕對路徑執行驗證 | 已補齊執行檔；當前 shell 的 `ffmpeg` PATH 尚未刷新，需新 shell 再驗證 |
 | 音訊裝置 | Windows/FFmpeg 已列舉 `VB-Audio Virtual Cable`、`VB-Audio Voicemeeter VAIO` 與 `HyperX QuadCast S` 麥克風 | 虛擬端點與實體麥克風已存在；仍需做實際 loopback |
-| VCClient | `2.1.4-alpha cuda` 已解壓並完成首次初始化；`127.0.0.1:18000` 回應 HTTP 200 | UI/服務層通過；角色模型 GPU 推論仍待 `.pth/.index` 實測 |
+| VCClient | `2.1.4-alpha cuda` 已解壓並完成首次初始化；`127.0.0.1:18000` 回應 HTTP 200 | UI/服務層與 role slot 列表通過；REST conversion probe 目前 HTTP 500，仍待相容 package 或其他 client path |
 | VST 線路 | Light Host Modern `v1.3.1` portable 與 Graillon Free `3.2` VST3/VST2 已部署 | 尚需在 host 內掃描插件、選 input/output 並完成 loopback |
 
 ## 尚未證實的項目

@@ -1,7 +1,7 @@
 # AetherTune 完整操作流程
 
 文件版本：2026-09-20
-目前狀態：`Wiring deployed / role dataset and model pending`
+目前狀態：`Wiring deployed / role model candidate / VCClient conversion blocked`
 
 使用入口：先讀根目錄 `README.md` 選擇 RVC／Seed-VC／STT → TTS；本文件只負責 RVC 選定後的 Windows 即時路由與驗收。RVC 資料準備與訓練請先讀 [`model-training-guide.md`](model-training-guide.md)。
 
@@ -69,7 +69,7 @@ Set-Location D:\AetherTune\tools\external\Retrieval-based-Voice-Conversion-WebUI
 & D:\AetherTune\.venv\Scripts\python.exe -m zipfile -e .model-downloads\mute.zip logs
 ```
 
-這些檔案屬於訓練基礎資產，不是使用者角色模型。工作區目前另有 4 組 `.pth/.index`，但尚未完成 `models/model-register.csv` 的來源、hash、取樣率、f0 與授權交接，因此不能直接視為 ready。
+這些檔案屬於訓練基礎資產，不是使用者角色模型。工作區另有 4 組 `.pth/.index`，已完成 `models/model-register.csv` 的檔案路徑與 hash candidate 登錄；來源、授權、訓練取樣率、f0、revision 與 dataset metadata 仍待補齊，因此不能直接視為 ready。VCClient 的實際短音檔 conversion probe 另見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)。
 
 ### Phase 1：資料準備
 
@@ -119,7 +119,7 @@ TTS 生成資料只能作為明確標記的補充實驗，不應默認等同於�
 D:\AetherTune\tools\external\VCClient\2.1.4-alpha\dist\main\start_http.bat
 ```
 
-啟動後開啟 `http://127.0.0.1:18000/`。目前已用內建示例模型確認 Web UI 與控制頁可回應；工作區角色模型雖已存在，仍要先完成 register，再逐一上傳／載入與實際推論驗證。
+啟動後開啟 `http://127.0.0.1:18000/`。工作區角色模型已完成檔案與 hash 的 `candidate` register；VCClient 仍要逐一透過 slot/upload path 建立，並完成實際推論驗證。這一版最新 REST probe 被 packaged API error 阻塞，請先看 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)。
 
 完成後的流程是：
 
@@ -183,5 +183,5 @@ Graillon VST3 預設位置：`C:\Program Files\Common Files\VST3\Auburn Sounds G
 - 尚無真實麥克風端到端延遲數字。
 - 尚未由 Light Host 完成實際 VST chain 與 loopback 聽測。
 - 尚無 Discord/OBS 收音證據。
-- VCClient 2.1.4-alpha 的啟動輸出顯示其內建 PyTorch 對 RTX 5060 Ti `sm_120` 有相容性警告；因此目前只把它標成「服務/UI 可用」，GPU 角色推論仍須在模型載入後驗證，必要時改用 ONNX/DirectML 或更新版前端。
+- VCClient 2.1.4-alpha 的啟動輸出顯示其內建 PyTorch 對 RTX 5060 Ti `sm_120` 有相容性警告；此外最新重啟曾遺失 module/sample 檔案並退出。因此目前只把它標成「服務/UI 可用」，GPU 角色推論仍須在模型載入後驗證，必要時改用 ONNX/DirectML 或更新版前端。
 - 「100% 開源免費」不成立；核心可開源，路由與部分插件是免費但可能閉源。

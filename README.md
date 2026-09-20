@@ -100,7 +100,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 ## 目前缺少什麼
 
 - RVC 四組現有 `.pth/.index` 已完成檔案與 hash 的 candidate 登錄，但來源、授權、f0、取樣率、revision 與 dataset metadata 尚未補齊。
-- VCClient 尚未完成工作區角色模型載入後的真實推論與延遲驗收。
+- VCClient 已完成 role slot 讀取與 pipeline 選擇層驗證，但短音檔 REST conversion 目前因 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 回傳 HTTP 500；輸出 WAV、延遲與長時間穩定性仍未驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。
 - CosyVoice 尚未通過 WSL CUDA tensor gate、model load 與 TTS WAV 驗收。

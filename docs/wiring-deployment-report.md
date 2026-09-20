@@ -68,7 +68,7 @@
 | VCClient | 即時 RVC 前端 | PASS/待模型 | `tools/external/VCClient/2.1.4-alpha`；localhost HTTP 200 |
 | Light Host Modern | VST3/VST2 host 與 serial chain | PASS/待設定 | `tools/external/LightHostModern/app/Light Host Modern.exe` |
 | Graillon Free 3.2 | 微量 pitch correction | PASS/待 host chain | `C:\Program Files\Common Files\VST3\Auburn Sounds Graillon 3.vst3`；尚無 Light Host active/bypass 證據 |
-| 角色 `.pth/.index` | 使用者角色音色 | WAITING | `models/weights/`、`models/indexes/` 有 4 組同名配對，但 `models/model-register.csv` 尚無資料列；見 `docs/current-rvc-model-inventory.md` |
+| 角色 `.pth/.index` | 使用者角色音色 | WAITING | `models/weights/`、`models/indexes/` 有 4 組同名配對，已在 `models/model-register.csv` 登錄為 `candidate`；metadata、ready gate 與 VCClient conversion evidence 尚未完成；見 `docs/current-rvc-model-inventory.md` |
 
 注意：RVC、Light Host Modern 等有開源部分；VB-CABLE、Voicemeeter、Graillon 是免費／免費授權第三方元件，不應統稱為 100% 開源。
 
@@ -173,7 +173,7 @@ D:\AetherTune\
 |---|---|
 | P0 來源、版本、授權 | RVC、VCClient、Light Host、Auburn、VB-Audio 官方來源已記錄；授權仍要依各元件條款管理 |
 | P1 檔案、hash、GPU、裝置、localhost | 部分通過；專案 Torch 實際 CUDA op 成功，但 VCClient embedded cu118/sm_120 仍 WAITING；詳見 `wiring-verification-latest.md` |
-| P2 真實角色模型離線推論 | 尚未完成；模型檔案已存在，但尚未完成 register、來源／授權核對與實際輸出 |
+| P2 真實角色模型離線推論 | 已完成 slot／pipeline 選擇層與 conversion probe；REST conversion 被 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 阻塞，尚無可驗證輸出 WAV；register 來源／授權 metadata 仍待補齊 |
 | P3 麥克風→VC→VST→loopback→Discord/OBS | 尚未完成；VB-CABLE 合成 loopback PASS，但 Voicemeeter `Input → B1` 合成 loopback 目前 RMS=0，Light Host 的實際 device/chain 與 Discord/OBS 仍需設定與聽測 |
 
 合成音證據必須同時包含 WAV 與同名 JSON；JSON 保存 48 kHz、時長、frames、RMS、peak、測試參數與 WAV SHA-256。既有 WAV 若沒有 JSON，重新執行 loopback 後才能重新判定。Voicemeeter B1 全零只能表示當次沒有收到足夠訊號，不能直接推論單一原因。
