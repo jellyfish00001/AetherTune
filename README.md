@@ -45,18 +45,21 @@ Set-Location D:\AetherTune
 
 交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。完整輸入契約、警告與驗證結果見 [`docs/seed-vc-verification-latest.md`](docs/seed-vc-verification-latest.md) 及 [`backends/seed-vc/README.md`](backends/seed-vc/README.md)。
 
-### RVC：先用官方 sample 驗證離線轉換
+### RVC：先用專案 FCPE + GPU，VCClient packaged 另行驗收
 
-VCClient 官方 sample slot 0 的 REST probe 可以送出 30 個 chunk，但目前舊 artifact 只有 120 bytes、WAV 不是有效可播放輸出，因此只能算 API smoke test `WAITING`，不是 RVC 完成證據。先啟動 VCClient，再執行：
+四組本機角色模型已由專案 RVC pipeline 完成 `FCPE + cuda:0` 離線推論；先用這條路線開始使用。VCClient packaged runtime 的官方 modules 已修復，但真實 role conversion 仍被 `SlotInfo.chunk_sec` HTTP 500 阻塞，不能把 120-byte 全零 response 當成成功。註冊與最新證據見 [`docs/vcclient-packaged-repair-latest.md`](docs/vcclient-packaged-repair-latest.md)。
+
+先啟動 VCClient，再以安全註冊器建立新 slot：
 
 ```powershell
-& .\tools\vcclient-rvc-probe.ps1 `
-  -SlotIndex 0 `
-  -ChunkSec 0.5 `
-  -FfmpegPath 'C:\Users\User\AppData\Local\CapCut\Apps\8.5.0.3590\ffmpeg.exe'
+& .\tools\vcclient-rvc-register.ps1 `
+  -ModelPath .\models\weights\Wukong_HeroicMale.pth `
+  -IndexPath .\models\indexes\Wukong_HeroicMale.index `
+  -SlotIndex 8 `
+  -Name 'AetherTune Wukong Heroic Male'
 ```
 
-本專案目前真正的 RVC `FCPE + GPU` 證據是 `tools/rvc-fcpe-gpu-infer.py` 的四組角色矩陣；VCClient sample probe 仍需修復非零 WAV 輸出後才可升級。角色模型仍須依 [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md) 補 metadata、註冊 slot 並重新驗收。
+再使用 `tools/vcclient-rvc-probe.ps1` 驗證有效非零 WAV；若出現 packaged API error，請看上述 report，不要把服務 HTTP 200 視為可用。
 
 ### RVC：先準備資料與註冊模型
 

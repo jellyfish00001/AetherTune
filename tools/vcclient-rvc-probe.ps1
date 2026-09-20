@@ -6,6 +6,7 @@ param(
     [int]$SlotIndex = 7,
     [string]$OutputRoot = '.\artifacts\vcclient-rvc-test',
     [switch]$ConfigureSlot,
+    [switch]$InitializeAfterConfigure,
     [double]$ChunkSec = 0.5
 )
 
@@ -17,6 +18,14 @@ $restoreError = $null
 $convertedBytes = 0
 $successfulChunks = 0
 $totalChunks = 0
+$chunkMetrics = [System.Collections.Generic.List[object]]::new()
+$outputRms = 0.0
+$outputPeak = 0.0
+$outputNonzeroSamples = 0
+$outputFiniteSamples = 0
+$zeroOutputChunks = 0
+$latencyP50Ms = $null
+$latencyP95Ms = $null
 $slot = $null
 $initialConfiguration = $null
 $client = $null
@@ -70,7 +79,7 @@ try {
     }
 
     if ($ConfigureSlot) {
-        # VCClient 2.1.4-alpha 的 configuration PUT 在部分 packaged 狀態會清空 slot；
+        # VCClient 2.1.4-alpha 的 configuration PUT 可能清空 slot；
         # 只有明確指定 -ConfigureSlot 才修改服務狀態，預設直接測試目前已選 slot。
         $initialConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
         $probeConfiguration = $initialConfiguration | Select-Object *
@@ -78,7 +87,11 @@ try {
         $probeConfiguration.input_sample_rate = 48000
         $probeConfiguration.output_sample_rate = 48000
         [void](Invoke-JsonRequest -Method Put -Uri "$BaseUrl/api/configuration-manager/configuration" -Body $probeConfiguration)
-        [void](Invoke-JsonRequest -Method Post -Uri "$BaseUrl/api/operation/initialize")
+        if ($InitializeAfterConfigure) {
+            # 已知 packaged 2.1.4-alpha 的 initialize 會重建/清空 model_dir；只有使用者
+            # 明確要求時才執行，並把它當成破壞性 lifecycle 操作記錄在報告裡。
+            [void](Invoke-JsonRequest -Method Post -Uri "$BaseUrl/api/operation/initialize")
+        }
     }
 
     $inputRaw = Join-Path $runDir 'input-48k-mono-f32le.raw'
@@ -107,18 +120,28 @@ try {
         $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, "$BaseUrl/api/voice-changer/convert_chunk_bulk")
         $request.Headers.Add('x-timestamp', [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString())
         $request.Content = $form
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $response = $client.SendAsync($request).GetAwaiter().GetResult()
             $responseBytes = $response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+            $stopwatch.Stop()
             if (-not $response.IsSuccessStatusCode) {
                 $detail = [Text.Encoding]::UTF8.GetString($responseBytes)
                 throw "convert_chunk_bulk HTTP $([int]$response.StatusCode): $detail"
             }
+            $chunkMetrics.Add([ordered]@{
+                    chunk_index = $totalChunks
+                    input_bytes = $length
+                    output_bytes = $responseBytes.Length
+                    latency_ms = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+                    output_all_zero = ($responseBytes.Length -gt 0 -and (@($responseBytes | Where-Object { $_ -ne 0 }).Count -eq 0))
+                })
             if ($responseBytes.Length -gt 0) {
                 $converted.AddRange($responseBytes)
                 $successfulChunks++
             }
         } finally {
+            if ($stopwatch.IsRunning) { $stopwatch.Stop() }
             $request.Dispose()
             $form.Dispose()
         }
@@ -130,7 +153,30 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "FFmpeg 輸出 WAV 轉換失敗，exit=$LASTEXITCODE"
     }
-    if ($convertedBytes -lt 4096) {
+    if (($chunkMetrics | Where-Object { $_.output_all_zero }).Count -gt 0) {
+        $zeroOutputChunks = @($chunkMetrics | Where-Object { $_.output_all_zero }).Count
+    }
+    if ($convertedBytes -ge 4 -and ($convertedBytes % 4) -eq 0) {
+        $samples = [float[]]::new([int]($convertedBytes / 4))
+        [Buffer]::BlockCopy($converted.ToArray(), 0, $samples, 0, $convertedBytes)
+        $sumSquares = 0.0
+        foreach ($sample in $samples) {
+            if ([float]::IsFinite($sample)) {
+                $outputFiniteSamples++
+                $absolute = [Math]::Abs([double]$sample)
+                if ($absolute -gt 0) { $outputNonzeroSamples++ }
+                if ($absolute -gt $outputPeak) { $outputPeak = $absolute }
+                $sumSquares += ([double]$sample * [double]$sample)
+            }
+        }
+        if ($outputFiniteSamples -gt 0) { $outputRms = [Math]::Sqrt($sumSquares / $outputFiniteSamples) }
+    }
+    $latencies = @($chunkMetrics | ForEach-Object { [double]$_.latency_ms } | Sort-Object)
+    if ($latencies.Count -gt 0) {
+        $latencyP50Ms = $latencies[[Math]::Min($latencies.Count - 1, [int][Math]::Floor(($latencies.Count - 1) * 0.50))]
+        $latencyP95Ms = $latencies[[Math]::Min($latencies.Count - 1, [int][Math]::Floor(($latencies.Count - 1) * 0.95))]
+    }
+    if ($convertedBytes -lt 4096 -or $outputNonzeroSamples -eq 0 -or $outputFiniteSamples -eq 0) {
         throw "轉換端點只回傳 $convertedBytes bytes，未形成可驗收的語音輸出"
     }
     $status = 'PASS'
@@ -163,6 +209,14 @@ $report = [ordered]@{
     total_chunks = $totalChunks
     successful_chunks = $successfulChunks
     converted_bytes = $convertedBytes
+    zero_output_chunks = $zeroOutputChunks
+    output_rms = [Math]::Round($outputRms, 8)
+    output_peak = [Math]::Round($outputPeak, 8)
+    output_nonzero_samples = $outputNonzeroSamples
+    output_finite_samples = $outputFiniteSamples
+    latency_p50_ms = $latencyP50Ms
+    latency_p95_ms = $latencyP95Ms
+    chunk_metrics = @($chunkMetrics)
     error = $errorMessage
     restore_error = $restoreError
     artifact_dir = $runDir
