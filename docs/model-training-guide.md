@@ -53,7 +53,7 @@ Set-Location D:\AetherTune\tools\external\Retrieval-based-Voice-Conversion-WebUI
 5. 先做候選訓練，約 150–300 epochs 作為起點；epoch 不是品質保證。
 6. 用保留 test set 聽測，不要只看訓練 loss。
 
-目前專案的 FCPE 是 runtime 首選，但「訓練介面是否提供 FCPE」要以實際固定 revision 的 WebUI 為準。不要把 runtime 的 FCPE 設定倒推成訓練 metadata。
+目前專案的 FCPE 是 runtime 首選，但「訓練介面是否提供 FCPE」要以實際固定 revision 的 WebUI 為準。不要把 runtime 的 FCPE 設定倒推成訓練 metadata；若訓練 revision 無法證明，register 的 `f0`／`rvc_revision` 必須保留 WAITING。
 
 ## 5. 交接 `.pth` 與 `.index`
 
@@ -74,7 +74,23 @@ Get-FileHash $weights -Algorithm SHA256
 Get-FileHash $index -Algorithm SHA256
 ```
 
-再依 `models/model-register.example.csv` 將實際資料寫入 `models/model-register.csv`。至少填入：
+不要直接手動複製 hash；使用註冊腳本建立或更新 CSV。先用 `-DryRun` 檢查計算結果：
+
+```powershell
+& .\tools\rvc-register-model.ps1 `
+  -ModelId my-role `
+  -WeightsPath .\models\weights\my-role.pth `
+  -IndexPath .\models\indexes\my-role.index `
+  -SampleRate 40000 -F0 fcpe -Version v2 `
+  -DatasetBatchId raw-2026-09-21 `
+  -RvcRevision '<固定 RVC commit>' `
+  -SourceUrl '<原始來源或訓練資料說明頁>' `
+  -LicenseOrPermission '<授權／本人同意>' `
+  -TrainingEnvironment '<Python/Torch/GPU>' `
+  -Status candidate -DryRun
+```
+
+確認輸出後移除 `-DryRun` 寫入 `models/model-register.csv`。至少填入：
 
 - `model_id`
 - weights/index 相對路徑與各自 SHA-256
@@ -83,6 +99,14 @@ Get-FileHash $index -Algorithm SHA256
 - RVC version、固定 revision、dataset batch、訓練時間
 - `candidate` 或 `ready`
 - 來源、授權與備註
+
+註冊後執行模型 audit：
+
+```powershell
+& .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py
+```
+
+只有完整 provenance、hash、訓練 metadata 與 `verification_artifact` 才能考慮 `ready`；audit 顯示 `WAITING` 時不要強行升級狀態。
 
 `ready` 只代表檔案與 metadata 完整仍不夠；還要完成離線聽測、VCClient 真實載入、延遲與路由驗收。
 

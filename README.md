@@ -129,7 +129,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 
 ## 目前缺少什麼
 
-- RVC 四組現有 `.pth/.index` 已各自通過 `FCPE + cuda:0` 離線推論並產生非零 WAV；來源、授權、f0、取樣率、revision 與 dataset metadata 仍需人工補齊。
+- RVC 四組現有 `.pth/.index` 已各自通過 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型 hash／配對 audit `PASS`，但來源、授權、f0、取樣率、revision、dataset metadata 與 ready gate 仍 `WAITING`。詳見 [`docs/rvc-model-audit-latest.md`](docs/rvc-model-audit-latest.md)。
 - RVC 即時 latency、長時間穩定性、Light Host chain、VB-CABLE／Voicemeeter／Discord／OBS loopback 仍未驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已完成雙向離線、60 秒長音檔與 realtime-tiny headless latency；仍缺人工聽測、多說話者、PortAudio 麥克風端到端與長時間 realtime 穩定性。

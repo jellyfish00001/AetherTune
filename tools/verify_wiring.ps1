@@ -147,9 +147,12 @@ if ($roleWeights.Count -eq 0 -and $roleIndexes.Count -eq 0) {
         $registeredIndexPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $seenModelIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($model in $registeredModels) {
-            foreach ($field in @('model_id', 'status', 'weights_relative_path', 'index_relative_path', 'weights_sha256', 'index_sha256', 'sample_rate', 'f0', 'version', 'dataset_batch_id', 'rvc_revision')) {
+            foreach ($field in @('model_id', 'status', 'weights_relative_path', 'index_relative_path', 'weights_sha256', 'index_sha256', 'sample_rate', 'f0', 'version', 'dataset_batch_id', 'rvc_revision', 'source_url', 'license_or_permission', 'training_environment')) {
                 if (-not ([string]$model.$field).Trim()) {
                     $modelIssues.Add("$($model.model_id): missing $field")
+                }
+                elseif ([string]$model.$field -match '(?i)^(unknown|pending|pending-manual|replace_with_)') {
+                    $modelIssues.Add("$($model.model_id): $field 仍是未知或 placeholder")
                 }
             }
             if (-not $seenModelIds.Add(([string]$model.model_id).Trim())) {
