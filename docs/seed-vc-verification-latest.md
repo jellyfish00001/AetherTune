@@ -1,6 +1,6 @@
 # Seed-VC 最新驗證
 
-更新日期：2026-09-20
+更新日期：2026-09-21
 
 ## 結論
 
@@ -8,8 +8,8 @@
 
 | 測試 | 狀態 | RTF | 輸出 | manifest |
 |---|---|---:|---|---|
-| 男聲 → 女聲 | PASS | 0.3383 | `artifacts/seed-vc/male-to-female/vc_voice-male-m1_voice-female-f1_1.0_30_0.7.wav` | `artifacts/seed-vc/male-to-female/seed-vc-run.json` |
-| 女聲 → 男聲 | PASS | 0.3997 | `artifacts/seed-vc/female-to-male/vc_voice-female-f1_voice-male-m1_1.0_30_0.7.wav` | `artifacts/seed-vc/female-to-male/seed-vc-run.json` |
+| 男聲 → 女聲 | PASS | 1.1239 | `artifacts/seed-vc/latest-male-to-female/vc_voice-male-m1_voice-female-f1_1.0_30_0.7.wav` | `artifacts/seed-vc/latest-male-to-female/seed-vc-run.json` |
+| 女聲 → 男聲 | PASS | 0.3672 | `artifacts/seed-vc/latest-female-to-male/vc_voice-female-f1_voice-male-m1_1.0_30_0.7.wav` | `artifacts/seed-vc/latest-female-to-male/seed-vc-run.json` |
 
 Runtime：`tools/venvs/seed-vc`、Python 3.10、Torch `2.7.1+cu128`、CUDA available `True`。Checkpoint SHA-256：`8EC8841B20BB46DF9F7E8E570A6946A4B87B940133C7F0E778487FF33841F720`。
 
@@ -31,6 +31,7 @@ Set-Location D:\AetherTune
 
 - 上游推論流程提示應明確傳入 `sampling_rate`；目前仍能產生結果，但應在後續 wrapper 修補或向上游確認。
 - checkpoint 載入時略過 `estimator.input_pos` 與 `estimator.f0_embedder.weight` 兩個 shape mismatch keys；本次沒有因此中止，但尚未完成品質回歸。
+- 本次執行期間上游曾嘗試連線檢查 campplus、BigVGAN、Whisper-small 的 HuggingFace HEAD，受到本機網路 socket 限制；本地 cache 足以完成兩次輸出，但若清除 cache 後重跑，需先允許下載。
 - 尚未執行 `realtime-tiny` 官方 GUI／即時延遲測試。
 - 尚未做人工聽測、MOS／相似度比較、長音檔與多說話者測試。
-- CosyVoice、Breeze TTS 2 與 STT 尚未安裝或執行；它們維持 `PLANNED`，不列入本次 PASS。
+- 這個 PASS 只涵蓋離線 WAV 產生；CosyVoice2 另有 zero-shot TTS PASS，Breeze TTS 2 與完整 STT→TTS 維持 `PLANNED`／`WAITING`。

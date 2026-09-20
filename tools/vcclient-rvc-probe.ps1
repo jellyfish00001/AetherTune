@@ -4,7 +4,9 @@ param(
     [string]$InputWav = '.\tools\external\VCClient\2.1.4-alpha\dist\main\web_front\assets\voices\JVNV\partial\M1_happy_regular_26.wav',
     [string]$FfmpegPath = 'ffmpeg',
     [int]$SlotIndex = 7,
-    [string]$OutputRoot = '.\artifacts\vcclient-rvc-test'
+    [string]$OutputRoot = '.\artifacts\vcclient-rvc-test',
+    [switch]$ConfigureSlot,
+    [double]$ChunkSec = 0.5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,13 +69,17 @@ try {
         throw "找不到 RVC slot_index=$SlotIndex"
     }
 
-    $initialConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
-    $probeConfiguration = $initialConfiguration | Select-Object *
-    $probeConfiguration.current_slot_index = $SlotIndex
-    $probeConfiguration.input_sample_rate = 48000
-    $probeConfiguration.output_sample_rate = 48000
-    [void](Invoke-JsonRequest -Method Put -Uri "$BaseUrl/api/configuration-manager/configuration" -Body $probeConfiguration)
-    [void](Invoke-JsonRequest -Method Post -Uri "$BaseUrl/api/operation/initialize")
+    if ($ConfigureSlot) {
+        # VCClient 2.1.4-alpha 的 configuration PUT 在部分 packaged 狀態會清空 slot；
+        # 只有明確指定 -ConfigureSlot 才修改服務狀態，預設直接測試目前已選 slot。
+        $initialConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
+        $probeConfiguration = $initialConfiguration | Select-Object *
+        $probeConfiguration.current_slot_index = $SlotIndex
+        $probeConfiguration.input_sample_rate = 48000
+        $probeConfiguration.output_sample_rate = 48000
+        [void](Invoke-JsonRequest -Method Put -Uri "$BaseUrl/api/configuration-manager/configuration" -Body $probeConfiguration)
+        [void](Invoke-JsonRequest -Method Post -Uri "$BaseUrl/api/operation/initialize")
+    }
 
     $inputRaw = Join-Path $runDir 'input-48k-mono-f32le.raw'
     $outputRaw = Join-Path $runDir 'output-f32le.raw'
@@ -84,7 +90,7 @@ try {
     }
 
     $inputBytes = [IO.File]::ReadAllBytes((Resolve-Path $inputRaw).Path)
-    $chunkSec = if ($slot.PSObject.Properties.Name -contains 'chunk_sec' -and $slot.chunk_sec) { [double]$slot.chunk_sec } else { 0.2 }
+    $chunkSec = if ($slot.PSObject.Properties.Name -contains 'chunk_sec' -and $slot.chunk_sec) { [double]$slot.chunk_sec } else { $ChunkSec }
     $chunkBytes = [Math]::Max(4, [int]([Math]::Round(48000 * $chunkSec)) * 4)
     $totalChunks = [int][Math]::Ceiling($inputBytes.Length / $chunkBytes)
     $converted = [System.Collections.Generic.List[byte]]::new()
@@ -123,6 +129,9 @@ try {
     & $ffmpegExe -hide_banner -loglevel error -y -f f32le -ar 48000 -ac 1 -i $outputRaw $outputWav
     if ($LASTEXITCODE -ne 0) {
         throw "FFmpeg 輸出 WAV 轉換失敗，exit=$LASTEXITCODE"
+    }
+    if ($convertedBytes -lt 4096) {
+        throw "轉換端點只回傳 $convertedBytes bytes，未形成可驗收的語音輸出"
     }
     $status = 'PASS'
 } catch {

@@ -6,9 +6,9 @@ Windows 語音變聲與語音重建實驗專案。這個專案同時保留三種
 
 | 你想要的結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
-| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 基礎線路已部署；角色模型尚未完成註冊與端到端驗收 |
-| 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 已可直接產生 WAV |
-| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice 模型已下載但 runtime WAITING；Breeze PLANNED |
+| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 官方 sample 離線轉換 `PASS`；四組自有角色與即時音訊鏈路仍 `WAITING` |
+| 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向離線產檔 `PASS`；人工聽測與即時性仍待補 |
+| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice zero-shot TTS `PASS`；完整 STT 與 Breeze `WAITING/PLANNED` |
 
 最簡單的判斷：
 
@@ -25,7 +25,7 @@ Set-Location D:\AetherTune
 & .\tools\voice-backend-check.ps1
 ```
 
-### 目前唯一可直接產生結果的路線：Seed-VC
+### Seed-VC：現在可直接產生男／女聲 WAV
 
 如果 `tools/venvs/seed-vc/` 尚未存在，先執行一次：
 
@@ -45,6 +45,19 @@ Set-Location D:\AetherTune
 
 交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。完整輸入契約、警告與驗證結果見 [`docs/seed-vc-verification-latest.md`](docs/seed-vc-verification-latest.md) 及 [`backends/seed-vc/README.md`](backends/seed-vc/README.md)。
 
+### RVC：先用官方 sample 驗證離線轉換
+
+VCClient 官方 sample slot 0 已完成短音檔轉換驗證。先啟動 VCClient，再執行：
+
+```powershell
+& .\tools\vcclient-rvc-probe.ps1 `
+  -SlotIndex 0 `
+  -ChunkSec 0.5 `
+  -FfmpegPath 'C:\Users\User\AppData\Local\CapCut\Apps\8.5.0.3590\ffmpeg.exe'
+```
+
+這是「官方 sample + packaged VCClient」的離線 PASS，不代表目前四組自有 `.pth/.index` 已可用，也不代表 Discord／OBS 即時 loopback 已通過。角色模型仍須依 [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md) 補 metadata、註冊 slot 並重新驗收。
+
 ### RVC：先準備資料與註冊模型
 
 RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：
@@ -56,9 +69,9 @@ RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：
 
 RVC 的音高策略是 **FCPE 首選、RMVPE 備用**。FCPE 的實際 provider 與延遲以 `tools/fcpe_probe.py` 的 artifact 為準；不要只因套件存在就宣稱 FCPE runtime 已通過。
 
-### STT → TTS：目前先不要當成可用入口
+### CosyVoice 2：可直接做 zero-shot TTS；STT 仍需另外接上
 
-CosyVoice 2 已建立 WSL2 Python 3.10 環境並下載模型，但 WSL CUDA tensor gate 尚未通過；Breeze TTS 2 尚未安裝。這條路線的設計與缺口見 [`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md) 和 [`docs/cosyvoice-verification-latest.md`](docs/cosyvoice-verification-latest.md)。
+CosyVoice 2 已在 WSL2 GPU 產生官方 zero-shot WAV。執行方式、reference transcript 契約與完整證據見 [`docs/cosyvoice-verification-latest.md`](docs/cosyvoice-verification-latest.md)。目前仍需先以 STT 取得並人工核對 source／reference transcript；Breeze TTS 2 尚未安裝。
 
 ## 三種方法的資料流
 
@@ -99,12 +112,12 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 
 ## 目前缺少什麼
 
-- RVC 四組現有 `.pth/.index` 已完成檔案與 hash 的 candidate 登錄，但來源、授權、f0、取樣率、revision 與 dataset metadata 尚未補齊。
-- VCClient 已完成 role slot 讀取與 pipeline 選擇層驗證，但短音檔 REST conversion 目前因 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 回傳 HTTP 500；輸出 WAV、延遲與長時間穩定性仍未驗收。
+- RVC 四組現有 `.pth/.index` 已完成檔案與 hash 的 candidate 登錄，但來源、授權、f0、取樣率、revision 與 dataset metadata 尚未補齊；目前 PASS 是官方 sample slot，不是這四組自有角色。
+- RVC 官方 sample 短音檔 conversion 已取得非零輸出 WAV；GPU provider、四組自有角色、即時 latency、長時間穩定性與 Light Host loopback 仍未驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。
-- CosyVoice 尚未通過 WSL CUDA tensor gate、model load 與 TTS WAV 驗收。
-- Breeze TTS 2 與 STT pipeline 尚未建立。
+- CosyVoice2 官方 zero-shot TTS 已 PASS；完整 STT→TTS、個人 reference 的 exact transcript 與人工聽測仍 `WAITING`。
+- Breeze TTS 2 與 STT pipeline 尚未建立，維持 `PLANNED`／`WAITING`。
 
 狀態意義：`PASS` 是指定檢查或實際流程通過；`WAITING` 是有明確阻塞或尚未完成；`PLANNED` 是尚未開始或仍需選擇。檔案存在、模型下載、UI 可開啟都不等於端到端語音可用。
 

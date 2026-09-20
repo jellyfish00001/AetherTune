@@ -129,7 +129,7 @@ Set-Location D:\AetherTune
 3. 將文字與 reference audio 送入 CosyVoice 或 Breeze。
 4. 保存 STT model/revision、transcript、reference hash、TTS model、輸出 hash 與 RTF。
 
-目前 CosyVoice 模型已下載，但 WSL CUDA gate 尚未通過；Breeze 尚未安裝。因此 `tools/speech-reconstruction-run.ps1` 目前是安全的流程入口，不是已完成的 TTS runner。不要把它當成可產生 CosyVoice/Breeze WAV 的命令。
+CosyVoice2 的 zero-shot TTS 已可在 WSL2 直接產生 WAV；完整 STT→TTS 仍需另外接 STT 並人工核對 transcript。`tools/speech-reconstruction-run.ps1` 仍是尚未完成的總流程 placeholder，不是 CosyVoice/Breeze 的實際 runner。先使用 [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) 的可重跑命令。
 
 詳細狀態：[`backends/speech-reconstruction/README.md`](../backends/speech-reconstruction/README.md)、[`docs/cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md)。
 

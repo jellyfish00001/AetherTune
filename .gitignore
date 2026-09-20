@@ -37,6 +37,7 @@ tools/cache/*
 tools/venvs/*
 logs/
 artifacts/
+vcclient*.log
 
 # Local configuration and secrets
 .env

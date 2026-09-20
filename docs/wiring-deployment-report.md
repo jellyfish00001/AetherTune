@@ -18,7 +18,7 @@
 
 > 安裝與端點層已就緒；現在主要剩下授權素材、4 組既有 RVC 角色模型的 provenance/register、角色模型載入，以及第一次由 Light Host 設定 input/output 後的 P2/P3 聲音驗收。
 
-最新可重跑的唯讀結果：[`wiring-verification-latest.md`](wiring-verification-latest.md)，目前 `PASS=15 / WAITING=6 / BLOCKED=0`。這個摘要已把「角色模型檔案存在但尚未 register、VCClient embedded CUDA 尚未以角色模型驗證、Graillon 尚未在 host chain 通過、Voicemeeter B1 全零、VCClient localhost 未啟動、ONNX CUDA provider 未實際執行」分開列出。
+最新可重跑的唯讀結果：[`wiring-verification-latest.md`](wiring-verification-latest.md)，目前 `PASS=16 / WAITING=5 / BLOCKED=0`。這個摘要已把「角色模型仍是 candidate、VCClient embedded CUDA 尚未以自有角色驗證、Graillon 尚未在 host chain 通過、Voicemeeter B1 全零、ONNX CUDA provider 未實際執行」分開列出；官方 sample offline conversion 另見 `docs/vcclient-rvc-probe-latest.md`。
 
 ## 2. 目標線路與實際 Windows 方向
 

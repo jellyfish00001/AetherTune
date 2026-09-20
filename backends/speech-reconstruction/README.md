@@ -19,7 +19,7 @@ STT 是獨立步驟，先預留 Faster-Whisper 或 FunASR。參考聲音若要�
 
 ## 本機狀態
 
-CosyVoice2-0.5B 目前在 `models/speech-reconstruction/cosyvoice/` 有 12 個必要模型檔案（3,864,103,224 bytes），並建立 WSL2 Ubuntu 的 `tools/venvs/cosyvoice-wsl` Python 3.10.20 environment。官方 requirements 已安裝，Torch 已對齊到 `2.7.1+cu128`；CPU tensor smoke 可通過，但 GPU tensor gate 與 `CosyVoice2` class import/model load 仍被 WSL runtime 終止，因此 CosyVoice TTS 維持 `WAITING`，不列入可用 PASS。詳見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
+CosyVoice2-0.5B 目前在 `models/speech-reconstruction/cosyvoice/` 有 12 個必要模型檔案（3,864,103,224 bytes），並建立 WSL2 Ubuntu 的 `tools/venvs/cosyvoice-wsl` Python 3.10.20 environment。官方 requirements 已安裝，Torch 已對齊到 `2.7.1+cu128`；官方 zero-shot TTS 已在 RTX 5060 Ti 產生可解碼 WAV，狀態為 `PASS`。完整 STT→TTS 尚未完成，因為 STT 與個人 reference 的 exact transcript 尚未接入。詳見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
 
 ## 官方起始命令
 
@@ -36,7 +36,13 @@ pip install -r requirements.txt
 python -c "from huggingface_hub import snapshot_download; snapshot_download('FunAudioLLM/CosyVoice2-0.5B', local_dir='pretrained_models/CosyVoice2-0.5B')"
 ```
 
-官方 API 使用 `inference_zero_shot(text, prompt_text, prompt_audio)`；本專案的 `prompt_audio` 先用 `dataset/reference-voices/`，`prompt_text` 必須由 STT 後人工抽查。
+官方 API 使用 `inference_zero_shot(text, prompt_text, prompt_audio)`；本專案以 `tools/cosyvoice-infer.py` 封裝，`prompt_text` 必須由 STT 後人工抽查，不能猜測。預設推論環境會移除 DeepSpeed；若要訓練，請以 `tools/cosyvoice-setup.ps1 -Training` 建立／調整獨立環境並準備 CUDA toolkit。
+
+可直接重跑官方 zero-shot fixture：
+
+```powershell
+wsl.exe -d Ubuntu -- bash -lc 'set -e; unset CUDA_VISIBLE_DEVICES; export PYTHONPATH=/mnt/d/AetherTune/tools/external/CosyVoice:/mnt/d/AetherTune/tools/external/CosyVoice/third_party/Matcha-TTS; export HF_HUB_OFFLINE=1; /mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/bin/python -u /mnt/d/AetherTune/tools/cosyvoice-infer.py --model-dir /mnt/d/AetherTune/models/speech-reconstruction/cosyvoice --prompt-audio /mnt/d/AetherTune/tools/external/CosyVoice/asset/zero_shot_prompt.wav --prompt-text-file /mnt/d/AetherTune/tools/fixtures/cosyvoice/prompt-text.txt --text-file /mnt/d/AetherTune/tools/fixtures/cosyvoice/target-text.txt --output /mnt/d/AetherTune/artifacts/speech-reconstruction/cosyvoice-official-zero-shot.wav --fp16'
+```
 
 ### Breeze TTS 2
 
