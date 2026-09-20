@@ -2,7 +2,7 @@
 
 盤點時間：2026-09-20（Asia/Taipei）
 
-以下檔案目前存在於工作區，並依 basename 找到同名 `.pth`／`.index` 配對。現在已將四組檔案登錄為 `candidate`；這只證明檔案配對與 hash，來源、取樣率、f0、RVC revision、dataset batch、授權與實際音質仍是 `WAITING`，不能直接標成 `ready`。
+以下檔案目前存在於工作區，並依 basename 找到同名 `.pth`／`.index` 配對。現在已將四組檔案登錄為 `candidate`；檔案內嵌的取樣率與 v2 version 已核對，但來源、授權、f0 演算法、RVC revision、dataset batch 與實際音質仍是 `WAITING`，不能直接標成 `ready`。
 
 | model id | weights | weights SHA-256 | index | index SHA-256 | status |
 |---|---:|---|---:|---|---|

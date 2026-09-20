@@ -8,11 +8,11 @@
 |---|---|---|
 | 四組 `.pth/.index` 配對、檔案存在與 SHA-256 | PASS | `artifacts/rvc-model-audit/rvc-model-audit.json` |
 | model register schema | PASS | 已加入來源、授權、訓練環境、verification artifact 欄位 |
-| provenance／訓練 metadata | WAITING | 四組目前仍是 `candidate`，sample rate、f0、version、dataset batch、revision、來源與授權保留 `unknown-*` |
+| checkpoint／訓練 metadata | WAITING | 四組仍是 `candidate`；checkpoint 內嵌 sample rate（40/48 kHz）與 version（v2）已核對，但 f0 演算法、dataset batch、revision、訓練時間、來源與授權仍為 `unknown-*` |
 | `dataset/raw` audit | BLOCKED | 執行 `tools/dataset_audit.py --fail-on-invalid`；目前沒有 WAV，只有 `dataset/raw/README.md` |
 | ready gate | WAITING | 沒有任何模型符合完整 metadata、verification artifact 與 ready 條件 |
 
-本輪重跑證據：`rvc-model-audit.py` 產生 `artifacts/rvc-model-audit/rvc-model-audit.json`，四列均為 `candidate`、檔案 issues 為空，但 metadata 仍是 `unknown-*`；`dataset_audit.py` 產生 `artifacts/rvc-model-audit/raw-audit.csv` 並以 exit `2` 阻擋空資料集。`rvc-register-model.ps1 -UpdateExisting -DryRun` 已以 Wukong 檔案重算 weights/index SHA-256，確認不會改寫 CSV；register 的 `SampleRate` 與 `F0` 必須填真實值，不能傳入 `unknown-*` 冒充完成。
+本輪重跑證據：`rvc-model-audit.py` 產生 `artifacts/rvc-model-audit/rvc-model-audit.json`，四列均為 `candidate`、檔案 issues 為空；已從 checkpoint 內嵌值核對 sample rate／version，但不能把內嵌 `f0=1` 解讀成 FCPE 或 RMVPE。`dataset_audit.py` 產生 `artifacts/rvc-model-audit/raw-audit.csv` 並以 exit `2` 阻擋空資料集。`rvc-register-model.ps1 -UpdateExisting -DryRun` 已以 Wukong 檔案重算 weights/index SHA-256；來源、授權、dataset、revision 與 f0 演算法仍必須填真實值，不能冒充完成。
 
 模型 audit 可重跑：
 

@@ -69,7 +69,7 @@ Set-Location D:\AetherTune\tools\external\Retrieval-based-Voice-Conversion-WebUI
 & D:\AetherTune\.venv\Scripts\python.exe -m zipfile -e .model-downloads\mute.zip logs
 ```
 
-這些檔案屬於訓練基礎資產，不是使用者角色模型。工作區另有 4 組 `.pth/.index`，已完成 `models/model-register.csv` 的檔案路徑與 hash candidate 登錄；來源、授權、訓練取樣率、f0、revision 與 dataset metadata 仍待補齊，因此不能直接視為 ready。VCClient 的實際短音檔 conversion probe 另見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)。
+這些檔案屬於訓練基礎資產，不是使用者角色模型。工作區另有 4 組 `.pth/.index`，已完成 `models/model-register.csv` 的檔案路徑與 hash candidate 登錄；checkpoint 內嵌取樣率與 v2 version 已核對，但來源、授權、f0 演算法、revision、dataset metadata 與 ready gate 仍待補齊，因此不能直接視為 ready。VCClient 的實際短音檔 conversion probe 另見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)。
 
 ### Phase 1：資料準備
 
