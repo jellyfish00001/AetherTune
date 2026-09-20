@@ -7,7 +7,7 @@ Windows 語音變聲與語音重建實驗專案。這個專案同時保留四個
 | 你想要的結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
 | 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 四組自有角色 `FCPE + cuda:0` 離線推論 `PASS`；即時音訊鏈路仍 `WAITING` |
-| 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向離線產檔 `PASS`；人工聽測與即時性仍待補 |
+| 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向／60 秒長檔與 `realtime-tiny` headless GPU `PASS`；麥克風端到端仍 `WAITING` |
 | 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | STT、CosyVoice2、Breeze TTS 2 安裝與輸出 `PASS`；transcript 人工聽核仍待補 |
 
 最簡單的判斷：
@@ -131,7 +131,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 - RVC 四組現有 `.pth/.index` 已各自通過 `FCPE + cuda:0` 離線推論並產生非零 WAV；來源、授權、f0、取樣率、revision 與 dataset metadata 仍需人工補齊。
 - RVC 即時 latency、長時間穩定性、Light Host chain、VB-CABLE／Voicemeeter／Discord／OBS loopback 仍未驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
-- Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。
+- Seed-VC 已完成雙向離線、60 秒長音檔與 realtime-tiny headless latency；仍缺人工聽測、多說話者、PortAudio 麥克風端到端與長時間 realtime 穩定性。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。
 - Breeze TTS 2 已完成 WSL2、CUDA、Voice Design 男女與 reference clone 男女測試；flash-attn、fast-all 與人工音質評估仍待補。
 

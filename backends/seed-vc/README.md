@@ -1,6 +1,6 @@
 # Seed-VC／Zero-Shot VC
 
-Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。官方同時提供離線 VC 與即時 GUI；本專案已先完成 `offline-v1` 的獨立環境與男／女雙向實際推論，`realtime-tiny` 仍保留給下一階段即時延遲測試。
+Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。官方同時提供離線 VC 與即時 GUI；本專案已完成 `offline-v1` 男／女雙向與 60 秒長音檔推論，以及 `realtime-tiny` headless GPU streaming benchmark。實際麥克風／PortAudio 端到端仍需另外驗證。
 
 ## 輸入契約
 
@@ -29,14 +29,42 @@ Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔
   -Fp16
 ```
 
+### 測試 realtime-tiny 與 60 秒長音檔
+
+`realtime-tiny` 測試會載入官方 real-time model，使用 3 個 0.3 秒 streaming block；它是 headless benchmark，不會開麥克風，也不會改動 Windows 音訊裝置：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-realtime-tiny-test.py `
+  --source .\dataset\reference-voices\voice-male-m1.wav `
+  --target .\dataset\reference-voices\voice-female-f1.wav `
+  --blocks 3 --fp16 `
+  --output-dir .\artifacts\seed-vc\realtime-tiny
+```
+
+長音檔可先產生 60 秒 source，再用一般 offline runner：
+
+```powershell
+$ff = 'C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe'
+New-Item -ItemType Directory -Force .\artifacts\seed-vc\long | Out-Null
+& $ff -hide_banner -loglevel error -y -stream_loop -1 `
+  -i (Resolve-Path .\dataset\reference-voices\voice-male-m1.wav).Path `
+  -t 60 -ar 48000 -ac 1 .\artifacts\seed-vc\long\source-60s.wav
+& .\tools\seed-vc-run.ps1 `
+  -Source .\artifacts\seed-vc\long\source-60s.wav `
+  -Target .\dataset\reference-voices\voice-female-f1.wav `
+  -OutputDir .\artifacts\seed-vc\long\male-to-female -Fp16
+```
+
 ## 本機驗證結果
 
-截至 2026-09-20，`offline-v1` 已在 RTX 5060 Ti 上以 Torch `2.7.1+cu128` 完成兩個方向的實際推論：
+截至 2026-09-21，`offline-v1` 已在 RTX 5060 Ti 上以 Torch `2.7.1+cu128` 完成兩個方向與 60 秒長音檔的實際推論；`realtime-tiny` 完成 headless streaming benchmark：
 
 - 男聲 → 女聲：RTF `0.3383`，結果與 manifest 位於 `artifacts/seed-vc/male-to-female/`。
 - 女聲 → 男聲：RTF `0.3997`，結果與 manifest 位於 `artifacts/seed-vc/female-to-male/`。
+- 60 秒男聲 → 女聲：RTF `0.3165`，結果與 manifest 位於 `artifacts/seed-vc/long/male-to-female/`。
+- realtime-tiny：3 個 block 均產生 finite／non-zero output；warmup 後 p50 `190.6 ms`、steady-state RTF 約 `0.633`。
 
-這代表「可以執行並產生 WAV」已通過；聲音相似度、自然度與即時使用仍需人工聽測及獨立 latency 驗收。兩次推論都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/seed-vc-verification-latest.md`](../../docs/seed-vc-verification-latest.md)。
+這代表「可以執行並產生 WAV」與「headless GPU streaming 可跑」已通過；聲音相似度、自然度、PortAudio 麥克風端到端、長時間 realtime 穩定性仍需人工聽測及獨立驗收。所有測試都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/seed-vc-verification-latest.md`](../../docs/seed-vc-verification-latest.md)。
 
 官方 repo：<https://github.com/Plachtaa/seed-vc>
 

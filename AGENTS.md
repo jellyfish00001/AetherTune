@@ -30,7 +30,7 @@ AetherTune 管理四個 backend、三條語音路線：
 ## 3. 目前已知狀態
 
 - RVC：四組角色模型已透過專案 RVC WebUI pipeline 完成 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型仍是 `candidate`，metadata 與 VCClient 即時鏈路尚未完成。VCClient packaged REST probe 目前只能算 API smoke test，輸出 WAV 仍無效。
-- Seed-VC：`offline-v1` 男→女與女→男已產生 WAV，manifest 在 `artifacts/seed-vc/`；realtime tiny 與人工聽測尚未完成。
+- Seed-VC：`offline-v1` 男→女／女→男、60 秒長音檔與 `realtime-tiny` headless GPU block benchmark 已 PASS；官方 GUI、PortAudio 麥克風端到端、人工聽測與長時間 realtime 仍 WAITING。
 - CosyVoice2：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 與 CUDA TTS 輸出已完成；主模型 CUDA PASS，ONNX frontend 因 `libcudnn.so.8` 缺失 fallback CPU。
 - Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot 與 Voice Design／男女 reference clone CUDA 輸出已完成；flash-attn、fast-all 與人工音質評估仍 WAITING。
 
