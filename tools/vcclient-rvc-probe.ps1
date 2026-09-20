@@ -181,7 +181,12 @@ try {
     if ($convertedBytes -lt 4096 -or $outputNonzeroSamples -eq 0 -or $outputFiniteSamples -eq 0) {
         throw "轉換端點只回傳 $convertedBytes bytes，未形成可驗收的語音輸出"
     }
-    $status = 'PASS'
+    # 整體串接後可能仍有非零樣本，但中間 chunk 全零會造成即時斷音；
+    # 這種結果只能標成 DEGRADED，不能讓總 WAV 的 RMS 掩蓋逐段 dropout。
+    $status = if ($zeroOutputChunks -gt 0) { 'DEGRADED' } else { 'PASS' }
+    if ($status -eq 'DEGRADED') {
+        $errorMessage = "有 $zeroOutputChunks/$totalChunks 個 chunk 回傳 4-byte 全零輸出"
+    }
 } catch {
     $errorMessage = $_.Exception.Message
 } finally {
