@@ -329,7 +329,17 @@ if (Test-Path -LiteralPath $python -PathType Leaf) {
         Add-Check 'RVC venv CUDA runtime' 'BLOCKED' ($probe -join ' ')
     }
 
-    $sampleOnnx = Join-Path $projectRoot 'tools\external\VCClient\2.1.4-alpha\dist\main\model_dir\0\kikoto_kurage_v2_40k_e100.onnx'
+    # VCClient 2.1.4-alpha stores the downloaded official sample under
+    # upload_dir; older packaged layouts used model_dir\0. Accept both
+    # layouts, but always hash and record the actual selected file.
+    $sampleOnnxCandidates = @(
+        (Join-Path $projectRoot 'tools\external\VCClient\2.1.4-alpha\dist\main\model_dir\0\kikoto_kurage_v2_40k_e100.onnx'),
+        (Join-Path $projectRoot 'tools\external\VCClient\2.1.4-alpha\dist\main\upload_dir\kikoto_kurage_v2_40k_e100.onnx')
+    )
+    $sampleOnnx = $sampleOnnxCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace([string]$sampleOnnx)) {
+        $sampleOnnx = $sampleOnnxCandidates[0]
+    }
     $onnxReport = Join-Path $projectRoot 'artifacts\onnx-runtime-probe.json'
     $probeRunId = [guid]::NewGuid().ToString()
     if ($RunInferenceProbes -and (Test-Path -LiteralPath $sampleOnnx -PathType Leaf)) {
