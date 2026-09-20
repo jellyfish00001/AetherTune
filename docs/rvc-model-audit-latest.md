@@ -12,6 +12,8 @@
 | `dataset/raw` audit | BLOCKED | 執行 `tools/dataset_audit.py --fail-on-invalid`；目前沒有 WAV，只有 `dataset/raw/README.md` |
 | ready gate | WAITING | 沒有任何模型符合完整 metadata、verification artifact 與 ready 條件 |
 
+本輪重跑證據：`rvc-model-audit.py` 產生 `artifacts/rvc-model-audit/rvc-model-audit.json`，四列均為 `candidate`、檔案 issues 為空，但 metadata 仍是 `unknown-*`；`dataset_audit.py` 產生 `artifacts/rvc-model-audit/raw-audit.csv` 並以 exit `2` 阻擋空資料集。`rvc-register-model.ps1 -UpdateExisting -DryRun` 已以 Wukong 檔案重算 weights/index SHA-256，確認不會改寫 CSV；register 的 `SampleRate` 與 `F0` 必須填真實值，不能傳入 `unknown-*` 冒充完成。
+
 模型 audit 可重跑：
 
 ```powershell
