@@ -7,7 +7,7 @@
 | 模組 | 目前選擇 | 選擇原因 | 何時改選 |
 |---|---|---|---|
 | 訓練核心 | [RVC WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI) | 有完整 Windows/Python/CUDA 路徑、`.pth`/`.index` 產物、RMVPE 與少量資料訓練流程，適合自訂角色音色 | 需要不同模型格式、商業支援或明確歌唱優化時 |
-| f0 | RMVPE | 對人聲音高追蹤與 RVC 使用成熟，且本機已通過 CUDA smoke test | 低階 GPU、CPU-only 或特定聲音出現錯音時比較其他 detector |
+| f0 | FCPE（推薦首選）/ RMVPE（備用） | FCPE (Fast-Context-based Pitch Extractor) 專門改善 RVC 氣音、假音、快語速與電音破音問題；VCClient 2.1.4 與專案 `.venv` 已內建並通過 CUDA 驗證。RMVPE 保留為相容性備選。 | 若推論資源極端受限時可退回 RMVPE；已在 `tools/fcpe_probe.py` 提供驗證 probe |
 | 即時前端 | [VCClient](https://github.com/w-okada/voice-changer) 候選 | 可獨立於訓練 WebUI，支援 RVC 與 Windows CUDA/ONNX edition，適合拆開即時鏈路 | 需要單一程式、最少元件或使用 RVC 自帶 realtime GUI 時 |
 | 切片 | RVC revision 內的 `slicer2.py` 候選 | 與已固定訓練程式同源，避免額外版本漂移 | 需要批次管理、標記或 GUI 時改用 [openvpi Audio Slicer](https://github.com/openvpi/audio-slicer) |
 | 去噪/分離 | [UVR](https://github.com/Anjok07/ultimatevocalremovergui) 只作選配 | 乾聲資料不應預設通過分離模型，避免音色瑕疵 | 原始資料含伴奏、殘響或不可接受噪音時 |

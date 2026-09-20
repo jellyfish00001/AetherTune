@@ -19,6 +19,8 @@ RVC WebUI 的訓練過程會在外部 RVC repo 內產生不同用途的檔案：
 
 `model-register.example.csv` 是欄位範例；真正模型產生後，複製相同欄位到 `model-register.csv`，不可把 `REPLACE_WITH_SHA256` 留在 `ready` 記錄。
 
+目前工作區已有 4 組同名 `.pth`／`.index`，但 `model-register.csv` 仍只有表頭；這些檔案的 hash 與待補 provenance 見 `docs/current-rvc-model-inventory.md`。在補齊來源、授權、取樣率、f0、版本與測試證據前，狀態維持 `unregistered / WAITING`。
+
 ## 可接受狀態
 
 - `candidate`：可做離線比較，尚未成為日常 preset。

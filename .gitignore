@@ -11,6 +11,7 @@ dataset/raw/*
 dataset/processed/*
 dataset/sliced/*
 dataset/augmented/*
+dataset/reference-voices/*
 *.wav
 *.flac
 *.mp3
@@ -25,9 +26,15 @@ models/indexes/*
 *.index
 *.onnx
 
+# Speech reconstruction model snapshots (keep project-level docs only)
+models/speech-reconstruction/*/*
+!models/speech-reconstruction/*/README.md
+models/speech-reconstruction/cosyvoice/README.md
+
 # External tools and runtime caches
 tools/external/*
 tools/cache/*
+tools/venvs/*
 logs/
 artifacts/
 
@@ -46,3 +53,4 @@ Thumbs.db
 # Keep directory placeholders and documentation
 !.gitkeep
 !README.md
+models/speech-reconstruction/cosyvoice/README.md

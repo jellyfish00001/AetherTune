@@ -1,0 +1,3 @@
+reference_id,relative_path,source_path,license,speaker_label,transcript_status,sha256,recorded_or_downloaded_at,status,notes
+female-f1,dataset/reference-voices/voice-female-f1.wav,tools/external/VCClient/2.1.4-alpha/dist/main/web_front/assets/voices/JVNV/partial/F1_happy_regular_26.wav,CC BY-SA 4.0,female,pending,37976F69F73FB13D6FEFAF80268794D545D6E19BE5059437DB067455A795F406,2026-09-20,candidate,來源隨 VCClient 內附 JVNV sample；需保持 attribution
+male-m1,dataset/reference-voices/voice-male-m1.wav,tools/external/VCClient/2.1.4-alpha/dist/main/web_front/assets/voices/JVNV/partial/M1_happy_regular_26.wav,CC BY-SA 4.0,male,pending,3A4A5A048154CFF60D717FC1FCE929EBEBC887F7C9222C56222DAD48ADB60662,2026-09-20,candidate,來源隨 VCClient 內附 JVNV sample；需保持 attribution

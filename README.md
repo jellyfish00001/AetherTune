@@ -1,78 +1,113 @@
 # AetherTune
 
-低延遲、自然微電音即時變聲系統的專案骨架與驗證文件。
+Windows 語音變聲與語音重建實驗專案。這個專案同時保留三種不同路線，請先依「要不要即時、要不要訓練、要不要保留原始表演」選擇方法，不要把三種模型混在同一個 RVC 流程裡。
 
-目前狀態：`Wiring deployed / role dataset and model pending`
+## 先看這張選擇表
 
-## 目標管線
+| 你想要的結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
+|---|---|---:|---|---|
+| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 基礎線路已部署；角色模型尚未完成註冊與端到端驗收 |
+| 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 已可直接產生 WAV |
+| 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice 模型已下載但 runtime WAITING；Breeze PLANNED |
 
-```text
-實體麥克風
-  → RVC 訓練／推論
-  → VCClient 即時轉換
-  → VB-CABLE
-  → VST host 微量後製
-  → 虛擬音訊路由
-  → Discord／遊戲語音／OBS
-```
+最簡單的判斷：
 
-本倉庫只保存設定、工具腳本、來源審核與可重現驗證紀錄。原始音訊、模型權重、索引檔與第三方執行包預設留在本機，不進 Git。
+- 要「現在講、現在變」：選 RVC。
+- 要「不用訓練，先快速試聲線」：選 Seed-VC。
+- 要「先辨識文字，再重新說一遍」：選 STT → TTS。它不會完整保留原始笑聲、呼吸、停頓與語氣。
 
-## 目錄
+## 五分鐘開始
 
-```text
-dataset/
-  raw/          # 有授權的原始乾聲（不進 Git）
-  sliced/       # 5–15 秒切片（不進 Git）
-  augmented/    # 變調或其他擴增結果（不進 Git）
-models/
-  weights/      # .pth（不進 Git）
-  indexes/      # .index（不進 Git）
-  model-register.csv # 模型配對、版本、批次與 hash
-tools/          # 本專案可重用的小工具與外部工具說明
-docs/           # 架構、來源、環境與驗證文件
-```
-
-資料進入後，先執行：
-
-```powershell
-& .\.venv\Scripts\python.exe tools\dataset_audit.py --root dataset\raw --manifest dataset\manifests\raw-audit.csv --source-register dataset\manifests\source-register.csv --fail-on-invalid
-```
-
-此命令只建立 metadata manifest，不會修改原始音檔。
-
-## 目前證據
-
-- 本機 GPU：NVIDIA GeForce RTX 5060 Ti，16,311 MiB 顯存；`nvidia-smi` driver/KMD 610.88、CUDA UMD 13.3。
-- 專案隔離 Python：`.venv\Scripts\python.exe`，Python 3.12.10；既有 Hermes agent venv 保持不動。
-- FFmpeg：Gyan FFmpeg 9.0.1 已安裝並以絕對路徑驗證 `ffmpeg`/`ffprobe`；目前執行中的 PowerShell 尚未刷新 PATH。
-- RVC：官方倉庫已固定到 `81eed5e8f68b6bed1789f682fe78cdd324495afc`，CUDA 12.8 依賴已安裝且 Torch 可識別 RTX 5060 Ti。
-- RVC runtime：HuBERT base 與 RMVPE 已下載並完成 hash/合成音 f0 smoke test；尚無角色 `.pth`/`.index`。
-- VB-CABLE、Voicemeeter、Light Host Modern、Graillon Free 3.2：已安裝並完成存在性／裝置列舉驗證。
-- VCClient `2.1.4-alpha cuda`：已解壓、首次初始化、本機 Web UI `HTTP 200`；尚未載入本專案角色 `.pth/.index`。
-- VCClient embedded Torch：`2.7.0+cu118`；RTX 5060 Ti `sm_120` 的角色推論仍需獨立驗證，不能以專案 `.venv` 的 `cu128` PASS 代替。
-- Git 倉庫：空倉庫，尚無 commit；本次只建立規格與驗證骨架。
-
-詳細結果見 [`docs/local-environment.md`](docs/local-environment.md)、[`docs/source-audit.md`](docs/source-audit.md) 與 [`docs/verification-plan.md`](docs/verification-plan.md)。
-
-完整操作順序見 [`docs/operation-guide.md`](docs/operation-guide.md)；模組替代方案與選擇理由見 [`docs/decision-log.md`](docs/decision-log.md)。
-
-## 重要邊界
-
-規格中的「100% 開源免費」需拆開表述：RVC、Audio Slicer、UVR、Carla 等可採開源元件；MAutoPitch、Voicemeeter、VB-CABLE 等則應視為免費／免費授權的第三方元件，不應宣稱全部為開源。所有聲音資料、模型與角色聲線都必須先確認使用權。
-
-## 下一階段
-
-1. 由使用者確認資料來源與聲音使用權。
-2. 將乾聲放入 `dataset/raw/`，完成 audit、切片與 RVC 訓練。
-3. 將訓練產出的 `.pth` 與 `.index` 放入 `models/weights/`、`models/indexes/`。
-4. 依 [`docs/operation-guide.md`](docs/operation-guide.md) 啟動 VCClient、Light Host、路由，再做 P3 loopback/Discord/OBS 驗收。
-
-可重跑的唯讀檢查：
+在 PowerShell 執行：
 
 ```powershell
 Set-Location D:\AetherTune
-& .\tools\verify_wiring.ps1 -RunInferenceProbes -OutFile .\docs\wiring-verification-latest.md
+& .\tools\voice-backend-check.ps1
 ```
 
-最新檢查報告見 [`docs/wiring-verification-latest.md`](docs/wiring-verification-latest.md)；部署與限制報告見 [`docs/wiring-deployment-report.md`](docs/wiring-deployment-report.md)。
+### 目前唯一可直接產生結果的路線：Seed-VC
+
+如果 `tools/venvs/seed-vc/` 尚未存在，先執行一次：
+
+```powershell
+& .\tools\seed-vc-setup.ps1
+```
+
+然後執行：
+
+```powershell
+& .\tools\seed-vc-run.ps1 `
+  -Source .\dataset\reference-voices\voice-male-m1.wav `
+  -Target .\dataset\reference-voices\voice-female-f1.wav `
+  -OutputDir .\artifacts\seed-vc\male-to-female `
+  -Fp16
+```
+
+交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。完整輸入契約、警告與驗證結果見 [`docs/seed-vc-verification-latest.md`](docs/seed-vc-verification-latest.md) 及 [`backends/seed-vc/README.md`](backends/seed-vc/README.md)。
+
+### RVC：先準備資料與註冊模型
+
+RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：
+
+1. [`docs/user-guide.md`](docs/user-guide.md)：依目的選路線與日常使用順序。
+2. [`docs/model-training-guide.md`](docs/model-training-guide.md)：乾聲資料、切片、訓練、模型登錄與驗收。
+3. [`docs/operation-guide.md`](docs/operation-guide.md)：VCClient、VST、VB-CABLE、Voicemeeter、Discord／OBS 的完整操作。
+4. [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md)：目前四組本機模型與 hash；目前仍是 `unregistered / WAITING`。
+
+RVC 的音高策略是 **FCPE 首選、RMVPE 備用**。FCPE 的實際 provider 與延遲以 `tools/fcpe_probe.py` 的 artifact 為準；不要只因套件存在就宣稱 FCPE runtime 已通過。
+
+### STT → TTS：目前先不要當成可用入口
+
+CosyVoice 2 已建立 WSL2 Python 3.10 環境並下載模型，但 WSL CUDA tensor gate 尚未通過；Breeze TTS 2 尚未安裝。這條路線的設計與缺口見 [`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md) 和 [`docs/cosyvoice-verification-latest.md`](docs/cosyvoice-verification-latest.md)。
+
+## 三種方法的資料流
+
+```text
+RVC：       麥克風／source WAV → RVC + FCPE/RMVPE → VCClient → 虛擬音訊 → Discord／OBS
+Seed-VC：   source WAV + reference WAV → Seed-VC Zero-Shot VC → output WAV
+STT → TTS： source WAV → STT transcript → CosyVoice／Breeze + reference → output WAV
+```
+
+RVC 是「角色模型推論」；Seed-VC 是「參考聲音條件式轉換」；STT → TTS 是「文字內容重建」。三者輸出不可用同一套品質標準比較。
+
+## 文件地圖
+
+給人使用時，建議只照這個順序：
+
+1. [`README.md`](README.md)：選方法、快速命令、目前狀態。
+2. [`docs/user-guide.md`](docs/user-guide.md)：完整人類操作手冊。
+3. [`docs/model-training-guide.md`](docs/model-training-guide.md)：RVC 訓練與模型管理；Seed-VC、CosyVoice、Breeze 不需要一般角色訓練。
+4. [`docs/operation-guide.md`](docs/operation-guide.md)：Windows 即時路由與驗收。
+5. [`docs/voice-conversion-architecture.md`](docs/voice-conversion-architecture.md)：架構、資料契約與比較方式。
+6. 各後端 README：[`backends/rvc/README.md`](backends/rvc/README.md)、[`backends/seed-vc/README.md`](backends/seed-vc/README.md)、[`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md)。
+7. `docs/*-verification-latest.md`：只看最新實際驗證，不把計畫當成通過。
+
+給 Agent 使用時，先讀根目錄 [`AGENTS.md`](AGENTS.md)，再依任務讀指定文件。根目錄 AGENTS 是專案規則與導航，不取代本 README。
+
+## 目錄怎麼分
+
+```text
+dataset/                    # 原始乾聲、切片、reference voice 與 manifest
+models/                     # RVC 模型登錄、多後端模型說明與本機權重
+backends/                   # 每條方法的入口與限制
+tools/                      # 可重跑的 setup、run、probe、verify 腳本
+docs/                       # 人類操作手冊、訓練細節、架構與驗證證據
+AGENTS.md                   # Agent 專用規則、導航、證據邊界
+```
+
+權重、音訊、第三方 repo、虛擬環境與 artifacts 預設不進 Git。所有聲音、角色模型與 reference voice 都必須先確認授權。
+
+## 目前缺少什麼
+
+- RVC 四組現有 `.pth/.index` 尚未完成來源、授權、f0、取樣率、revision 與 hash 的正式登錄。
+- VCClient 尚未完成工作區角色模型載入後的真實推論與延遲驗收。
+- Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
+- Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。
+- CosyVoice 尚未通過 WSL CUDA tensor gate、model load 與 TTS WAV 驗收。
+- Breeze TTS 2 與 STT pipeline 尚未建立。
+
+狀態意義：`PASS` 是指定檢查或實際流程通過；`WAITING` 是有明確阻塞或尚未完成；`PLANNED` 是尚未開始或仍需選擇。檔案存在、模型下載、UI 可開啟都不等於端到端語音可用。
+
+## 重要邊界
+
+RVC、Seed-VC、CosyVoice、Breeze TTS 2、VB-CABLE、Voicemeeter、Graillon 的授權與用途不同；不要把「免費」寫成「全部開源」，也不要把公開 sample 的聲線當成使用者自有聲音。所有改動先保留現有 user worktree 內容，完成檢查後再由使用者決定是否 commit。

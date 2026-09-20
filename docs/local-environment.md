@@ -77,7 +77,7 @@
 - Light Host Modern portable ZIP SHA-256：`39BD85FBC1EED130E3B48B5950A82FC7850349A0A99805B42967CAE92DAFBFD8`。
 - Graillon Free 3.2 ZIP SHA-256：`D9ED254BD6AC89D5C5E670383DEC2CB1ACF43A72C62EBF2E4401D039FF6BDA18`。
 - VB-CABLE Driver Pack 45 ZIP SHA-256：`B950E39F01AF1D04EA623C8F6D8EB9B6EA5C477C637295FABF20631C85116BFB`。
-- 最新綜合唯讀檢查：`docs/wiring-verification-latest.md`，目前 `PASS=16 / WAITING=5 / BLOCKED=0`；WAITING 包含角色模型 register、VCClient embedded CUDA、Light Host Graillon chain、Voicemeeter B1 訊號與 ONNX CUDA provider。
+- 最新綜合唯讀檢查：`docs/wiring-verification-latest.md`，目前 `PASS=15 / WAITING=6 / BLOCKED=0`；WAITING 包含 4 組角色模型 register、VCClient embedded CUDA、Light Host Graillon chain、Voicemeeter B1 訊號、VCClient localhost 與 ONNX CUDA provider。
 
 ## 下一個環境步驟
 

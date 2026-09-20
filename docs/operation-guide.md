@@ -1,11 +1,13 @@
 # AetherTune 完整操作流程
 
-文件版本：2026-09-19
+文件版本：2026-09-20
 目前狀態：`Wiring deployed / role dataset and model pending`
+
+使用入口：先讀根目錄 `README.md` 選擇 RVC／Seed-VC／STT → TTS；本文件只負責 RVC 選定後的 Windows 即時路由與驗收。RVC 資料準備與訓練請先讀 [`model-training-guide.md`](model-training-guide.md)。
 
 ## 1. 先看結論
 
-目前基礎線路已建立，剩下主要是素材、角色模型與最後的實際聲音驗收：
+目前基礎線路已建立，工作區已有 4 組未註冊角色模型，剩下主要是素材／模型 provenance、模型載入與最後的實際聲音驗收：
 
 1. 具授權的乾聲資料與切片。
 2. 訓練輸出的角色 `.pth` 與 `.index`。
@@ -25,8 +27,8 @@
 | Python | 專案 `.venv`，Python 3.12.10 | 已完成 |
 | GPU framework | Torch `2.7.1+cu128`、TorchAudio `2.7.1+cu128` | 已完成 |
 | RVC | 官方 WebUI，固定 revision `81eed5e8f68b6bed1789f682fe78cdd324495afc` | 已 clone/驗證 |
-| f0 | RMVPE | runtime 已載入 smoke test |
-| runtime 資產 | HuBERT base + `rmvpe.pt` | 已下載並 hash |
+| f0 | FCPE（推薦首選）/ RMVPE（備用） | FCPE 與 RMVPE runtime 皆已通過 CUDA smoke test |
+| runtime 資產 | HuBERT base + `rmvpe.pt` + `torchfcpe` (FCPE) | 已內建/下載完成並通過推論探針 |
 | 音訊工具 | FFmpeg 9.0.1、FFprobe 9.0.1 | 已安裝；目前 shell PATH 仍需刷新 |
 | Dataset gate | `tools/dataset_audit.py` + CSV manifest | 工具已完成，尚無真實資料 |
 | 虛擬音訊 | VB-CABLE + Voicemeeter Standard | 已安裝；Windows endpoint 與 FFmpeg DirectShow 可見 |
@@ -67,7 +69,7 @@ Set-Location D:\AetherTune\tools\external\Retrieval-based-Voice-Conversion-WebUI
 & D:\AetherTune\.venv\Scripts\python.exe -m zipfile -e .model-downloads\mute.zip logs
 ```
 
-這些檔案屬於訓練基礎資產，不是使用者角色模型。現在只差放入具授權的角色乾聲。
+這些檔案屬於訓練基礎資產，不是使用者角色模型。工作區目前另有 4 組 `.pth/.index`，但尚未完成 `models/model-register.csv` 的來源、hash、取樣率、f0 與授權交接，因此不能直接視為 ready。
 
 ### Phase 1：資料準備
 
@@ -117,7 +119,7 @@ TTS 生成資料只能作為明確標記的補充實驗，不應默認等同於�
 D:\AetherTune\tools\external\VCClient\2.1.4-alpha\dist\main\start_http.bat
 ```
 
-啟動後開啟 `http://127.0.0.1:18000/`。目前已用內建示例模型確認 Web UI 與控制頁可回應；真正角色模型要等 `.pth/.index` 產生後再上傳／載入。
+啟動後開啟 `http://127.0.0.1:18000/`。目前已用內建示例模型確認 Web UI 與控制頁可回應；工作區角色模型雖已存在，仍要先完成 register，再逐一上傳／載入與實際推論驗證。
 
 完成後的流程是：
 
