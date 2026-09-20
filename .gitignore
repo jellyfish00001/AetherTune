@@ -1,0 +1,48 @@
+# AetherTune 本機音訊、模型與外部工具不進 Git
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Audio and generated artifacts
+dataset/raw/*
+dataset/processed/*
+dataset/sliced/*
+dataset/augmented/*
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.ogg
+
+# Model weights and indexes
+models/weights/*
+models/indexes/*
+*.pth
+*.pt
+*.index
+*.onnx
+
+# External tools and runtime caches
+tools/external/*
+tools/cache/*
+logs/
+artifacts/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local.*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Keep directory placeholders and documentation
+!.gitkeep
+!README.md

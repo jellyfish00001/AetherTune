@@ -1,0 +1,9 @@
+test_id,created_at,model_id,weights_sha256,index_sha256,test_sentence_id,input_sample_rate,output_sample_rate,f0,pitch,chunk_sec,extra_frame_sec,index_rate,vst_mode,duration_sec,p50_latency_ms,p95_latency_ms,underrun_count,dropout_count,artifact_path,subjective_notes,decision
+baseline,,,,,holdout-001,48000,48000,rmvpe,9,0.50,0.08,0.50,bypass,,,,,,,建立共同基線,候選
+chunk-025,,,,,holdout-001,48000,48000,rmvpe,9,0.25,0.08,0.50,bypass,,,,,,,只改 chunkSec,候選
+chunk-050,,,,,holdout-001,48000,48000,rmvpe,9,0.50,0.08,0.50,bypass,,,,,,,只改 chunkSec,候選
+chunk-075,,,,,holdout-001,48000,48000,rmvpe,9,0.75,0.08,0.50,bypass,,,,,,,只改 chunkSec,候選
+extra-004,,,,,holdout-001,48000,48000,rmvpe,9,0.50,0.04,0.50,bypass,,,,,,,只改 extraFrameSec,候選
+pitch-006,,,,,holdout-001,48000,48000,rmvpe,6,0.50,0.08,0.50,bypass,,,,,,,只改 pitch,候選
+index-070,,,,,holdout-001,48000,48000,rmvpe,9,0.50,0.08,0.70,bypass,,,,,,,只改 index rate,候選
+vst-active,,,,,holdout-001,48000,48000,rmvpe,9,0.50,0.08,0.50,graillon-active,,,,,,,與 bypass 比較,候選
