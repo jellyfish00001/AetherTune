@@ -52,7 +52,7 @@ RVC 目前不是「放入 `.pth` 就能宣稱完成」。請依序閱讀：
 1. [`docs/user-guide.md`](docs/user-guide.md)：依目的選路線與日常使用順序。
 2. [`docs/model-training-guide.md`](docs/model-training-guide.md)：乾聲資料、切片、訓練、模型登錄與驗收。
 3. [`docs/operation-guide.md`](docs/operation-guide.md)：VCClient、VST、VB-CABLE、Voicemeeter、Discord／OBS 的完整操作。
-4. [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md)：目前四組本機模型與 hash；目前仍是 `unregistered / WAITING`。
+4. [`docs/current-rvc-model-inventory.md`](docs/current-rvc-model-inventory.md)：目前四組本機模型與 hash；已登錄為 `candidate`，但 metadata 與實際驗收仍是 `WAITING`。
 
 RVC 的音高策略是 **FCPE 首選、RMVPE 備用**。FCPE 的實際 provider 與延遲以 `tools/fcpe_probe.py` 的 artifact 為準；不要只因套件存在就宣稱 FCPE runtime 已通過。
 
@@ -99,7 +99,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 
 ## 目前缺少什麼
 
-- RVC 四組現有 `.pth/.index` 尚未完成來源、授權、f0、取樣率、revision 與 hash 的正式登錄。
+- RVC 四組現有 `.pth/.index` 已完成檔案與 hash 的 candidate 登錄，但來源、授權、f0、取樣率、revision 與 dataset metadata 尚未補齊。
 - VCClient 尚未完成工作區角色模型載入後的真實推論與延遲驗收。
 - Light Host + Graillon 的實際 chain 與 loopback 仍需人工完成。
 - Seed-VC 已能產檔，但仍缺人工聽測、長音檔、多說話者與 realtime tiny latency matrix。

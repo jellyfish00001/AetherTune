@@ -101,13 +101,15 @@ Set-Location D:\AetherTune
 
 ### 目前模型為什麼不能直接視為 ready
 
-目前 `models/weights/` 與 `models/indexes/` 有四組配對，但 `models/model-register.csv` 尚未填入正式資料列。因此還缺：
+目前 `models/weights/` 與 `models/indexes/` 有四組配對，已先以已驗證檔案與 hash 登錄為 `candidate`。因此還缺：
 
 - 模型來源與授權。
 - `.pth`／`.index` 各自 SHA-256。
 - sample rate、f0 method、RVC version、revision、dataset batch。
 - 未參與訓練的測試句與人工聽測。
 - VCClient 真實模型載入與延遲證據。
+
+`sample_rate`、`f0`、`version`、`dataset_batch_id`、`rvc_revision` 目前以 `unknown` 明確標記，必須補齊後才能考慮 `ready`。
 
 不要只因 VCClient Web UI 能開啟或模型檔存在，就跳過這些步驟。
 
