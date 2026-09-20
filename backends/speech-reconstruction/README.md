@@ -19,7 +19,7 @@ STT 是獨立步驟，先預留 Faster-Whisper 或 FunASR。參考聲音若要�
 
 ## 本機狀態
 
-CosyVoice2-0.5B 的 19-file snapshot 已放入 `models/speech-reconstruction/cosyvoice/`，並建立 WSL2 Ubuntu 的 `tools/venvs/cosyvoice-wsl` Python 3.10 environment。官方 requirements 已安裝，Torch 已對齊到 `2.7.1+cu128`；但目前 WSL 的最小 CUDA tensor allocation 仍會卡住，因此 CosyVoice TTS 維持 `WAITING`，不列入可用 PASS。詳見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
+CosyVoice2-0.5B 目前在 `models/speech-reconstruction/cosyvoice/` 有 12 個必要模型檔案（3,864,103,224 bytes），並建立 WSL2 Ubuntu 的 `tools/venvs/cosyvoice-wsl` Python 3.10.20 environment。官方 requirements 已安裝，Torch 已對齊到 `2.7.1+cu128`；CPU tensor smoke 可通過，但 GPU tensor gate 與 `CosyVoice2` class import/model load 仍被 WSL runtime 終止，因此 CosyVoice TTS 維持 `WAITING`，不列入可用 PASS。詳見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
 
 ## 官方起始命令
 
