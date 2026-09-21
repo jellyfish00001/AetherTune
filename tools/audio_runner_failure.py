@@ -36,12 +36,21 @@ def output_from_argv(argv: list[str]) -> Path | None:
             break
         if value in OUTPUT_OPTION_NAMES:
             if index + 1 < len(argv) and not argv[index + 1].startswith("-"):
-                output = Path(argv[index + 1])
+                candidate = argv[index + 1]
+                if not candidate:
+                    # Keep the parser in charge of reporting the invalid value.
+                    # Returning no cleanup target also prevents a later alias
+                    # from deleting stale output before argparse rejects this
+                    # empty separated value.
+                    return None
+                output = Path(candidate)
             else:
-                output = None
+                return None
         elif any(value.startswith(f"{name}=") for name in OUTPUT_OPTION_NAMES):
             candidate = value.split("=", 1)[1]
-            output = Path(candidate) if candidate else None
+            if not candidate:
+                return None
+            output = Path(candidate)
     return output
 
 

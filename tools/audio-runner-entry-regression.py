@@ -15,6 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from audio_runner_failure import (
+    OUTPUT_OPTION_NAMES,
     clear_stale_outputs,
     output_from_argv,
     write_failure_manifest,
@@ -31,6 +32,9 @@ def assert_output_scan() -> None:
     assert output_from_argv(["--output", "first.wav", "--unknown"]) == Path("first.wav")
     assert output_from_argv(["--output", "first.wav", "--", "--out", "last.wav"]) == Path("first.wav")
     assert output_from_argv(["--output", "first.wav", "--out="]) is None
+    for option in OUTPUT_OPTION_NAMES:
+        assert output_from_argv([option, ""]) is None
+    assert output_from_argv(["--output", "first.wav", "--out", "", "--o", "last.wav"]) is None
     assert output_from_argv(["--output", "first.wav", "--help"]) is None
     assert output_from_argv(["--output", "first.wav", "-h"]) is None
     assert output_from_argv(["--output", "first.wav", "--", "--help"]) == Path("first.wav")
@@ -162,6 +166,56 @@ def assert_terminator_targets_first_output(runner: Path, root: Path) -> None:
     assert json.loads(second_manifest.read_text(encoding="utf-8"))["marker"] == "second"
 
 
+def assert_duplicate_output_cleans_only_last(runner: Path, root: Path) -> None:
+    """確認重複 output 的 parse failure 只清理最後一個目標。"""
+
+    first = root / f"{runner.stem}-duplicate-first.wav"
+    last = root / f"{runner.stem}-duplicate-last.wav"
+    first_manifest = first.with_suffix(".json")
+    last_manifest = last.with_suffix(".json")
+    first.write_bytes(b"old-duplicate-first")
+    last.write_bytes(b"old-duplicate-last")
+    first_manifest.write_text('{"status":"PASS","marker":"duplicate-first"}', encoding="utf-8")
+    last_manifest.write_text('{"status":"PASS","marker":"duplicate-last"}', encoding="utf-8")
+    result = run_runner(
+        runner,
+        [
+            *parser_required_args(runner, root),
+            "--output", str(first), "--out", str(last), "--definitely-invalid",
+        ],
+    )
+    assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+    assert first.read_bytes() == b"old-duplicate-first"
+    assert json.loads(first_manifest.read_text(encoding="utf-8"))["marker"] == "duplicate-first"
+    assert not last.exists()
+    failure = json.loads(last_manifest.read_text(encoding="utf-8"))
+    assert failure["status"] == "FAIL", failure
+    assert failure["output"]["path"] == str(last), failure
+
+
+def assert_separated_empty_output_is_rejected_without_cleanup(
+    runner: Path, root: Path, empty_option: str
+) -> None:
+    """確認四個分開空值 alias 都在清理前由 parser 拒絕。"""
+
+    output = root / f"{runner.stem}-{empty_option[2:]}-separated-empty.wav"
+    manifest = output.with_suffix(".json")
+    preserved_option = "--out" if empty_option == "--output" else "--output"
+    output.write_bytes(b"old-separated-empty")
+    manifest.write_text('{"status":"PASS","marker":"separated-empty"}', encoding="utf-8")
+    result = run_runner(
+        runner,
+        [
+            *parser_required_args(runner, root),
+            preserved_option, str(output), empty_option, "", "--definitely-invalid",
+        ],
+    )
+    assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+    assert "output path 不能為空" in result.stderr, result.stderr
+    assert output.read_bytes() == b"old-separated-empty"
+    assert json.loads(manifest.read_text(encoding="utf-8"))["marker"] == "separated-empty"
+
+
 def assert_empty_output_is_rejected_without_wrong_cleanup(runner: Path, root: Path) -> None:
     output = root / f"{runner.stem}-empty.wav"
     manifest = output.with_suffix(".json")
@@ -196,8 +250,13 @@ def main() -> int:
             assert_parse_failure_cleans(runner, root, lambda path: ["--out", str(path)], "out-separated")
             assert_parse_failure_cleans(runner, root, lambda path: [f"--out={path}"], "out-equals")
             assert_parse_failure_cleans(runner, root, lambda path: ["--outp", str(path)], "outp-separated")
+            assert_parse_failure_cleans(runner, root, lambda path: [f"--outp={path}"], "outp-equals")
+            assert_parse_failure_cleans(runner, root, lambda path: ["--o", str(path)], "o-separated")
             assert_parse_failure_cleans(runner, root, lambda path: [f"--o={path}"], "o-equals")
             assert_terminator_targets_first_output(runner, root)
+            assert_duplicate_output_cleans_only_last(runner, root)
+            for option in OUTPUT_OPTION_NAMES:
+                assert_separated_empty_output_is_rejected_without_cleanup(runner, root, option)
             assert_empty_output_is_rejected_without_wrong_cleanup(runner, root)
 
         output = root / "helper.wav"
