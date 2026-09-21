@@ -38,7 +38,7 @@ Set-Location D:\AetherTune
   -Output cosyvoice-from-stt.wav
 ```
 
-`-Backend` 可選 `cosyvoice` 或 `breeze-tts-2`。輸出預設位於 `artifacts/speech-reconstruction/`，旁邊會有後端 JSON 與 `.workflow.json`；workflow 會保留 `tts_text_source`、`reference_text_source`、`reference_text_verified`、STT draft 與 `manual_review_required`。
+`-Backend` 可選 `cosyvoice` 或 `breeze-tts-2`。輸出預設位於 `artifacts/speech-reconstruction/`，旁邊會有後端 JSON 與 `.workflow.json`；workflow 會保留 `tts_text_source`、`reference_text_source`、`reference_text_verified`、STT draft 與 `manual_review_required`。若沒有 caller `-TextFile`，目標內容仍是 source STT draft，因此 `manual_review_required` 維持 `true`；只有 caller 提供 `TextFile` 且 reference transcript verified 時才會是 `false`。
 
 若 reference transcript 已由人工逐字核對，可明確記錄 verified provenance：
 

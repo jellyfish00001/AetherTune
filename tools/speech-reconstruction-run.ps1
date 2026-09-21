@@ -170,8 +170,10 @@ $workflowManifest = [ordered]@{
     reference_audio_equals_input = ($referencePath -eq $inputPath)
     output = $outputPath
     stt = @($sttRecords)
-    manual_review_required = (-not $referenceTextWasVerified)
-    note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。只有明確指定 -ReferenceTextVerified 才會標示 caller_provided_verified；STT draft 或未核對的 caller text 仍需人工逐字確認。'
+    # 沒有 caller TextFile 時，目標內容仍來自 source STT draft；即使 reference transcript
+    # 已 verified，也必須保留人工審核 gate。只有 caller text 與 verified reference 都具備時才可清除。
+    manual_review_required = ((-not $TextFile) -or (-not $referenceTextWasVerified))
+    note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。只有明確指定 -ReferenceTextVerified 才會標示 caller_provided_verified；STT draft 或未核對的 caller text 仍需人工逐字確認。manual_review_required 只有在 caller 提供 TextFile 且 reference transcript verified 時才為 false。'
 }
 $workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ([System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')) -Encoding UTF8
 Write-Output ($workflowManifest | ConvertTo-Json -Depth 6)
