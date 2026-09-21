@@ -16,23 +16,7 @@ import time
 import uuid
 from pathlib import Path
 
-import soundfile as sf
-import torch
-
-from breeze_infer.runtime import (
-    load_runtime,
-    resolve_device,
-    set_all_seeds,
-    update_generation_config_for_breeze,
-)
-from breeze_infer.templates import get_template, prepare_inputs, select_template_name
-from models.fast_streaming import FastBreezeStreamingRuntime, FastStreamingConfig
-from audio_output_validation import (
-    clear_stale_outputs,
-    ensure_finite_samples,
-    validate_wav_file,
-    write_failure_manifest,
-)
+from audio_runner_failure import clear_stale_outputs, output_from_argv, write_failure_manifest
 
 
 def sha256(path: Path) -> str:
@@ -49,13 +33,6 @@ def read_value(value: str | None, value_file: Path | None, label: str) -> str | 
     if value_file:
         return value_file.read_text(encoding="utf-8")
     return value
-
-
-def output_from_argv(argv: list[str]) -> Path | None:
-    for index, value in enumerate(argv[:-1]):
-        if value == "--output":
-            return Path(argv[index + 1])
-    return None
 
 
 def main() -> int:
@@ -78,9 +55,25 @@ def main() -> int:
         "--attention-implementation", choices=("eager", "flash_attention_2"), default="eager",
         help="Breeze backbone attention backend；flash_attention_2 需要可 import flash_attn。",
     )
+    output_hint = output_from_argv(sys.argv[1:])
+    if output_hint is not None:
+        manifest_path = clear_stale_outputs(output_hint)
     args = parser.parse_args()
-    manifest_path = clear_stale_outputs(args.output)
+    if output_hint is None:
+        manifest_path = clear_stale_outputs(args.output)
     run_id = uuid.uuid4().hex
+
+    # 延後第三方 import，讓失敗仍能由 dependency-free bootstrap 寫出 FAIL manifest。
+    import soundfile as sf
+    import torch
+    from audio_output_validation import ensure_finite_samples, validate_wav_file
+    from breeze_infer.runtime import (
+        load_runtime,
+        resolve_device,
+        update_generation_config_for_breeze,
+    )
+    from breeze_infer.templates import get_template, prepare_inputs, select_template_name
+    from models.fast_streaming import FastBreezeStreamingRuntime, FastStreamingConfig
 
     text = read_value(args.text, args.text_file, "text")
     reference_text = read_value(
@@ -210,6 +203,12 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            output = output_from_argv(sys.argv[1:])
+            if output is not None:
+                write_failure_manifest(output, "breeze-tts-2", exc)
+        raise
     except Exception as exc:
         output = output_from_argv(sys.argv[1:])
         if output is not None:

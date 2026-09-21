@@ -50,23 +50,10 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8)
 }
 
-if (-not (Test-Path -LiteralPath $InputWav -PathType Leaf)) {
-    throw "找不到輸入音檔：$InputWav"
-}
-$inputPath = (Resolve-Path -LiteralPath $InputWav).Path
-if ($ReferenceTextVerified -and -not $ReferenceTextFile) {
-    throw '-ReferenceTextVerified 必須與 -ReferenceTextFile 一起提供'
-}
-if ($VoiceDesign -and $Backend -ne 'breeze-tts-2') {
-    throw '-VoiceDesign 只能與 -Backend breeze-tts-2 一起使用'
-}
-if ($VoiceDesign -and ($ReferenceAudio -or $ReferenceTextFile)) {
-    throw '-VoiceDesign 不可與 reference audio 或 reference transcript 同時使用'
-}
+# 先計算並清除精確 output.workflow.json；即使輸入檔不存在，失敗也不能留下舊 PASS workflow。
 $outputRoot = (New-Item -ItemType Directory -Force -Path $OutputDir).FullName
-$inputItem = Get-Item -LiteralPath $inputPath
-$stem = $inputItem.BaseName
 if (-not $Output) {
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($InputWav)
     $Output = Join-Path $outputRoot "$stem-$Backend.wav"
 } elseif (-not [System.IO.Path]::IsPathRooted($Output)) {
     if (Split-Path -Parent $Output) {
@@ -82,6 +69,22 @@ $workflowPath = [System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')
 if (Test-Path -LiteralPath $workflowPath -PathType Leaf) {
     Remove-Item -LiteralPath $workflowPath -Force
 }
+
+if (-not (Test-Path -LiteralPath $InputWav -PathType Leaf)) {
+    throw "找不到輸入音檔：$InputWav"
+}
+$inputPath = (Resolve-Path -LiteralPath $InputWav).Path
+if ($ReferenceTextVerified -and -not $ReferenceTextFile) {
+    throw '-ReferenceTextVerified 必須與 -ReferenceTextFile 一起提供'
+}
+if ($VoiceDesign -and $Backend -ne 'breeze-tts-2') {
+    throw '-VoiceDesign 只能與 -Backend breeze-tts-2 一起使用'
+}
+if ($VoiceDesign -and ($ReferenceAudio -or $ReferenceTextFile)) {
+    throw '-VoiceDesign 不可與 reference audio 或 reference transcript 同時使用'
+}
+$inputItem = Get-Item -LiteralPath $inputPath
+$stem = $inputItem.BaseName
 
 # 未指定 reference 時，使用輸入音檔作為目標聲線；這適合快速 smoke test。
 # ReferenceTextFile 只代表 reference audio 的 prompt transcript；TextFile 只代表要合成的目標文字。

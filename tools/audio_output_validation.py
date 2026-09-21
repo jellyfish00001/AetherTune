@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
-import uuid
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import soundfile as sf
+
+from audio_runner_failure import clear_stale_outputs, write_failure_manifest
 
 
 def ensure_finite_samples(values: Any, label: str = "audio") -> np.ndarray:
@@ -20,39 +20,6 @@ def ensure_finite_samples(values: Any, label: str = "audio") -> np.ndarray:
     if not bool(np.isfinite(array).all()):
         raise ValueError(f"{label} contains non-finite samples")
     return array
-
-
-def clear_stale_outputs(output: Path) -> Path:
-    """Remove only the requested output and manifest before a new run."""
-
-    output.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path = output.with_suffix(".json")
-    for stale in (output, manifest_path):
-        if stale.exists():
-            if not stale.is_file():
-                raise IsADirectoryError(stale)
-            stale.unlink()
-    return manifest_path
-
-
-def write_failure_manifest(output: Path, backend: str, exc: BaseException) -> None:
-    """Persist an explicit FAIL state when inference cannot produce a valid WAV."""
-
-    payload = {
-        "status": "FAIL",
-        "backend": backend,
-        "error": f"{type(exc).__name__}: {exc}",
-        "output": {"path": str(output)},
-        "run_id": uuid.uuid4().hex,
-    }
-    try:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.with_suffix(".json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-    except Exception:
-        # Preserve the original inference error; the caller still receives a non-zero exit.
-        pass
 
 
 def validate_wav_file(

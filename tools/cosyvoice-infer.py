@@ -14,16 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
-import torch
-import torchaudio
-from cosyvoice.cli.cosyvoice import CosyVoice2
-
-from audio_output_validation import (
-    clear_stale_outputs,
-    ensure_finite_samples,
-    validate_wav_file,
-    write_failure_manifest,
-)
+from audio_runner_failure import clear_stale_outputs, output_from_argv, write_failure_manifest
 
 
 def sha256(path: Path) -> str:
@@ -32,13 +23,6 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def output_from_argv(argv: list[str]) -> Path | None:
-    for index, value in enumerate(argv[:-1]):
-        if value == "--output":
-            return Path(argv[index + 1])
-    return None
 
 
 def main() -> int:
@@ -51,9 +35,19 @@ def main() -> int:
     parser.add_argument("--text-file", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--fp16", action="store_true")
+    output_hint = output_from_argv(sys.argv[1:])
+    if output_hint is not None:
+        manifest_path = clear_stale_outputs(output_hint)
     args = parser.parse_args()
-    manifest_path = clear_stale_outputs(args.output)
+    if output_hint is None:
+        manifest_path = clear_stale_outputs(args.output)
     run_id = uuid.uuid4().hex
+
+    # 延後第三方 import，讓失敗仍能由 dependency-free bootstrap 寫出 FAIL manifest。
+    import torch
+    import torchaudio
+    from audio_output_validation import ensure_finite_samples, validate_wav_file
+    from cosyvoice.cli.cosyvoice import CosyVoice2
 
     for path in (args.model_dir, args.prompt_audio):
         if not path.exists():
@@ -126,6 +120,12 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            output = output_from_argv(sys.argv[1:])
+            if output is not None:
+                write_failure_manifest(output, "cosyvoice2-zero-shot", exc)
+        raise
     except Exception as exc:
         output = output_from_argv(sys.argv[1:])
         if output is not None:
