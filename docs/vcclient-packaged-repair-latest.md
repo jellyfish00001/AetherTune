@@ -16,7 +16,24 @@
 
 ## 目前阻塞證據
 
-最新 Wukong role probe：`artifacts/vcclient-rvc-test-final/5ee7d4ac-11ee-4e4e-8c74-999c2efc65e5/vcclient-rvc-probe.json`。
+### 最新 post-gate slot 契約證據
+
+最新 bounded probe：`artifacts/vcclient-rvc-test-postgate/1dc5db0e-8827-432e-94ff-ec252f582d94/vcclient-rvc-probe.json`。
+
+這次只驗證 slot contract 與短 probe，沒有宣稱 600 秒 realtime 通過：
+
+| 檢查 | 結果 |
+|---|---|
+| requested／active／initial slot | `7 / 7 / 7` |
+| slot model evidence | `Sage_CN_HeroicFemale.pth/.index`、`pyTorchRVCv2`、`sample_rate=48000`、`pitch_estimator=rmvpe_onnx` |
+| REST bulk conversion | `DEGRADED`；30 chunks 中 28 個回傳 4-byte 全零，只有 2 個非零 chunk |
+| 整體輸出 | 有 finite／non-zero sample，但逐 chunk gate 未通過 |
+
+對應的 bounded latency matrix：`artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json`。四組短測仍為 `DEGRADED`；stability row 是 `stability_seconds=0` 下因短測 gate 未通過而記錄的 `BLOCKED`，不是 600 秒測試的 PASS 或完成證據。
+
+### Historical／full-gate 證據
+
+以下 Wukong artifact 保留作為修改前的 historical/full-gate evidence，不再是最新 slot 證據：`artifacts/vcclient-rvc-test-final/5ee7d4ac-11ee-4e4e-8c74-999c2efc65e5/vcclient-rvc-probe.json`。
 
 | 檢查 | 結果 |
 |---|---|

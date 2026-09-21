@@ -8,8 +8,8 @@
 
 | # | 工作 | 目前狀態 | 可以直接做什麼 | 尚未完成／限制 | 主要證據 |
 |---:|---|---|---|---|---|
-| 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | VCClient packaged role conversion 仍出現 `SlotInfo.chunk_sec` HTTP 500，或回傳短的全零 chunk；不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](vcclient-packaged-repair-latest.md) |
-| 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行矩陣並取得 p50/p95、dropout、RMS，且報告 slot 核對證據 | Wukong 0.25／0.50／0.75／1.00 秒短測都有 dropout；600 秒 gate 依規則阻擋；目前 active slot 預設為 7 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
+| 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | 最新 Sage slot 7 post-gate probe 已核對 requested／active=`7/7`，但 30 chunks 有 28 個 4-byte 全零；仍不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](vcclient-packaged-repair-latest.md) |
+| 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行 bounded 矩陣並取得 p50/p95、dropout、RMS，且報告 slot 核對證據 | Sage slot 7 的 0.25／0.50／0.75／1.00 秒短測 dropout 為 58/60、26/30、17/20、13/15；本次 stability=`stability_seconds=0` 為 `BLOCKED`，尚非 600 秒證據 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
 | 3 | Seed-VC realtime tiny、長音檔 | 60 秒 headless `PASS`；裝置 E2E `WAITING` | 離線男女互轉、60 秒長檔、200 block headless GPU stream 可用 | 尚未以官方 GUI、PortAudio 麥克風和實際輸出裝置完成 10 分鐘以上 realtime | [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md) |
 | 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 10 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
 | 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash | 現有四組仍是 `candidate`；source、license、f0、sample rate、revision、dataset 等仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
@@ -21,7 +21,7 @@
 
 - `tools/rvc-ready-gate-regression.ps1`：PASS；拒絕 ready 的 unknown metadata、缺失 verification artifact、FAIL status 與 malformed JSON。
 - `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。
-- `tools/vcclient-rvc-probe.ps1` 與矩陣：報告新增 requested／active slot 與 model evidence；本機 active slot `7` 的 runtime probe 仍為 `DEGRADED`（28/30 zero chunks），矩陣短測失敗後長測維持 `BLOCKED`。
+- `tools/vcclient-rvc-probe.ps1` 與矩陣：最新 post-gate artifact `artifacts/vcclient-rvc-test-postgate/1dc5db0e-8827-432e-94ff-ec252f582d94/vcclient-rvc-probe.json` 已保存 requested／active slot 與 model evidence；Sage slot `7` runtime probe 為 `DEGRADED`（28/30 zero chunks）。bounded 矩陣 `artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json` 的短測失敗後 stability row 維持 `BLOCKED`。舊 Wukong／600 秒矩陣只作 historical/full-gate evidence。
 - `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft，workflow 明確保留 manual review gate。
 
 可重跑：
