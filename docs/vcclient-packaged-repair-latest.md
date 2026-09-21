@@ -18,7 +18,7 @@
 
 ### 最新 post-gate slot 契約證據
 
-最新 bounded probe：`artifacts/vcclient-rvc-test-postgate/1dc5db0e-8827-432e-94ff-ec252f582d94/vcclient-rvc-probe.json`。
+最新 bounded probe：`artifacts/vcclient-rvc-test-postgate-v2/c0d00306-ce10-4746-9b81-9f0cff5d3ed5/vcclient-rvc-probe.json`。
 
 這次只驗證 slot contract 與短 probe，沒有宣稱 600 秒 realtime 通過：
 
@@ -26,12 +26,15 @@
 |---|---|
 | requested／active／initial slot | `7 / 7 / 7` |
 | slot model evidence | `Sage_CN_HeroicFemale.pth/.index`、`pyTorchRVCv2`、`sample_rate=48000`、`pitch_estimator=rmvpe_onnx` |
-| REST bulk conversion | `DEGRADED`；30 chunks 中 28 個回傳 4-byte 全零，只有 2 個非零 chunk |
-| 有效輸出 | 有足夠 finite／non-zero sample，但逐 chunk gate 仍因 28 個全零 invalid chunk 未通過 |
+| REST bulk conversion | `DEGRADED`；30 chunks 中 `2` 個 valid、`28` 個 invalid；invalid 內 `28` 個全零，`empty/short/unaligned/nonfinite=0` |
+| latency／輸出 | p50=`1.542 ms`、p95=`27.854 ms`；output RMS=`0.0124192`、peak=`0.15027118` |
+| 有效輸出 | 只有 2 個 finite／non-zero valid chunks；逐 chunk gate 因 28 個全零 invalid chunk 未通過 |
 
-對應的 bounded latency matrix：`artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json`。四組短測仍為 `DEGRADED`；stability row 是 `stability_seconds=0` 下因短測 gate 未通過而記錄的 `BLOCKED`，不是 600 秒測試的 PASS 或完成證據。
+對應的 bounded latency matrix：`artifacts/vcclient-rvc-latency-matrix-postgate-v2/524e1a71-c00c-49c0-9127-82ae23aca119/vcclient-rvc-latency-matrix.json`。0.25／0.50／0.75 秒短測為 `DEGRADED`，1.00 秒短測為 `BLOCKED`（`0/15` valid chunks）；stability row 是 `stability_seconds=0` 下因短測 gate 未通過而記錄的 `BLOCKED`，不是 600 秒測試的 PASS 或完成證據。
 
 ### Historical／full-gate 證據
+
+上一版 Sage post-gate 證據保留作 historical：probe `artifacts/vcclient-rvc-test-postgate/1dc5db0e-8827-432e-94ff-ec252f582d94/vcclient-rvc-probe.json` 同樣為 `DEGRADED`，30 chunks 中 28 個全零 invalid；matrix `artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json` 的短測 invalid/dropout 為 58/60、26/30、17/20、13/15，stability `0` 為 `BLOCKED`。
 
 以下 Wukong artifact 保留作為修改前的 historical/full-gate evidence，不再是最新 slot 證據：`artifacts/vcclient-rvc-test-final/5ee7d4ac-11ee-4e4e-8c74-999c2efc65e5/vcclient-rvc-probe.json`。
 

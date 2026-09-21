@@ -15,19 +15,21 @@
 
 ## 最新結果
 
-最新 bounded post-gate artifact：`artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json`。
+最新 bounded post-gate artifact：`artifacts/vcclient-rvc-latency-matrix-postgate-v2/524e1a71-c00c-49c0-9127-82ae23aca119/vcclient-rvc-latency-matrix.json`。
 
 這次以 Sage slot 7 驗證 requested／active slot 與 model evidence；四組短測結果如下：
 
-| chunk | 狀態 | chunks | dropout | p50／p95 |
+| chunk | 狀態 | chunks | invalid／dropout | p50／p95 |
 |---:|---|---:|---:|---:|
-| 0.25 s | `DEGRADED` | 60 | 58/60 | 1.359／28.043 ms |
-| 0.50 s | `DEGRADED` | 30 | 26/30 | 1.577／21.338 ms |
-| 0.75 s | `DEGRADED` | 20 | 17/20 | 2.381／25.215 ms |
-| 1.00 s | `DEGRADED` | 15 | 13/15 | 2.544／24.252 ms |
+| 0.25 s | `DEGRADED` | 60 | 58/60 | 1.418／22.442 ms |
+| 0.50 s | `DEGRADED` | 30 | 28/30 | 1.461／10.742 ms |
+| 0.75 s | `DEGRADED` | 20 | 19/20 | 1.827／36.512 ms |
+| 1.00 s | `BLOCKED` | 15 | 15/15 | 1.996／15.626 ms |
 | stability（`stability_seconds=0`） | `BLOCKED` | — | — | 短測未全部 PASS，依 gate 不執行 |
 
-所有短測都記錄 requested slot `7`、active slot `7` 與 `Sage_CN_HeroicFemale.pth` model evidence；整體輸出仍有 finite/non-zero WAV，但逐 chunk 有 4-byte 全零 response，因此不能當成穩定 PASS。這是 bounded post-gate／slot contract check，不是 600 秒 realtime 驗收。
+所有短測都記錄 requested slot `7`、active slot `7` 與 `Sage_CN_HeroicFemale.pth` model evidence；0.25／0.50／0.75 秒列分別只有 2、2、1 個 valid chunks，其餘 invalid 主要是全零；1.00 秒列為 `0/15` valid、串接後沒有可驗收的語音輸出。這是 bounded post-gate／slot contract check，不是 600 秒 realtime 驗收。
+
+上一版 Sage post-gate matrix 保留作 historical：`artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json`，短測 invalid/dropout 為 58/60、26/30、17/20、13/15，stability `0` 為 `BLOCKED`。
 
 修改前的 Wukong historical/full-gate evidence 仍保留於 `artifacts/vcclient-rvc-latency-matrix-final/4903f51e-a371-49c4-92a3-4b6b0a9953e5/vcclient-rvc-latency-matrix.json`；其短測 dropout 為 58/60、22/30、15/20、11/15，不能與本次 Sage slot 7 結果混用。
 
