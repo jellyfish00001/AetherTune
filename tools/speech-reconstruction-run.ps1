@@ -78,6 +78,10 @@ if (-not $Output) {
 $outputPath = [System.IO.Path]::GetFullPath($Output)
 $outputParent = Split-Path -Parent $outputPath
 New-Item -ItemType Directory -Force -Path $outputParent | Out-Null
+$workflowPath = [System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')
+if (Test-Path -LiteralPath $workflowPath -PathType Leaf) {
+    Remove-Item -LiteralPath $workflowPath -Force
+}
 
 # 未指定 reference 時，使用輸入音檔作為目標聲線；這適合快速 smoke test。
 # ReferenceTextFile 只代表 reference audio 的 prompt transcript；TextFile 只代表要合成的目標文字。
@@ -190,5 +194,5 @@ $workflowManifest = [ordered]@{
     manual_review_required = ($VoiceDesign -or (-not $TextFile) -or (-not $referenceTextWasVerified))
     note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。只有明確指定 -ReferenceTextVerified 才會標示 caller_provided_verified；STT draft 或未核對的 caller text 仍需人工逐字確認。manual_review_required 只有在 caller 提供 TextFile 且 reference transcript verified 時才為 false。'
 }
-$workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ([System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')) -Encoding UTF8
+$workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $workflowPath -Encoding UTF8
 Write-Output ($workflowManifest | ConvertTo-Json -Depth 6)

@@ -9,14 +9,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 import time
+import uuid
 from pathlib import Path
 
 import torch
 import torchaudio
 from cosyvoice.cli.cosyvoice import CosyVoice2
 
-from audio_output_validation import validate_wav_file
+from audio_output_validation import (
+    clear_stale_outputs,
+    ensure_finite_samples,
+    validate_wav_file,
+    write_failure_manifest,
+)
 
 
 def sha256(path: Path) -> str:
@@ -25,6 +32,13 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def output_from_argv(argv: list[str]) -> Path | None:
+    for index, value in enumerate(argv[:-1]):
+        if value == "--output":
+            return Path(argv[index + 1])
+    return None
 
 
 def main() -> int:
@@ -38,6 +52,8 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--fp16", action="store_true")
     args = parser.parse_args()
+    manifest_path = clear_stale_outputs(args.output)
+    run_id = uuid.uuid4().hex
 
     for path in (args.model_dir, args.prompt_audio):
         if not path.exists():
@@ -50,8 +66,6 @@ def main() -> int:
     text = args.text or args.text_file.read_text(encoding="utf-8")
     if not prompt_text.strip() or not text.strip():
         raise ValueError("prompt text 與 TTS text 不可為空")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-
     # CosyVoice 官方推論會載入數 GB 權重；先記錄 runtime，讓 artifact 可追溯。
     runtime = {
         "torch": torch.__version__,
@@ -75,7 +89,13 @@ def main() -> int:
     if not outputs:
         raise RuntimeError("CosyVoice returned no audio chunks")
 
-    speech = torch.cat([item["tts_speech"].cpu() for item in outputs], dim=1)
+    speech_chunks = []
+    for chunk_index, item in enumerate(outputs):
+        chunk = item["tts_speech"]
+        ensure_finite_samples(chunk.detach().cpu().numpy(), f"CosyVoice chunk {chunk_index}")
+        speech_chunks.append(chunk.cpu())
+    speech = torch.cat(speech_chunks, dim=1)
+    ensure_finite_samples(speech.detach().cpu().numpy(), "CosyVoice output")
     torchaudio.save(str(args.output), speech, cosyvoice.sample_rate)
     output_validation = validate_wav_file(args.output, expected_sample_rate=cosyvoice.sample_rate)
     inference_seconds = time.perf_counter() - inference_started
@@ -83,6 +103,7 @@ def main() -> int:
 
     manifest = {
         "status": "PASS",
+        "run_id": run_id,
         "backend": "cosyvoice2-zero-shot",
         "model_dir": str(args.model_dir),
         "prompt_audio": {"path": str(args.prompt_audio), "sha256": sha256(args.prompt_audio)},
@@ -97,11 +118,16 @@ def main() -> int:
         "rtf": inference_seconds / output_seconds if output_seconds else None,
         "runtime": runtime,
     }
-    manifest_path = args.output.with_suffix(".json")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        output = output_from_argv(sys.argv[1:])
+        if output is not None:
+            write_failure_manifest(output, "cosyvoice2-zero-shot", exc)
+        raise

@@ -95,7 +95,7 @@ Voice Design 不需要 reference（也可直接使用上面的 `speech-reconstru
   -Output .\artifacts\speech-reconstruction\breeze-design-female.wav
 ```
 
-每次輸出旁會產生同名 JSON，記錄模型、reference hash、裝置、RTF 與輸出 hash。
+每次成功輸出旁會產生同名 JSON，記錄模型、reference hash、裝置、RTF、`run_id` 與 `output_validation`；輸出 gate 失敗會寫 `status=FAIL` manifest，不會沿用舊的 PASS JSON。wrapper 也會在新執行開始前清除同名舊 workflow。
 
 ### 安裝／重新建立環境
 

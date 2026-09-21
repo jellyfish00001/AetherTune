@@ -11,7 +11,9 @@ import argparse
 import hashlib
 import json
 import math
+import sys
 import time
+import uuid
 from pathlib import Path
 
 import soundfile as sf
@@ -25,7 +27,12 @@ from breeze_infer.runtime import (
 )
 from breeze_infer.templates import get_template, prepare_inputs, select_template_name
 from models.fast_streaming import FastBreezeStreamingRuntime, FastStreamingConfig
-from audio_output_validation import validate_wav_file
+from audio_output_validation import (
+    clear_stale_outputs,
+    ensure_finite_samples,
+    validate_wav_file,
+    write_failure_manifest,
+)
 
 
 def sha256(path: Path) -> str:
@@ -42,6 +49,13 @@ def read_value(value: str | None, value_file: Path | None, label: str) -> str | 
     if value_file:
         return value_file.read_text(encoding="utf-8")
     return value
+
+
+def output_from_argv(argv: list[str]) -> Path | None:
+    for index, value in enumerate(argv[:-1]):
+        if value == "--output":
+            return Path(argv[index + 1])
+    return None
 
 
 def main() -> int:
@@ -65,6 +79,8 @@ def main() -> int:
         help="Breeze backbone attention backend；flash_attention_2 需要可 import flash_attn。",
     )
     args = parser.parse_args()
+    manifest_path = clear_stale_outputs(args.output)
+    run_id = uuid.uuid4().hex
 
     text = read_value(args.text, args.text_file, "text")
     reference_text = read_value(
@@ -80,7 +96,6 @@ def main() -> int:
         raise FileNotFoundError(args.model_dir)
     if not math.isfinite(args.cfg_scale) or args.cfg_scale <= 0:
         raise ValueError("cfg-scale 必須大於 0")
-
     device = resolve_device()
     device_type = getattr(device, "type", None) or str(device).split(":", 1)[0]
     if device_type != "cuda" or not torch.cuda.is_available():
@@ -129,7 +144,6 @@ def main() -> int:
         guidance_scale_ins=None,
     )
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     inference_started = time.perf_counter()
     with sf.SoundFile(
         args.output,
@@ -138,10 +152,14 @@ def main() -> int:
         channels=1,
         subtype="PCM_16",
     ) as output_file:
-        for chunk in runtime.iter_audio_chunks(
+        for chunk_index, chunk in enumerate(runtime.iter_audio_chunks(
             inputs, request_id="aethertune-request", seed=args.seed
-        ):
-            output_file.write(chunk.audio)
+        )):
+            audio = chunk.audio
+            if isinstance(audio, torch.Tensor):
+                audio = audio.detach().float().cpu().numpy()
+            ensure_finite_samples(audio, f"Breeze chunk {chunk_index}")
+            output_file.write(audio)
     inference_seconds = time.perf_counter() - inference_started
 
     with sf.SoundFile(args.output) as audio_file:
@@ -149,6 +167,7 @@ def main() -> int:
     output_validation = validate_wav_file(args.output, expected_sample_rate=runtime.sample_rate)
     manifest = {
         "status": "PASS",
+        "run_id": run_id,
         "backend": "breeze-tts-2",
         "model_dir": str(args.model_dir),
         "model_source": "BreezeBlue/Breeze-TTS-2",
@@ -183,11 +202,16 @@ def main() -> int:
         "fast_all": args.fast_all,
         "attention_implementation": args.attention_implementation,
     }
-    manifest_path = args.output.with_suffix(".json")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        output = output_from_argv(sys.argv[1:])
+        if output is not None:
+            write_failure_manifest(output, "breeze-tts-2", exc)
+        raise
