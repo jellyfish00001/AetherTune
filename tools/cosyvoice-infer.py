@@ -14,7 +14,13 @@ import time
 import uuid
 from pathlib import Path
 
-from audio_runner_failure import clear_stale_outputs, output_from_argv, write_failure_manifest
+from audio_runner_failure import (
+    OUTPUT_OPTION_NAMES,
+    clear_stale_outputs,
+    nonempty_output_path,
+    output_from_argv,
+    write_failure_manifest,
+)
 
 
 def sha256(path: Path) -> str:
@@ -26,14 +32,18 @@ def sha256(path: Path) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run CosyVoice2 zero-shot TTS in WSL.")
+    parser = argparse.ArgumentParser(
+        description="Run CosyVoice2 zero-shot TTS in WSL.", allow_abbrev=False
+    )
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--prompt-audio", required=True, type=Path)
     parser.add_argument("--prompt-text")
     parser.add_argument("--prompt-text-file", type=Path)
     parser.add_argument("--text")
     parser.add_argument("--text-file", type=Path)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        *OUTPUT_OPTION_NAMES, dest="output", required=True, type=nonempty_output_path
+    )
     parser.add_argument("--fp16", action="store_true")
     output_hint = output_from_argv(sys.argv[1:])
     if output_hint is not None:

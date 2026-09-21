@@ -16,7 +16,13 @@ import time
 import uuid
 from pathlib import Path
 
-from audio_runner_failure import clear_stale_outputs, output_from_argv, write_failure_manifest
+from audio_runner_failure import (
+    OUTPUT_OPTION_NAMES,
+    clear_stale_outputs,
+    nonempty_output_path,
+    output_from_argv,
+    write_failure_manifest,
+)
 
 
 def sha256(path: Path) -> str:
@@ -36,7 +42,9 @@ def read_value(value: str | None, value_file: Path | None, label: str) -> str | 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run Breeze TTS 2 local inference")
+    parser = argparse.ArgumentParser(
+        description="Run Breeze TTS 2 local inference", allow_abbrev=False
+    )
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--text")
     parser.add_argument("--text-file", type=Path)
@@ -44,7 +52,9 @@ def main() -> int:
     parser.add_argument("--reference-text")
     parser.add_argument("--reference-text-file", type=Path)
     parser.add_argument("--instruction")
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument(
+        *OUTPUT_OPTION_NAMES, dest="output", required=True, type=nonempty_output_path
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cfg-scale", type=float, default=1.0)
     parser.add_argument(

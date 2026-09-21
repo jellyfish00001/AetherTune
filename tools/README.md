@@ -17,10 +17,10 @@
 - `breeze-tts2-setup.ps1`：在 WSL2 Ubuntu 建立 Breeze TTS 2 Python 3.10 environment 與下載官方 checkpoint；模型受 research/non-commercial license 限制。
 - `breeze-tts2-run.ps1`／`breeze-tts2-infer.py`：使用 UTF-8 text file、reference audio／transcript 或 voice design 產生 24 kHz WAV 與 JSON manifest。
 - `audio_output_validation.py`：供 CosyVoice／Breeze runner 共用的 WAV 輸出 gate；會在編碼前拒絕 raw chunk 的 NaN/Infinity，並拒絕空檔、無 frame、非 finite、錯誤取樣率與全零輸出；失敗重跑會寫 `FAIL` manifest。
-- `audio_runner_failure.py`：不依賴模型／音訊套件的 runner 啟動保護，負責按 argparse 的最後值解析 `--output`／`--out`（分開或 `=` 形式）、清除 stale 輸出與寫入失敗 manifest。
+- `audio_runner_failure.py`：不依賴模型／音訊套件的 runner 啟動保護；兩個 runner 使用固定的 `--output`／`--out`／`--outp`／`--o` 別名、停用隱式縮寫，helper 按最後值解析分開或 `=` 形式，尊重 `--`，拒絕空路徑，再清除 stale 輸出與寫入失敗 manifest。
 - `audio-quality-batch.py`／`audio-quality-batch-regression.py`：四 backend 的 signal-level 比較與狀態彙總 regression；任何 BLOCKED row 不得被彙總成 PASS。
 - `audio-output-validation-regression.py`：WAV 輸出 gate 的空值、非 finite 與有效訊號 regression。
-- `audio-runner-entry-regression.py`：實際啟動兩個 TTS runner subprocess，驗證 help 保留舊檔、`--output`／`--out` 的分開與 `=` 形式、parse failure 清理與 FAIL manifest；另保留 top-level import AST regression。
+- `audio-runner-entry-regression.py`：實際啟動兩個 TTS runner subprocess，驗證 help 保留舊檔、四個明確 output 別名的分開與 `=` 形式、重複值、`--` 終止符、空路徑拒絕、parse failure 清理與 FAIL manifest；另保留 top-level import AST regression。
 - `speech-reconstruction-failure-regression.ps1`：不啟動模型的 wrapper stale workflow failure regression。
 - `stt-setup.ps1`／`stt-transcribe.py`：建立 Faster-Whisper STT environment，對 reference 產生 draft transcript 與 JSON evidence；正式 clone 前仍需人工核對。
 - `rvc-fcpe-gpu-infer.py`：直接使用 RVC WebUI pipeline，以 FCPE + CUDA 對角色模型做離線推論並寫出 manifest。

@@ -26,10 +26,14 @@ def assert_output_scan() -> None:
 
     assert output_from_argv(["--output", "first.wav", "--output=last.wav"]) == Path("last.wav")
     assert output_from_argv(["--out", "first.wav", "--out=last.wav"]) == Path("last.wav")
+    assert output_from_argv(["--outp", "first.wav", "--o=last.wav"]) == Path("last.wav")
     assert output_from_argv(["--output", "first.wav", "--out", "last.wav"]) == Path("last.wav")
     assert output_from_argv(["--output", "first.wav", "--unknown"]) == Path("first.wav")
+    assert output_from_argv(["--output", "first.wav", "--", "--out", "last.wav"]) == Path("first.wav")
+    assert output_from_argv(["--output", "first.wav", "--out="]) is None
     assert output_from_argv(["--output", "first.wav", "--help"]) is None
     assert output_from_argv(["--output", "first.wav", "-h"]) is None
+    assert output_from_argv(["--output", "first.wav", "--", "--help"]) == Path("first.wav")
 
 
 def assert_top_level_imports_are_safe(source_path: Path) -> None:
@@ -87,6 +91,20 @@ def run_runner(runner: Path, args: list[str]) -> subprocess.CompletedProcess[str
     )
 
 
+def parser_required_args(runner: Path, root: Path) -> list[str]:
+    """提供完整必要參數，讓 parse regression 的錯誤原因確實是指定案例。"""
+
+    model_dir = root / "missing-model"
+    if runner.name == "breeze-tts2-infer.py":
+        return ["--model-dir", str(model_dir), "--text", "regression text"]
+    return [
+        "--model-dir", str(model_dir),
+        "--prompt-audio", str(root / "missing-prompt.wav"),
+        "--prompt-text", "prompt text",
+        "--text", "regression text",
+    ]
+
+
 def assert_help_preserves_stale(runner: Path, root: Path) -> None:
     output = root / f"{runner.stem}-help.wav"
     manifest = output.with_suffix(".json")
@@ -105,13 +123,61 @@ def assert_parse_failure_cleans(
     manifest = output.with_suffix(".json")
     output.write_bytes(b"old-parse")
     manifest.write_text('{"status":"PASS","marker":"old-parse"}', encoding="utf-8")
-    result = run_runner(runner, [*option_args(output), "--definitely-invalid"])
+    result = run_runner(
+        runner,
+        [*parser_required_args(runner, root), *option_args(output), "--definitely-invalid"],
+    )
     assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+    assert "--definitely-invalid" in result.stderr
+    assert str(output) not in "\n".join(
+        line for line in result.stderr.splitlines() if "unrecognized arguments:" in line
+    ), result.stderr
     assert not output.exists(), output
     failure = json.loads(manifest.read_text(encoding="utf-8"))
     assert failure["status"] == "FAIL", failure
     assert failure["output"]["path"] == str(output), failure
     assert failure["backend"]
+
+
+def assert_terminator_targets_first_output(runner: Path, root: Path) -> None:
+    first = root / f"{runner.stem}-terminator-first.wav"
+    second = root / f"{runner.stem}-terminator-second.wav"
+    first_manifest = first.with_suffix(".json")
+    second_manifest = second.with_suffix(".json")
+    first.write_bytes(b"old-first")
+    second.write_bytes(b"old-second")
+    first_manifest.write_text('{"status":"PASS","marker":"first"}', encoding="utf-8")
+    second_manifest.write_text('{"status":"PASS","marker":"second"}', encoding="utf-8")
+    result = run_runner(
+        runner,
+        [
+            *parser_required_args(runner, root),
+            "--output", str(first), "--", "--out", str(second), "--definitely-invalid",
+        ],
+    )
+    assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+    assert not first.exists()
+    assert json.loads(first_manifest.read_text(encoding="utf-8"))["status"] == "FAIL"
+    assert second.read_bytes() == b"old-second"
+    assert json.loads(second_manifest.read_text(encoding="utf-8"))["marker"] == "second"
+
+
+def assert_empty_output_is_rejected_without_wrong_cleanup(runner: Path, root: Path) -> None:
+    output = root / f"{runner.stem}-empty.wav"
+    manifest = output.with_suffix(".json")
+    output.write_bytes(b"old-empty")
+    manifest.write_text('{"status":"PASS","marker":"empty"}', encoding="utf-8")
+    result = run_runner(
+        runner,
+        [
+            *parser_required_args(runner, root),
+            "--output", str(output), "--out=", "--definitely-invalid",
+        ],
+    )
+    assert result.returncode == 2, (result.returncode, result.stdout, result.stderr)
+    assert "output path" in result.stderr
+    assert output.read_bytes() == b"old-empty"
+    assert json.loads(manifest.read_text(encoding="utf-8"))["marker"] == "empty"
 
 
 def main() -> int:
@@ -129,6 +195,10 @@ def main() -> int:
             assert_parse_failure_cleans(runner, root, lambda path: [f"--output={path}"], "output-equals")
             assert_parse_failure_cleans(runner, root, lambda path: ["--out", str(path)], "out-separated")
             assert_parse_failure_cleans(runner, root, lambda path: [f"--out={path}"], "out-equals")
+            assert_parse_failure_cleans(runner, root, lambda path: ["--outp", str(path)], "outp-separated")
+            assert_parse_failure_cleans(runner, root, lambda path: [f"--o={path}"], "o-equals")
+            assert_terminator_targets_first_output(runner, root)
+            assert_empty_output_is_rejected_without_wrong_cleanup(runner, root)
 
         output = root / "helper.wav"
         manifest = output.with_suffix(".json")

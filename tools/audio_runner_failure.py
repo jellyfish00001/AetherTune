@@ -2,32 +2,46 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import uuid
 from pathlib import Path
+
+OUTPUT_OPTION_NAMES: tuple[str, ...] = ("--output", "--out", "--outp", "--o")
+
+
+def nonempty_output_path(value: str) -> Path:
+    """Shared argparse type: reject an empty path before any filesystem work."""
+
+    if not value:
+        raise argparse.ArgumentTypeError("output path 不能為空")
+    return Path(value)
 
 
 def output_from_argv(argv: list[str]) -> Path | None:
     """Mirror argparse's output option scan before parser/import failures.
 
-    The runners expose ``--output`` and argparse also accepts its unambiguous
-    ``--out`` abbreviation.  argparse uses the last occurrence, so this
-    bootstrap scan must do the same.  A following option is not treated as a
-    path; the parser will report that malformed invocation later.
+    The runners expose a fixed alias set and disable implicit argparse
+    abbreviation.  argparse uses the last occurrence, so this bootstrap scan
+    must do the same.  A following option, empty equals value, or option after
+    ``--`` is not treated as a path.
     """
 
-    if "--help" in argv or "-h" in argv:
+    before_terminator = argv[: argv.index("--")] if "--" in argv else argv
+    if "--help" in before_terminator or "-h" in before_terminator:
         return None
     output: Path | None = None
-    option_names = {"--output", "--out"}
     for index, value in enumerate(argv):
-        if value in option_names:
+        if value == "--":
+            break
+        if value in OUTPUT_OPTION_NAMES:
             if index + 1 < len(argv) and not argv[index + 1].startswith("-"):
                 output = Path(argv[index + 1])
-        elif any(value.startswith(f"{name}=") for name in option_names):
+            else:
+                output = None
+        elif any(value.startswith(f"{name}=") for name in OUTPUT_OPTION_NAMES):
             candidate = value.split("=", 1)[1]
-            if candidate:
-                output = Path(candidate)
+            output = Path(candidate) if candidate else None
     return output
 
 
