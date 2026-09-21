@@ -7,6 +7,7 @@ param(
     [string]$TextFile = '',
     [string]$ReferenceAudio = '',
     [string]$ReferenceTextFile = '',
+    [switch]$ReferenceTextVerified,
     [string]$Instruction = 'A natural, clear, warm speaking voice with a medium pace.',
     [string]$SttModel = 'small',
     [string]$Language = '',
@@ -52,6 +53,9 @@ if (-not (Test-Path -LiteralPath $InputWav -PathType Leaf)) {
     throw "找不到輸入音檔：$InputWav"
 }
 $inputPath = (Resolve-Path -LiteralPath $InputWav).Path
+if ($ReferenceTextVerified -and -not $ReferenceTextFile) {
+    throw '-ReferenceTextVerified 必須與 -ReferenceTextFile 一起提供'
+}
 $outputRoot = (New-Item -ItemType Directory -Force -Path $OutputDir).FullName
 $inputItem = Get-Item -LiteralPath $inputPath
 $stem = $inputItem.BaseName
@@ -105,10 +109,17 @@ if ($ttsTextPath) {
 }
 
 $promptTextPath = $ReferenceTextFile
-$referenceTextSource = 'human_reviewed_file'
+$referenceTextSource = 'stt_draft_reference_audio'
+$referenceTextWasVerified = $false
 if ($promptTextPath) {
     if (-not (Test-Path -LiteralPath $promptTextPath -PathType Leaf)) { throw "找不到 reference transcript：$promptTextPath" }
     $promptTextPath = (Resolve-Path -LiteralPath $promptTextPath).Path
+    if ($ReferenceTextVerified) {
+        $referenceTextSource = 'caller_provided_verified'
+        $referenceTextWasVerified = $true
+    } else {
+        $referenceTextSource = 'caller_provided_unverified'
+    }
 } elseif ($referencePath -eq $inputPath -and -not $TextFile) {
     $promptTextPath = $ttsTextPath
     $referenceTextSource = 'stt_draft_reused_same_audio'
@@ -155,11 +166,12 @@ $workflowManifest = [ordered]@{
     reference_text_file = $promptTextPath
     tts_text_source = if ($TextFile) { 'caller_text_file' } else { 'stt_draft_source_audio' }
     reference_text_source = $referenceTextSource
+    reference_text_verified = $referenceTextWasVerified
     reference_audio_equals_input = ($referencePath -eq $inputPath)
     output = $outputPath
     stt = @($sttRecords)
-    manual_review_required = $true
-    note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。未提供人工核對文字時，對應 transcript 會標示為 STT draft，必須人工逐字確認。'
+    manual_review_required = (-not $referenceTextWasVerified)
+    note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。只有明確指定 -ReferenceTextVerified 才會標示 caller_provided_verified；STT draft 或未核對的 caller text 仍需人工逐字確認。'
 }
 $workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ([System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')) -Encoding UTF8
 Write-Output ($workflowManifest | ConvertTo-Json -Depth 6)

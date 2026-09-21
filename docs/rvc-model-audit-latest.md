@@ -29,7 +29,7 @@ Set-Location D:\AetherTune
 
 這個工具會重新計算兩個檔案的 SHA-256、檢查未登記配對與欄位，不會自動修改 CSV，也不會把 `candidate` 升成 `ready`。
 
-ready gate 負向回歸（只在暫存目錄建立測試 CSV／JSON，不寫入 artifacts）：
+ready gate 負向回歸（只在暫存目錄建立測試 CSV／JSON，不寫入 artifacts）：register 與 audit 都會拒絕 malformed、非 `PASS`、錯誤 model／index path 或 hash，以及 input／output hash 不一致；合法的現有 PASS artifact 另有正向 DryRun。
 
 ```powershell
 & .\tools\rvc-ready-gate-regression.ps1

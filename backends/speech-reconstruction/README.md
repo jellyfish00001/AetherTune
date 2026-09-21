@@ -28,7 +28,7 @@
 
 ### 一鍵 STT → TTS
 
-未提供 `-TextFile` 時，wrapper 會先用 Faster-Whisper 對 source audio 產生 draft transcript，再呼叫指定後端。未提供 `-ReferenceAudio` 時，會暫時把輸入音檔當作 reference，適合 smoke test；`-TextFile` 只代表要合成的目標文字，`-ReferenceTextFile` 只代表 reference audio 的 prompt transcript。若兩個音檔不同且未提供 `-ReferenceTextFile`，wrapper 會另外對 reference audio 做 STT，不會重用 source transcript。
+未提供 `-TextFile` 時，wrapper 會先用 Faster-Whisper 對 source audio 產生 draft transcript，再呼叫指定後端。未提供 `-ReferenceAudio` 時，會暫時把輸入音檔當作 reference，適合 smoke test；`-TextFile` 只代表要合成的目標文字，`-ReferenceTextFile` 只代表 reference audio 的 prompt transcript。若兩個音檔不同且未提供 `-ReferenceTextFile`，wrapper 會另外對 reference audio 做 STT，不會重用 source transcript。傳入 `-ReferenceTextFile` 預設只標示 `caller_provided_unverified`；只有確認逐字核對後才加 `-ReferenceTextVerified`，而且該 switch 沒有文字檔時會拒絕。
 
 ```powershell
 Set-Location D:\AetherTune
@@ -38,7 +38,19 @@ Set-Location D:\AetherTune
   -Output cosyvoice-from-stt.wav
 ```
 
-`-Backend` 可選 `cosyvoice` 或 `breeze-tts-2`。輸出預設位於 `artifacts/speech-reconstruction/`，旁邊會有後端 JSON 與 `.workflow.json`；workflow 會保留 `tts_text_source`、`reference_text_source`、STT draft 與 `manual_review_required=true`。
+`-Backend` 可選 `cosyvoice` 或 `breeze-tts-2`。輸出預設位於 `artifacts/speech-reconstruction/`，旁邊會有後端 JSON 與 `.workflow.json`；workflow 會保留 `tts_text_source`、`reference_text_source`、`reference_text_verified`、STT draft 與 `manual_review_required`。
+
+若 reference transcript 已由人工逐字核對，可明確記錄 verified provenance：
+
+```powershell
+& .\tools\speech-reconstruction-run.ps1 `
+  -InputWav .\dataset\reference-voices\voice-male-m1.wav `
+  -ReferenceAudio .\dataset\reference-voices\voice-female-f1.wav `
+  -ReferenceTextFile .\tools\fixtures\breeze-reference-female-text.txt `
+  -ReferenceTextVerified `
+  -Backend breeze-tts-2 `
+  -Output .\artifacts\speech-reconstruction\breeze-verified-clone.wav
+```
 
 ### CosyVoice2
 

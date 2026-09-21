@@ -25,6 +25,11 @@ $outputPeak = 0.0
 $outputNonzeroSamples = 0
 $outputFiniteSamples = 0
 $zeroOutputChunks = 0
+$invalidChunkCount = 0
+$emptyChunkCount = 0
+$shortChunkCount = 0
+$unalignedChunkCount = 0
+$nonfiniteChunkCount = 0
 $latencyP50Ms = $null
 $latencyP95Ms = $null
 $slot = $null
@@ -33,6 +38,8 @@ $initialActiveSlotIndex = $null
 $slotModelEvidence = $null
 $initialConfiguration = $null
 $client = $null
+
+. (Join-Path $PSScriptRoot 'vcclient-rvc-chunk-validation.ps1')
 
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $runDir = Join-Path (Resolve-Path $OutputRoot).Path $runId
@@ -173,17 +180,33 @@ try {
                 $detail = [Text.Encoding]::UTF8.GetString($responseBytes)
                 throw "convert_chunk_bulk HTTP $([int]$response.StatusCode): $detail"
             }
+            $chunkValidation = Test-VcClientChunkResponse $responseBytes
             $chunkMetrics.Add([ordered]@{
                     # 以輸入位移計算實際 chunk 編號；總 chunk 數不是目前 chunk 的 index。
                     chunk_index = [int][Math]::Floor($offset / $chunkBytes)
                     input_bytes = $length
                     output_bytes = $responseBytes.Length
                     latency_ms = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
-                    output_all_zero = ($responseBytes.Length -gt 0 -and (@($responseBytes | Where-Object { $_ -ne 0 }).Count -eq 0))
+                    valid_chunk = $chunkValidation.valid
+                    invalid_reason = $chunkValidation.reason
+                    sample_count = $chunkValidation.sample_count
+                    finite_samples = $chunkValidation.finite_samples
+                    nonfinite_samples = $chunkValidation.nonfinite_samples
+                    nonzero_samples = $chunkValidation.nonzero_samples
+                    output_all_zero = $chunkValidation.output_all_zero
                 })
-            if ($responseBytes.Length -gt 0) {
+            if ($chunkValidation.valid) {
                 $converted.AddRange($responseBytes)
                 $successfulChunks++
+            } else {
+                $invalidChunkCount++
+                switch ($chunkValidation.reason) {
+                    'empty' { $emptyChunkCount++ }
+                    'short' { $shortChunkCount++ }
+                    'unaligned' { $unalignedChunkCount++ }
+                    'nonfinite' { $nonfiniteChunkCount++ }
+                    'all_zero' { $zeroOutputChunks++ }
+                }
             }
         } finally {
             if ($stopwatch.IsRunning) { $stopwatch.Stop() }
@@ -192,14 +215,13 @@ try {
         }
     }
 
-    [IO.File]::WriteAllBytes($outputRaw, $converted.ToArray())
     $convertedBytes = $converted.Count
-    & $ffmpegExe -hide_banner -loglevel error -y -f f32le -ar 48000 -ac 1 -i $outputRaw $outputWav
-    if ($LASTEXITCODE -ne 0) {
-        throw "FFmpeg 輸出 WAV 轉換失敗，exit=$LASTEXITCODE"
-    }
-    if (($chunkMetrics | Where-Object { $_.output_all_zero }).Count -gt 0) {
-        $zeroOutputChunks = @($chunkMetrics | Where-Object { $_.output_all_zero }).Count
+    if ($convertedBytes -gt 0) {
+        [IO.File]::WriteAllBytes($outputRaw, $converted.ToArray())
+        & $ffmpegExe -hide_banner -loglevel error -y -f f32le -ar 48000 -ac 1 -i $outputRaw $outputWav
+        if ($LASTEXITCODE -ne 0) {
+            throw "FFmpeg 輸出 WAV 轉換失敗，exit=$LASTEXITCODE"
+        }
     }
     if ($convertedBytes -ge 4 -and ($convertedBytes % 4) -eq 0) {
         $samples = [float[]]::new([int]($convertedBytes / 4))
@@ -221,14 +243,16 @@ try {
         $latencyP50Ms = $latencies[[Math]::Min($latencies.Count - 1, [int][Math]::Floor(($latencies.Count - 1) * 0.50))]
         $latencyP95Ms = $latencies[[Math]::Min($latencies.Count - 1, [int][Math]::Floor(($latencies.Count - 1) * 0.95))]
     }
-    if ($convertedBytes -lt 4096 -or $outputNonzeroSamples -eq 0 -or $outputFiniteSamples -eq 0) {
-        throw "轉換端點只回傳 $convertedBytes bytes，未形成可驗收的語音輸出"
-    }
-    # 整體串接後可能仍有非零樣本，但中間 chunk 全零會造成即時斷音；
-    # 這種結果只能標成 DEGRADED，不能讓總 WAV 的 RMS 掩蓋逐段 dropout。
-    $status = if ($zeroOutputChunks -gt 0) { 'DEGRADED' } else { 'PASS' }
-    if ($status -eq 'DEGRADED') {
-        $errorMessage = "有 $zeroOutputChunks/$totalChunks 個 chunk 回傳 4-byte 全零輸出"
+    if ($convertedBytes -lt 4096 -or $successfulChunks -eq 0 -or $outputNonzeroSamples -eq 0 -or $outputFiniteSamples -eq 0) {
+        $status = 'BLOCKED'
+        $errorMessage = "有效 chunk 只有 $successfulChunks/$totalChunks，串接後 $convertedBytes bytes，未形成可驗收的語音輸出"
+    } elseif ($invalidChunkCount -gt 0) {
+        # 整體串接後可能仍有非零樣本，但任何 invalid chunk 都代表即時斷音或數值污染；
+        # 不能讓總 WAV 的 RMS 掩蓋逐段 gate 失敗。
+        $status = 'DEGRADED'
+        $errorMessage = "有 $invalidChunkCount/$totalChunks 個 invalid chunk（全零=$zeroOutputChunks、empty=$emptyChunkCount、short=$shortChunkCount、unaligned=$unalignedChunkCount、nonfinite=$nonfiniteChunkCount）"
+    } else {
+        $status = 'PASS'
     }
 } catch {
     $errorMessage = $_.Exception.Message
@@ -268,6 +292,11 @@ $report = [ordered]@{
     successful_chunks = $successfulChunks
     converted_bytes = $convertedBytes
     zero_output_chunks = $zeroOutputChunks
+    invalid_chunk_count = $invalidChunkCount
+    empty_chunk_count = $emptyChunkCount
+    short_chunk_count = $shortChunkCount
+    unaligned_chunk_count = $unalignedChunkCount
+    nonfinite_chunk_count = $nonfiniteChunkCount
     output_rms = [Math]::Round($outputRms, 8)
     output_peak = [Math]::Round($outputPeak, 8)
     output_nonzero_samples = $outputNonzeroSamples

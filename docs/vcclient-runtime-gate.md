@@ -6,7 +6,7 @@
 
 - AetherTune `.venv`：Torch `2.7.1+cu128`，RTX 5060 Ti `sm_120`，實際 CUDA tensor op 成功。
 - VCClient `2.1.4-alpha cuda`：embedded Torch `2.7.0+cu118`；啟動 log 顯示 CUDA build `11.8`，並曾警告 `sm_120` 不在該 PyTorch build 的相容清單。官方 runtime repair 已可重現恢復 module/sample assets。
-- 最新 probe 可以送出官方 ONNX sample 的 chunk request，但 artifact 只有 120 bytes、WAV 不是有效可播放輸出；因此 packaged RVC offline path 仍未通過，不能拿來證明四組自有角色模型、GPU provider 或即時音訊鏈路。
+- 最新 probe 可以送出官方 ONNX sample 的 chunk request，但 artifact 只有 120 bytes、WAV 不是有效可播放輸出；因此 packaged RVC offline path 仍未通過，不能拿來證明四組本機 candidate 角色模型、GPU provider 或即時音訊鏈路。
 
 因此不能用專案 venv 的 PASS 代替 VCClient PASS，也不能因 Web UI `HTTP 200` 或 sample slot 存在就宣布即時變聲可用。
 

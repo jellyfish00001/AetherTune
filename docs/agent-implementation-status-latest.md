@@ -19,16 +19,18 @@
 
 ## 本輪工具契約修正與可重跑檢查
 
-- `tools/rvc-ready-gate-regression.ps1`：PASS；拒絕 ready 的 unknown metadata、缺失 verification artifact、FAIL status 與 malformed JSON。
+- `tools/rvc-ready-gate-regression.ps1`：PASS；register 與 audit 都拒絕 ready 的 unknown metadata、缺失、malformed、FAIL／DEGRADED artifact、錯誤 model／index path／hash 與 input／output hash。
+- `tools/vcclient-rvc-chunk-validation-regression.ps1`：PASS；逐 chunk 拒絕 empty、short、unaligned、全零、NaN 與 Infinity，只接受 finite non-zero float32 response。
 - `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。
 - `tools/vcclient-rvc-probe.ps1` 與矩陣：最新 post-gate artifact `artifacts/vcclient-rvc-test-postgate/1dc5db0e-8827-432e-94ff-ec252f582d94/vcclient-rvc-probe.json` 已保存 requested／active slot 與 model evidence；Sage slot `7` runtime probe 為 `DEGRADED`（28/30 zero chunks）。bounded 矩陣 `artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json` 的短測失敗後 stability row 維持 `BLOCKED`。舊 Wukong／600 秒矩陣只作 historical/full-gate evidence。
-- `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft，workflow 明確保留 manual review gate。
+- `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft；caller text 預設是 `caller_provided_unverified`，只有明確 `-ReferenceTextVerified` 才標 verified，workflow 保存 `reference_text_verified` 與 manual review gate。
 
 可重跑：
 
 ```powershell
 Set-Location D:\AetherTune
 & .\tools\rvc-ready-gate-regression.ps1
+& .\tools\vcclient-rvc-chunk-validation-regression.ps1
 & .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py --fail-on-waiting
 ```
 

@@ -6,7 +6,7 @@ Windows 語音變聲與語音重建實驗專案。這個專案同時保留四個
 
 | 你想要的結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
-| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 四組自有角色 `FCPE + cuda:0` 離線推論 `PASS`；即時音訊鏈路仍 `WAITING` |
+| 即時通話、遊戲、Discord、OBS | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | 四組本機 candidate 角色模型 `FCPE + cuda:0` 離線推論 `PASS`；即時音訊鏈路仍 `WAITING` |
 | 快速把一段聲音換成男聲／女聲 | **Seed-VC / Zero-Shot VC** | 不要 | source WAV + 1–30 秒 reference WAV | `offline-v1` 雙向／60 秒長檔與 `realtime-tiny` 60 秒 headless GPU `PASS`；麥克風端到端仍 `WAITING` |
 | 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／Breeze TTS 2 | 不要訓練角色 | source WAV → transcript + reference WAV | STT、CosyVoice2、Breeze TTS 2 輸出 `PASS`；CosyVoice speech tokenizer partial CUDA、transcript／人工聽核仍待補 |
 
@@ -47,7 +47,7 @@ Set-Location D:\AetherTune
 
 ### RVC：先用專案 FCPE + GPU，VCClient packaged 另行驗收
 
-四組本機角色模型已由專案 RVC pipeline 完成 `FCPE + cuda:0` 離線推論；先用這條路線開始使用。VCClient packaged runtime 的官方 modules 已修復，但真實 role conversion 仍被 `SlotInfo.chunk_sec` HTTP 500 阻塞，不能把 120-byte 全零 response 當成成功。註冊與最新證據見 [`docs/vcclient-packaged-repair-latest.md`](docs/vcclient-packaged-repair-latest.md)。
+四組本機 candidate 角色模型已由專案 RVC pipeline 完成 `FCPE + cuda:0` 離線推論；先用這條路線開始測試。VCClient packaged runtime 的官方 modules 已修復，但真實 role conversion 仍被 `SlotInfo.chunk_sec` HTTP 500 或短的全零 chunk 阻塞，不能把任何短全零 response 當成成功。註冊與最新證據見 [`docs/vcclient-packaged-repair-latest.md`](docs/vcclient-packaged-repair-latest.md)。
 
 先啟動 VCClient，再以安全註冊器建立新 slot：
 
@@ -59,7 +59,7 @@ Set-Location D:\AetherTune
   -Name 'AetherTune Wukong Heroic Male'
 ```
 
-再使用 `tools/vcclient-rvc-probe.ps1` 驗證有效非零 WAV；probe 會核對 requested slot 與 VCClient active slot，若出現 packaged API error，請看 report，不要把服務 HTTP 200 視為可用。矩陣預設測試專案目前 active slot `7`；要測其他已註冊角色請明確加 `-ConfigureSlot`。
+直接使用 `tools/vcclient-rvc-probe.ps1` 時，`-ConfigureSlot` 是 probe 的 switch，會明確切換並核對 requested／active slot；若出現 packaged API error，請看 report，不要把服務 HTTP 200 視為可用。矩陣會自行把 `-ConfigureSlot` 傳給 probe，使用者不要把它當成矩陣參數。矩陣預設測試專案目前 active slot `7`。
 
 要測 RVC realtime chunk／dropout／10 分鐘 gate，使用 [`tools/vcclient-rvc-latency-matrix.ps1`](tools/vcclient-rvc-latency-matrix.ps1)；最新證據與判定規則見 [`docs/vcclient-rvc-latency-matrix-latest.md`](docs/vcclient-rvc-latency-matrix-latest.md)。
 
@@ -87,7 +87,7 @@ Faster-Whisper、CosyVoice2 與 Breeze TTS 2 都已建立獨立環境並完成�
   -Output cosyvoice-from-stt.wav
 ```
 
-把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze。 `-TextFile` 是要合成的目標文字，`-ReferenceTextFile` 是 reference audio 的 prompt transcript；若未提供人工核對文字，workflow 會標記對應 transcript 為 STT draft 與 `manual_review_required=true`。
+把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze。 `-TextFile` 是要合成的目標文字，`-ReferenceTextFile` 是 reference audio 的 prompt transcript；未提供人工核對文字時，workflow 會標記 `caller_provided_unverified` 或 STT draft 與 `manual_review_required=true`。只有使用者已逐字核對 reference transcript 時，才加上 `-ReferenceTextVerified`；沒有 `-ReferenceTextFile` 時使用這個 switch 會被拒絕。
 
 ## 三種方法的資料流
 

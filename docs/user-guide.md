@@ -125,7 +125,7 @@ Set-Location D:\AetherTune
 這條路線已可用 `tools/speech-reconstruction-run.ps1` 一鍵串接；若要可追溯與正式 clone，仍建議分階段核對：
 
 1. 先對 source WAV 做 STT。
-2. 人工核對 transcript，特別是 reference audio 的 prompt text。
+2. 人工核對 transcript，特別是 reference audio 的 prompt text；確認後以 `-ReferenceTextFile` 搭配 `-ReferenceTextVerified` 執行 wrapper。
 3. 將文字與 reference audio 送入 CosyVoice 或 Breeze。
 4. 保存 STT model/revision、transcript、reference hash、TTS model、輸出 hash 與 RTF。
 

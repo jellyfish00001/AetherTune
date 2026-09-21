@@ -32,7 +32,7 @@ function Get-ProbeReport {
 foreach ($chunkSec in $ChunkSeconds) {
     $result = Get-ProbeReport -ChunkSec $chunkSec -Label ("chunk-{0}s" -f ($chunkSec.ToString('0.00').Replace('.', '_')))
     $report = $result.report
-    $dropouts = if ($report) { @($report.chunk_metrics | Where-Object { $_.output_bytes -lt 4 -or $_.output_all_zero }).Count } else { $null }
+    $dropouts = if ($report) { @($report.chunk_metrics | Where-Object { $_.valid_chunk -ne $true -or $_.output_bytes -lt 4 -or $_.output_all_zero }).Count } else { $null }
     $rowStatus = if (-not $report) { 'BLOCKED' } elseif ($report.status -ne 'PASS') { $report.status } elseif ($dropouts -gt 0) { 'DEGRADED' } else { 'PASS' }
     $rows.Add([ordered]@{
             test_type = 'short'
@@ -43,6 +43,11 @@ foreach ($chunkSec in $ChunkSeconds) {
             p50_latency_ms = if ($report) { $report.latency_p50_ms } else { $null }
             p95_latency_ms = if ($report) { $report.latency_p95_ms } else { $null }
             dropout_count = $dropouts
+            invalid_chunk_count = if ($report) { $report.invalid_chunk_count } else { $null }
+            empty_chunk_count = if ($report) { $report.empty_chunk_count } else { $null }
+            short_chunk_count = if ($report) { $report.short_chunk_count } else { $null }
+            unaligned_chunk_count = if ($report) { $report.unaligned_chunk_count } else { $null }
+            nonfinite_chunk_count = if ($report) { $report.nonfinite_chunk_count } else { $null }
             requested_slot_index = if ($report) { $report.requested_slot_index } else { $SlotIndex }
             active_slot_index = if ($report) { $report.active_slot_index } else { $null }
             slot_model_evidence = if ($report) { $report.slot_model_evidence } else { $null }
@@ -59,7 +64,7 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
     if ($LASTEXITCODE -ne 0) { throw "建立 stability input 失敗，exit=$LASTEXITCODE" }
     $result = Get-ProbeReport -ChunkSec 0.5 -Label 'stability-600s' -ProbeInputWav $longInput
     $report = $result.report
-    $dropouts = if ($report) { @($report.chunk_metrics | Where-Object { $_.output_bytes -lt 4 -or $_.output_all_zero }).Count } else { $null }
+    $dropouts = if ($report) { @($report.chunk_metrics | Where-Object { $_.valid_chunk -ne $true -or $_.output_bytes -lt 4 -or $_.output_all_zero }).Count } else { $null }
     $rowStatus = if (-not $report) { 'BLOCKED' } elseif ($report.status -ne 'PASS') { $report.status } elseif ($dropouts -gt 0) { 'DEGRADED' } else { 'PASS' }
     $rows.Add([ordered]@{
             test_type = 'stability'
@@ -71,6 +76,11 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
             p50_latency_ms = if ($report) { $report.latency_p50_ms } else { $null }
             p95_latency_ms = if ($report) { $report.latency_p95_ms } else { $null }
             dropout_count = $dropouts
+            invalid_chunk_count = if ($report) { $report.invalid_chunk_count } else { $null }
+            empty_chunk_count = if ($report) { $report.empty_chunk_count } else { $null }
+            short_chunk_count = if ($report) { $report.short_chunk_count } else { $null }
+            unaligned_chunk_count = if ($report) { $report.unaligned_chunk_count } else { $null }
+            nonfinite_chunk_count = if ($report) { $report.nonfinite_chunk_count } else { $null }
             requested_slot_index = if ($report) { $report.requested_slot_index } else { $SlotIndex }
             active_slot_index = if ($report) { $report.active_slot_index } else { $null }
             slot_model_evidence = if ($report) { $report.slot_model_evidence } else { $null }
@@ -89,6 +99,11 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
             p50_latency_ms = $null
             p95_latency_ms = $null
             dropout_count = $null
+            invalid_chunk_count = $null
+            empty_chunk_count = $null
+            short_chunk_count = $null
+            unaligned_chunk_count = $null
+            nonfinite_chunk_count = $null
             requested_slot_index = $SlotIndex
             active_slot_index = $null
             slot_model_evidence = $null

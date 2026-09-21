@@ -19,7 +19,8 @@
 - `stt-setup.ps1`／`stt-transcribe.py`：建立 Faster-Whisper STT environment，對 reference 產生 draft transcript 與 JSON evidence；正式 clone 前仍需人工核對。
 - `rvc-fcpe-gpu-infer.py`：直接使用 RVC WebUI pipeline，以 FCPE + CUDA 對角色模型做離線推論並寫出 manifest。
 - `vcclient-rvc-probe.ps1`：對已啟動的 VCClient REST endpoint 做官方 sample 短 WAV → RVC chunk probe；目前只能證明 chunk request 被接受，舊 artifact 的輸出不是有效 WAV，不能代替 RVC WebUI 的 FCPE + GPU role matrix。
-- `speech-reconstruction-run.ps1`：一鍵執行 `STT → CosyVoice2/Breeze TTS 2`；未提供文字時會先產生 STT draft，輸出 WAV、後端 JSON 與 workflow manifest。正式 voice clone 仍應提供人工核對的 `-ReferenceTextFile`。
+- `vcclient-rvc-chunk-validation-regression.ps1`：離線回歸 empty、short、unaligned、全零、finite non-zero、NaN 與 Infinity chunk gate。
+- `speech-reconstruction-run.ps1`：一鍵執行 `STT → CosyVoice2/Breeze TTS 2`；未提供文字時會先產生 STT draft，輸出 WAV、後端 JSON 與 workflow manifest。`-ReferenceTextFile` 預設是 `caller_provided_unverified`；人工逐字核對後再明確加 `-ReferenceTextVerified`。
 - `external/`：本機第三方 repo、整合包與下載檔，已由 `.gitignore` 排除。
 
 驗收命令：

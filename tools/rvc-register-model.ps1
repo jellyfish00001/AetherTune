@@ -37,13 +37,70 @@ function Resolve-RepoFile([string]$InputPath, [string]$Extension) {
     if (-not $resolved.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "檔案必須位於 repository root 內：$InputPath"
     }
-    if ([System.IO.Path]::GetExtension($resolved).ToLowerInvariant() -ne $Extension) {
+    if ($Extension -and [System.IO.Path]::GetExtension($resolved).ToLowerInvariant() -ne $Extension) {
         throw "檔案副檔名必須是 $Extension：$resolved"
     }
     [pscustomobject]@{
         Full = $resolved
         Relative = $resolved.Substring($rootPrefix.Length).Replace('\', '/')
     }
+}
+
+function Assert-VerificationFile {
+    param(
+        [object]$Evidence,
+        [string]$Label,
+        [string]$ExpectedRelativePath = '',
+        [string]$ExpectedSha256 = ''
+    )
+
+    if ($null -eq $Evidence) {
+        throw "verification_artifact 缺少 $Label object"
+    }
+    $rawPath = ([string]$Evidence.path).Trim()
+    $declaredHash = ([string]$Evidence.sha256).Trim().ToLowerInvariant()
+    if (-not $rawPath) { throw "verification_artifact $Label 缺少 path" }
+    if (-not ($declaredHash -match '^[0-9a-f]{64}$')) {
+        throw "verification_artifact $Label sha256 不是合法 SHA-256"
+    }
+    $resolvedEvidence = Resolve-RepoFile $rawPath ''
+    if ($ExpectedRelativePath -and $resolvedEvidence.Relative -ine $ExpectedRelativePath) {
+        throw "verification_artifact $Label path 與本次 register 不一致：$($resolvedEvidence.Relative) != $ExpectedRelativePath"
+    }
+    $actualHash = (Get-FileHash -LiteralPath $resolvedEvidence.Full -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $declaredHash) {
+        throw "verification_artifact $Label SHA-256 不一致：declared=$declaredHash actual=$actualHash"
+    }
+    if ($ExpectedSha256 -and $actualHash -ne $ExpectedSha256.ToLowerInvariant()) {
+        throw "verification_artifact $Label SHA-256 與本次 register 不一致"
+    }
+}
+
+function Assert-VerificationArtifact {
+    param(
+        [string]$ArtifactPath,
+        [string]$ExpectedWeightsRelativePath,
+        [string]$ExpectedWeightsSha256,
+        [string]$ExpectedIndexRelativePath,
+        [string]$ExpectedIndexSha256
+    )
+
+    $artifact = Resolve-RepoFile $ArtifactPath '.json'
+    try {
+        $payload = Get-Content -LiteralPath $artifact.Full -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        throw "verification_artifact 無法解析 JSON：$ArtifactPath；$($_.Exception.Message)"
+    }
+    if ($null -eq $payload -or $payload -is [array]) {
+        throw 'verification_artifact JSON 根節點必須是 object'
+    }
+    if (([string]$payload.status).Trim().ToUpperInvariant() -ne 'PASS') {
+        throw "verification_artifact status 必須是 PASS（目前 $([string]$payload.status)）"
+    }
+    Assert-VerificationFile $payload.model 'model' $ExpectedWeightsRelativePath $ExpectedWeightsSha256
+    Assert-VerificationFile $payload.index 'index' $ExpectedIndexRelativePath $ExpectedIndexSha256
+    Assert-VerificationFile $payload.input 'input'
+    Assert-VerificationFile $payload.output 'output'
 }
 
 $weight = Resolve-RepoFile $WeightsPath '.pth'
@@ -76,10 +133,7 @@ if ($Status -eq 'ready') {
         throw "ready 必須提供完整且可追溯欄位；空白或 unknown/pending placeholder：$($invalidReadyFields -join ', ')。未知值只能保留 candidate。"
     }
 
-    $verification = Resolve-RepoFile $VerificationArtifact ([System.IO.Path]::GetExtension($VerificationArtifact))
-    if (-not $verification.Full -or -not (Test-Path -LiteralPath $verification.Full -PathType Leaf)) {
-        throw "ready 必須提供 repository 內存在的 verification_artifact：$VerificationArtifact"
-    }
+    Assert-VerificationArtifact $VerificationArtifact $weight.Relative $weightHash $index.Relative $indexHash
 }
 
 $existing = @()

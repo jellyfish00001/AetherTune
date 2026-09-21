@@ -12,7 +12,7 @@
 - `tools/vcclient-rvc-register.ps1`：以 16 MiB chunks 上傳 `.pth/.index`、concat、註冊獨立 slot；不覆寫已有 slot，也不呼叫會清空 filesystem 的 `/api/operation/initialize`。
 - Sage slot 7：`.pth + .index`、`pyTorchRVCv2`、`sample_rate=48000`、`chunk_sec=0.5`，註冊成功。
 - Wukong slot 8：`.pth + .index`、`pyTorchRVCv2`、`chunk_sec=0.5`，註冊器實測 `PASS`。
-- `tools/vcclient-rvc-probe.ps1` 現在記錄每 chunk latency、p50/p95、輸出 RMS、peak、有限值與非零 sample；整體 WAV 即使非零，只要任一 chunk 是 4-byte 全零就標成 `DEGRADED`。
+- `tools/vcclient-rvc-probe.ps1` 現在逐 chunk 驗證 latency、response bytes、float32 對齊、finite／non-zero sample 與 invalid reason；empty、short、unaligned、全零或 NaN/Infinity chunk 都不算有效輸出，任一 invalid chunk 至少標成 `DEGRADED`，沒有足夠有效輸出則為 `BLOCKED`。
 
 ## 目前阻塞證據
 
@@ -27,7 +27,7 @@
 | requested／active／initial slot | `7 / 7 / 7` |
 | slot model evidence | `Sage_CN_HeroicFemale.pth/.index`、`pyTorchRVCv2`、`sample_rate=48000`、`pitch_estimator=rmvpe_onnx` |
 | REST bulk conversion | `DEGRADED`；30 chunks 中 28 個回傳 4-byte 全零，只有 2 個非零 chunk |
-| 整體輸出 | 有 finite／non-zero sample，但逐 chunk gate 未通過 |
+| 有效輸出 | 有足夠 finite／non-zero sample，但逐 chunk gate 仍因 28 個全零 invalid chunk 未通過 |
 
 對應的 bounded latency matrix：`artifacts/vcclient-rvc-latency-matrix-postgate/d89946fe-9d02-4445-a70e-3fa6540a6708/vcclient-rvc-latency-matrix.json`。四組短測仍為 `DEGRADED`；stability row 是 `stability_seconds=0` 下因短測 gate 未通過而記錄的 `BLOCKED`，不是 600 秒測試的 PASS 或完成證據。
 
@@ -40,7 +40,7 @@
 | slot/model/index metadata | PASS；`Wukong_HeroicMale.pth/.index`、`chunk_sec=0.5` |
 | REST bulk conversion | DEGRADED；30 chunks 中 27 個回傳 4-byte 全零，只有 3 個有效 chunk |
 | REST non-bulk conversion | BLOCKED；另有同一 packaged pipeline 的 `SlotInfo.chunk_sec` HTTP 500 證據 |
-| valid WAV / non-zero output | 整體 WAV 有 finite/non-zero sample，但逐 chunk gate 未通過，不能當成穩定輸出 |
+| valid WAV / non-zero output | 整體 WAV 有 finite/non-zero sample，但逐 chunk gate 仍有 27 個全零 invalid chunk，不能當成穩定輸出 |
 | embedded ONNX provider | `CPUExecutionProvider`；available provider 清單不是 GPU proof |
 
 VCClient 的 `/api/operation/initialize` 在本版會移除/rebuild `model_dir` 與 modules 狀態，不能放進一般註冊或 probe 流程。`-InitializeAfterConfigure` 只有在明確要重現 lifecycle 問題時才使用。
@@ -72,7 +72,7 @@ VCClient 的 `/api/operation/initialize` 在本版會移除/rebuild `model_dir` 
   -FfmpegPath 'C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe'
 ```
 
-Probe 會先核對 `requested_slot_index` 與 VCClient configuration 的 active/current slot，並把 `slot_model_evidence` 寫入 JSON；不一致時直接 `BLOCKED`。只有在輸出 bytes 足夠、float32 sample 有限、至少一個非零 sample 且每個 chunk 都不是全零時才會 `PASS`。目前若再出現 `SlotInfo.chunk_sec` 或全零 chunk，請保留 JSON/log，等待相容版 VCClient 或改用專案 RVC WebUI offline route。
+Probe 會先核對 `requested_slot_index` 與 VCClient configuration 的 active/current slot，並把 `slot_model_evidence` 寫入 JSON；不一致時直接 `BLOCKED`。只有在輸出 bytes 足夠、每個 chunk 都是 4-byte aligned、所有 float32 sample 都 finite、每個 chunk 都有非零 sample，且沒有 invalid chunk 時才會 `PASS`。目前若再出現 `SlotInfo.chunk_sec`、全零、空回應、短回應或 NaN/Infinity chunk，請保留 JSON/log，等待相容版 VCClient 或改用專案 RVC WebUI offline route。
 
 ## 與專案 RVC 的邊界
 

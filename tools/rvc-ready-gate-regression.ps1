@@ -66,6 +66,77 @@ function Assert-RegisterRejectsMissingArtifact {
     Write-Output 'PASS register ready gate rejects missing verification artifact'
 }
 
+function Assert-RegisterRejectsArtifact([string]$Label, [string]$Content) {
+    $artifactName = "register-$Label.json"
+    $artifactPath = Join-Path $repoTemp $artifactName
+    [IO.File]::WriteAllText($artifactPath, $Content, [Text.UTF8Encoding]::new($false))
+    $relative = 'tools/' + (Split-Path -Leaf $repoTemp) + '/' + $artifactName
+    $failed = $false
+    try {
+        $null = & $registerScript `
+            -ModelId "RegressionRegister_$Label" `
+            -WeightsPath $weights `
+            -IndexPath $index `
+            -SampleRate 40000 `
+            -F0 fcpe `
+            -Version v2 `
+            -DatasetBatchId 'known-dataset' `
+            -RvcRevision 'known-revision' `
+            -TrainedAt '2026-09-20T00:00:00+08:00' `
+            -SourceUrl 'https://example.invalid/source' `
+            -LicenseOrPermission 'permission-record' `
+            -TrainingEnvironment 'known-environment' `
+            -Status ready `
+            -VerificationArtifact $relative `
+            -DryRun 2>&1
+        if ($LASTEXITCODE -ne 0) { $failed = $true }
+    } catch {
+        $failed = $true
+    }
+    if (-not $failed) { throw "回歸失敗：register unexpectedly accepted $Label verification artifact" }
+    Write-Output "PASS register rejects $Label verification artifact"
+}
+
+function Assert-RegisterAcceptsValidArtifact([string]$ArtifactRelativePath) {
+    $null = & $registerScript `
+        -ModelId 'RegressionRegisterValid' `
+        -WeightsPath $weights `
+        -IndexPath $index `
+        -SampleRate 40000 `
+        -F0 fcpe `
+        -Version v2 `
+        -DatasetBatchId 'known-dataset' `
+        -RvcRevision 'known-revision' `
+        -TrainedAt '2026-09-20T00:00:00+08:00' `
+        -SourceUrl 'https://example.invalid/source' `
+        -LicenseOrPermission 'permission-record' `
+        -TrainingEnvironment 'known-environment' `
+        -Status ready `
+        -VerificationArtifact $ArtifactRelativePath `
+        -DryRun 2>&1
+    if ($LASTEXITCODE -ne 0) { throw '回歸失敗：register unexpectedly rejected valid PASS verification artifact' }
+    Write-Output 'PASS register accepts valid PASS verification artifact'
+}
+
+function Assert-RegisterAcceptsCandidateUnknown {
+    $null = & $registerScript `
+        -ModelId 'RegressionCandidateUnknown' `
+        -WeightsPath $weights `
+        -IndexPath $index `
+        -SampleRate 40000 `
+        -F0 fcpe `
+        -Version v2 `
+        -DatasetBatchId 'unknown-dataset' `
+        -RvcRevision 'unknown-revision' `
+        -SourceUrl 'unknown-source' `
+        -LicenseOrPermission 'unknown-license' `
+        -TrainingEnvironment 'unknown-environment' `
+        -Status candidate `
+        -DryRun 2>&1
+    if ($LASTEXITCODE -ne 0) { throw '回歸失敗：candidate + unknown metadata unexpectedly rejected' }
+    Write-Output 'PASS register accepts candidate unknown metadata'
+}
+
 function New-ReadyRegister([string]$VerificationRelativePath) {
     $rows = @(Import-Csv (Join-Path $projectRoot 'models\model-register.csv'))
     $row = $rows | Where-Object { $_.model_id -eq 'Wukong_HeroicMale' }
@@ -103,11 +174,40 @@ function Assert-AuditRejectsArtifact([string]$Label, [string]$Content, [string]$
 }
 
 try {
+    Assert-RegisterAcceptsCandidateUnknown
     Assert-RegisterRejectsUnknown
     Assert-RegisterRejectsMissingArtifact
-    $known = Get-Content -LiteralPath (Join-Path $projectRoot 'artifacts\rvc-fcpe-gpu\Wukong_HeroicMale.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $knownPath = Join-Path $projectRoot 'artifacts\rvc-fcpe-gpu\Wukong_HeroicMale.json'
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $knownRelative = 'artifacts/rvc-fcpe-gpu/Wukong_HeroicMale.json'
+    Assert-RegisterAcceptsValidArtifact $knownRelative
     $known.status = 'FAIL'
-    Assert-AuditRejectsArtifact 'fail-status' ($known | ConvertTo-Json -Depth 12) 'status 必須是 PASS'
+    $failJson = $known | ConvertTo-Json -Depth 12
+    Assert-RegisterRejectsArtifact 'fail-status' $failJson
+    Assert-AuditRejectsArtifact 'fail-status' $failJson 'status 必須是 PASS'
+    $known.status = 'DEGRADED'
+    $degradedJson = $known | ConvertTo-Json -Depth 12
+    Assert-RegisterRejectsArtifact 'degraded-status' $degradedJson
+    Assert-AuditRejectsArtifact 'degraded-status' $degradedJson 'status 必須是 PASS'
+    Assert-RegisterRejectsArtifact 'malformed' '{'
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.model.path = $known.index.path
+    Assert-RegisterRejectsArtifact 'wrong-model-path' ($known | ConvertTo-Json -Depth 12)
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.model.sha256 = ('0' * 64)
+    Assert-RegisterRejectsArtifact 'wrong-model-hash' ($known | ConvertTo-Json -Depth 12)
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.index.path = $known.model.path
+    Assert-RegisterRejectsArtifact 'wrong-index-path' ($known | ConvertTo-Json -Depth 12)
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.index.sha256 = ('0' * 64)
+    Assert-RegisterRejectsArtifact 'wrong-index-hash' ($known | ConvertTo-Json -Depth 12)
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.output.sha256 = ('0' * 64)
+    Assert-RegisterRejectsArtifact 'wrong-output-hash' ($known | ConvertTo-Json -Depth 12)
+    $known = Get-Content -LiteralPath $knownPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $known.input.sha256 = ('0' * 64)
+    Assert-RegisterRejectsArtifact 'wrong-input-hash' ($known | ConvertTo-Json -Depth 12)
     Assert-AuditRejectsArtifact 'malformed' '{' '無法解析 JSON'
     Write-Output 'PASS rvc ready gate regression'
     exit 0
