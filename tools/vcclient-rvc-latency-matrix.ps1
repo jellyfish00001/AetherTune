@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$BaseUrl = 'http://127.0.0.1:18000',
-    [int]$SlotIndex = 8,
+    [int]$SlotIndex = 7,
     [string]$InputWav = '.\tools\external\VCClient\2.1.4-alpha\dist\main\web_front\assets\voices\JVNV\partial\M1_happy_regular_26.wav',
     [Parameter(Mandatory = $true)][string]$FfmpegPath,
     [double[]]$ChunkSeconds = @(0.25, 0.5, 0.75, 1.0),
@@ -17,10 +17,10 @@ $probe = Join-Path $PSScriptRoot 'vcclient-rvc-probe.ps1'
 $rows = [System.Collections.Generic.List[object]]::new()
 
 function Get-ProbeReport {
-    param([double]$ChunkSec, [string]$Label)
+    param([double]$ChunkSec, [string]$Label, [string]$ProbeInputWav = $InputWav)
     $probeRoot = Join-Path $root $Label
     New-Item -ItemType Directory -Path $probeRoot -Force | Out-Null
-    $text = (& $probe -BaseUrl $BaseUrl -SlotIndex $SlotIndex -InputWav $InputWav -FfmpegPath $FfmpegPath -OutputRoot $probeRoot -ChunkSec $ChunkSec -ConfigureSlot -OverrideSlotChunkSec 2>&1 | Out-String)
+    $text = (& $probe -BaseUrl $BaseUrl -SlotIndex $SlotIndex -InputWav $ProbeInputWav -FfmpegPath $FfmpegPath -OutputRoot $probeRoot -ChunkSec $ChunkSec -ConfigureSlot -OverrideSlotChunkSec 2>&1 | Out-String)
     $match = [regex]::Match($text, 'report=(?<path>[^\r\n]+)')
     $report = $null
     if ($match.Success -and (Test-Path -LiteralPath $match.Groups['path'].Value.Trim())) {
@@ -43,6 +43,9 @@ foreach ($chunkSec in $ChunkSeconds) {
             p50_latency_ms = if ($report) { $report.latency_p50_ms } else { $null }
             p95_latency_ms = if ($report) { $report.latency_p95_ms } else { $null }
             dropout_count = $dropouts
+            requested_slot_index = if ($report) { $report.requested_slot_index } else { $SlotIndex }
+            active_slot_index = if ($report) { $report.active_slot_index } else { $null }
+            slot_model_evidence = if ($report) { $report.slot_model_evidence } else { $null }
             output_rms = if ($report) { $report.output_rms } else { $null }
             artifact_dir = if ($report) { $report.artifact_dir } else { $null }
             error = if ($report) { $report.error } else { $result.command_output }
@@ -54,7 +57,7 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
     $longInput = Join-Path $root 'stability-input.wav'
     & $FfmpegPath -hide_banner -loglevel error -y -stream_loop -1 -i (Resolve-Path $InputWav).Path -t $StabilitySeconds -ar 48000 -ac 1 $longInput
     if ($LASTEXITCODE -ne 0) { throw "建立 stability input 失敗，exit=$LASTEXITCODE" }
-    $result = Get-ProbeReport -ChunkSec 0.5 -Label 'stability-600s'
+    $result = Get-ProbeReport -ChunkSec 0.5 -Label 'stability-600s' -ProbeInputWav $longInput
     $report = $result.report
     $dropouts = if ($report) { @($report.chunk_metrics | Where-Object { $_.output_bytes -lt 4 -or $_.output_all_zero }).Count } else { $null }
     $rowStatus = if (-not $report) { 'BLOCKED' } elseif ($report.status -ne 'PASS') { $report.status } elseif ($dropouts -gt 0) { 'DEGRADED' } else { 'PASS' }
@@ -68,6 +71,9 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
             p50_latency_ms = if ($report) { $report.latency_p50_ms } else { $null }
             p95_latency_ms = if ($report) { $report.latency_p95_ms } else { $null }
             dropout_count = $dropouts
+            requested_slot_index = if ($report) { $report.requested_slot_index } else { $SlotIndex }
+            active_slot_index = if ($report) { $report.active_slot_index } else { $null }
+            slot_model_evidence = if ($report) { $report.slot_model_evidence } else { $null }
             output_rms = if ($report) { $report.output_rms } else { $null }
             artifact_dir = if ($report) { $report.artifact_dir } else { $null }
             error = if ($report) { $report.error } else { $result.command_output }
@@ -83,6 +89,9 @@ if ($shortPass -and $StabilitySeconds -gt 0) {
             p50_latency_ms = $null
             p95_latency_ms = $null
             dropout_count = $null
+            requested_slot_index = $SlotIndex
+            active_slot_index = $null
+            slot_model_evidence = $null
             output_rms = $null
             artifact_dir = $null
             error = '短測未全部 PASS，依 gate 不執行 10 分鐘長測'
@@ -95,6 +104,7 @@ $reportPath = Join-Path $root 'vcclient-rvc-latency-matrix.json'
     created_at = (Get-Date).ToUniversalTime().ToString('o')
     base_url = $BaseUrl
     slot_index = $SlotIndex
+    requested_slot_index = $SlotIndex
     input_wav = $InputWav
     chunk_seconds = $ChunkSeconds
     stability_seconds = $StabilitySeconds

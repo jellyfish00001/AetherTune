@@ -55,11 +55,11 @@ Set-Location D:\AetherTune
 & .\tools\vcclient-rvc-register.ps1 `
   -ModelPath .\models\weights\Wukong_HeroicMale.pth `
   -IndexPath .\models\indexes\Wukong_HeroicMale.index `
-  -SlotIndex 8 `
+  -SlotIndex 9 `
   -Name 'AetherTune Wukong Heroic Male'
 ```
 
-再使用 `tools/vcclient-rvc-probe.ps1` 驗證有效非零 WAV；若出現 packaged API error，請看上述 report，不要把服務 HTTP 200 視為可用。
+再使用 `tools/vcclient-rvc-probe.ps1` 驗證有效非零 WAV；probe 會核對 requested slot 與 VCClient active slot，若出現 packaged API error，請看 report，不要把服務 HTTP 200 視為可用。矩陣預設測試專案目前 active slot `7`；要測其他已註冊角色請明確加 `-ConfigureSlot`。
 
 要測 RVC realtime chunk／dropout／10 分鐘 gate，使用 [`tools/vcclient-rvc-latency-matrix.ps1`](tools/vcclient-rvc-latency-matrix.ps1)；最新證據與判定規則見 [`docs/vcclient-rvc-latency-matrix-latest.md`](docs/vcclient-rvc-latency-matrix-latest.md)。
 
@@ -87,7 +87,7 @@ Faster-Whisper、CosyVoice2 與 Breeze TTS 2 都已建立獨立環境並完成�
   -Output cosyvoice-from-stt.wav
 ```
 
-把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze；若已有人工核對的文字，請加上 `-TextFile` 與 `-ReferenceTextFile`，避免把 STT draft 當成 exact transcript。
+把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze。 `-TextFile` 是要合成的目標文字，`-ReferenceTextFile` 是 reference audio 的 prompt transcript；若未提供人工核對文字，workflow 會標記對應 transcript 為 STT draft 與 `manual_review_required=true`。
 
 ## 三種方法的資料流
 

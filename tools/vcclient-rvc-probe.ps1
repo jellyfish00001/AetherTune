@@ -28,6 +28,9 @@ $zeroOutputChunks = 0
 $latencyP50Ms = $null
 $latencyP95Ms = $null
 $slot = $null
+$activeSlotIndex = $null
+$initialActiveSlotIndex = $null
+$slotModelEvidence = $null
 $initialConfiguration = $null
 $client = $null
 
@@ -57,6 +60,18 @@ function Invoke-JsonRequest {
     return Invoke-RestMethod @params
 }
 
+function Get-ActiveSlotIndex([object]$Configuration) {
+    foreach ($propertyName in @('current_slot_index', 'active_slot_index', 'current_slot')) {
+        if ($null -ne $Configuration -and $Configuration.PSObject.Properties.Name -contains $propertyName) {
+            $value = $Configuration.$propertyName
+            if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
+                try { return [int]$value } catch { throw "VCClient configuration 的 $propertyName 不是整數：$value" }
+            }
+        }
+    }
+    throw 'VCClient configuration 沒有可核對的 current/active slot index'
+}
+
 try {
     if (-not (Test-Path -LiteralPath $InputWav -PathType Leaf)) {
         throw "找不到輸入 WAV：$InputWav"
@@ -79,19 +94,47 @@ try {
         throw "找不到 RVC slot_index=$SlotIndex"
     }
 
+    $slotModelEvidence = [ordered]@{
+        slot_index = [int]$slot.slot_index
+        voice_changer_type = $slot.voice_changer_type
+        name = $slot.name
+        model_file = $slot.model_file
+        index_file = $slot.index_file
+        sample_rate = $slot.sample_rate
+        inferencer_type = $slot.inferencer_type
+        pitch_estimator = $slot.pitch_estimator
+    }
+    $currentConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
+    $initialActiveSlotIndex = Get-ActiveSlotIndex $currentConfiguration
+
     if ($ConfigureSlot) {
         # VCClient 2.1.4-alpha 的 configuration PUT 可能清空 slot；
         # 只有明確指定 -ConfigureSlot 才修改服務狀態，預設直接測試目前已選 slot。
-        $initialConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
+        $initialConfiguration = $currentConfiguration
         $probeConfiguration = $initialConfiguration | Select-Object *
         $probeConfiguration.current_slot_index = $SlotIndex
         $probeConfiguration.input_sample_rate = 48000
         $probeConfiguration.output_sample_rate = 48000
         [void](Invoke-JsonRequest -Method Put -Uri "$BaseUrl/api/configuration-manager/configuration" -Body $probeConfiguration)
+        $postPutConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
+        $activeSlotIndex = Get-ActiveSlotIndex $postPutConfiguration
+        if ($activeSlotIndex -ne $SlotIndex) {
+            throw "VCClient active slot 核對失敗：requested=$SlotIndex active=$activeSlotIndex"
+        }
         if ($InitializeAfterConfigure) {
             # 已知 packaged 2.1.4-alpha 的 initialize 會重建/清空 model_dir；只有使用者
             # 明確要求時才執行，並把它當成破壞性 lifecycle 操作記錄在報告裡。
             [void](Invoke-JsonRequest -Method Post -Uri "$BaseUrl/api/operation/initialize")
+            $postInitializeConfiguration = Invoke-JsonRequest -Method Get -Uri "$BaseUrl/api/configuration-manager/configuration"
+            $activeSlotIndex = Get-ActiveSlotIndex $postInitializeConfiguration
+            if ($activeSlotIndex -ne $SlotIndex) {
+                throw "VCClient initialize 後 active slot 核對失敗：requested=$SlotIndex active=$activeSlotIndex"
+            }
+        }
+    } else {
+        $activeSlotIndex = $initialActiveSlotIndex
+        if ($activeSlotIndex -ne $SlotIndex) {
+            throw "VCClient active slot 與 requested slot 不一致：requested=$SlotIndex active=$activeSlotIndex；請加 -ConfigureSlot 或指定目前 active slot"
         }
     }
 
@@ -200,6 +243,10 @@ try {
             $restoreError = $_.Exception.Message
         }
     }
+    if ($restoreError -and $status -eq 'PASS') {
+        $status = 'BLOCKED'
+        $errorMessage = "VCClient configuration 還原失敗：$restoreError"
+    }
 }
 
 $report = [ordered]@{
@@ -209,6 +256,10 @@ $report = [ordered]@{
     base_url = $BaseUrl
     input_wav = $InputWav
     slot_index = $SlotIndex
+    requested_slot_index = $SlotIndex
+    active_slot_index = $activeSlotIndex
+    initial_active_slot_index = $initialActiveSlotIndex
+    slot_model_evidence = $slotModelEvidence
     slot_name = if ($slot) { $slot.name } else { $null }
     slot_sample_rate = if ($slot) { $slot.sample_rate } else { $null }
     slot_pitch_estimator = if ($slot) { $slot.pitch_estimator } else { $null }

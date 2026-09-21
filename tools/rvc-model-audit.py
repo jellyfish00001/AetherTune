@@ -52,13 +52,124 @@ def value(row: dict[str, str], field: str) -> str:
 
 
 def resolve_repo_path(raw: str) -> tuple[Path | None, str | None]:
-    relative = raw.replace("\\", "/").lstrip("./")
-    candidate = (ROOT / Path(relative)).resolve()
+    normalized = (raw or "").strip().replace("\\", "/")
+    if not normalized:
+        return None, None
+    raw_path = Path(normalized)
+    candidate = raw_path if raw_path.is_absolute() else ROOT / raw_path
+    candidate = candidate.resolve()
     try:
         candidate.relative_to(ROOT)
     except ValueError:
         return None, "path 超出 repository root"
-    return candidate, relative
+    return candidate, candidate.relative_to(ROOT).as_posix()
+
+
+def is_unknown(value_text: str) -> bool:
+    normalized = (value_text or "").strip().lower()
+    return not normalized or normalized in UNKNOWN or bool(
+        re.fullmatch(
+            r"(?:unknown|pending|pending-manual|tbd|todo|n/?a|not[-_ ]?(?:provided|verified)|replace_with_sha256)(?:[-_ ].*)?",
+            normalized,
+        )
+    )
+
+
+def verify_artifact_file(
+    artifact: Any,
+    label: str,
+    expected_relative: str,
+    expected_sha256: str,
+    issues: list[str],
+) -> dict[str, Any]:
+    evidence: dict[str, Any] = {"label": label}
+    if not isinstance(artifact, dict):
+        issues.append(f"verification_artifact 缺少 {label} object")
+        return evidence
+    raw_path = str(artifact.get("path") or "").strip()
+    declared_hash = str(artifact.get("sha256") or "").strip().lower()
+    evidence.update({"path": raw_path, "sha256": declared_hash})
+    path, relative = resolve_repo_path(raw_path)
+    if path is None or relative is None:
+        issues.append(f"verification_artifact {label} path 無效或超出 repository root")
+        return evidence
+    evidence["relative_path"] = relative
+    if relative.lower() != expected_relative.lower():
+        issues.append(f"verification_artifact {label} path 與 register 不一致")
+    if not path.is_file():
+        issues.append(f"verification_artifact {label} 不存在")
+        return evidence
+    if not re.fullmatch(r"[0-9a-f]{64}", declared_hash):
+        issues.append(f"verification_artifact {label} sha256 不是合法 SHA-256")
+    else:
+        actual_hash = sha256_file(path)
+        evidence["actual_sha256"] = actual_hash
+        if actual_hash != declared_hash:
+            issues.append(f"verification_artifact {label} SHA-256 不一致")
+        if actual_hash != expected_sha256.lower():
+            issues.append(f"verification_artifact {label} SHA-256 與 register 不一致")
+    return evidence
+
+
+def validate_verification_artifact(
+    raw_artifact_path: str,
+    model_id: str,
+    expected_weights_relative: str,
+    expected_weights_sha256: str,
+    expected_index_relative: str,
+    expected_index_sha256: str,
+    issues: list[str],
+) -> dict[str, Any]:
+    evidence: dict[str, Any] = {"path": raw_artifact_path}
+    artifact_path, artifact_relative = resolve_repo_path(raw_artifact_path)
+    if artifact_path is None or artifact_relative is None or not artifact_path.is_file():
+        issues.append("verification_artifact 不存在或不在 repository root 內")
+        return evidence
+    evidence["relative_path"] = artifact_relative
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        issues.append(f"verification_artifact 無法解析 JSON：{exc}")
+        return evidence
+    if not isinstance(payload, dict):
+        issues.append("verification_artifact JSON 根節點必須是 object")
+        return evidence
+    artifact_status = str(payload.get("status") or "").strip().upper()
+    evidence["status"] = artifact_status or None
+    if artifact_status != "PASS":
+        issues.append(f"verification_artifact status 必須是 PASS（目前 {artifact_status or '空白'}）")
+    artifact_model_id = str(payload.get("model_id") or "").strip()
+    if artifact_model_id and artifact_model_id != model_id:
+        issues.append("verification_artifact model_id 與 register 不一致")
+    evidence["model_id"] = artifact_model_id or None
+
+    model_evidence = verify_artifact_file(
+        payload.get("model"), "model", expected_weights_relative, expected_weights_sha256, issues
+    )
+    index_evidence = verify_artifact_file(
+        payload.get("index"), "index", expected_index_relative, expected_index_sha256, issues
+    )
+    for label in ("input", "output"):
+        item = payload.get(label)
+        if not isinstance(item, dict):
+            issues.append(f"verification_artifact 缺少 {label} object")
+            continue
+        raw_path = str(item.get("path") or "").strip()
+        declared_hash = str(item.get("sha256") or "").strip().lower()
+        path, relative = resolve_repo_path(raw_path)
+        if path is None or relative is None or not path.is_file():
+            issues.append(f"verification_artifact {label} path 不存在或超出 repository root")
+            continue
+        if not re.fullmatch(r"[0-9a-f]{64}", declared_hash):
+            issues.append(f"verification_artifact {label} sha256 不是合法 SHA-256")
+            continue
+        actual_hash = sha256_file(path)
+        if actual_hash != declared_hash:
+            issues.append(f"verification_artifact {label} SHA-256 不一致")
+        evidence[label] = {"relative_path": relative, "sha256": declared_hash, "actual_sha256": actual_hash}
+    evidence["model"] = model_evidence
+    evidence["index"] = index_evidence
+    return evidence
 
 
 def audit_row(row: dict[str, str], seen_ids: set[str], registered_weights: set[str], registered_indexes: set[str]) -> dict[str, Any]:
@@ -72,7 +183,7 @@ def audit_row(row: dict[str, str], seen_ids: set[str], registered_weights: set[s
     for field in REQUIRED_FIELDS:
         if field not in row:
             issues.append(f"缺少 CSV 欄位 {field}")
-        elif value(row, field).lower() in UNKNOWN or value(row, field).lower().startswith(("unknown-", "pending-")):
+        elif is_unknown(value(row, field)):
             metadata_waiting.append(field)
 
     status = value(row, "status").lower()
@@ -105,21 +216,32 @@ def audit_row(row: dict[str, str], seen_ids: set[str], registered_weights: set[s
                 registered_indexes.add(relative or raw)
 
     verification = value(row, "verification_artifact")
+    verification_evidence: dict[str, Any] | None = None
     if status == "ready":
         for field in READY_FIELDS:
-            if value(row, field).lower() in UNKNOWN:
+            if is_unknown(value(row, field)):
                 issues.append(f"ready gate 缺少 {field}")
-        if verification:
-            path, _ = resolve_repo_path(verification)
-            if path is None or not path.is_file():
-                issues.append("verification_artifact 不存在")
+        if verification and not is_unknown(verification):
+            weights_relative = resolve_repo_path(value(row, "weights_relative_path"))[1] or value(row, "weights_relative_path")
+            indexes_relative = resolve_repo_path(value(row, "index_relative_path"))[1] or value(row, "index_relative_path")
+            verification_evidence = validate_verification_artifact(
+                verification,
+                model_id,
+                weights_relative,
+                value(row, "weights_sha256"),
+                indexes_relative,
+                value(row, "index_sha256"),
+                issues,
+            )
+        else:
+            issues.append("ready gate 缺少 verification_artifact")
     if issues:
         result_status = "BLOCKED"
     elif metadata_waiting or status != "ready":
         result_status = "WAITING"
     else:
         result_status = "PASS"
-    row_result.update({"result": result_status, "verification_artifact": verification})
+    row_result.update({"result": result_status, "verification_artifact": verification, "verification_evidence": verification_evidence})
     return row_result
 
 

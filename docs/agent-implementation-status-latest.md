@@ -9,13 +9,28 @@
 | # | 工作 | 目前狀態 | 可以直接做什麼 | 尚未完成／限制 | 主要證據 |
 |---:|---|---|---|---|---|
 | 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | VCClient packaged role conversion 仍出現 `SlotInfo.chunk_sec` HTTP 500，或回傳短的全零 chunk；不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](vcclient-packaged-repair-latest.md) |
-| 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行矩陣並取得 p50/p95、dropout、RMS | Wukong 0.25／0.50／0.75／1.00 秒短測都有 dropout；600 秒 gate 依規則阻擋 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
+| 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行矩陣並取得 p50/p95、dropout、RMS，且報告 slot 核對證據 | Wukong 0.25／0.50／0.75／1.00 秒短測都有 dropout；600 秒 gate 依規則阻擋；目前 active slot 預設為 7 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
 | 3 | Seed-VC realtime tiny、長音檔 | 60 秒 headless `PASS`；裝置 E2E `WAITING` | 離線男女互轉、60 秒長檔、200 block headless GPU stream 可用 | 尚未以官方 GUI、PortAudio 麥克風和實際輸出裝置完成 10 分鐘以上 realtime | [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md) |
 | 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 10 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
 | 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash | 現有四組仍是 `candidate`；source、license、f0、sample rate、revision、dataset 等仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
 | 6 | Breeze `sox`、`flash-attn`、`fast-all` | `fast-all PASS`；project-local SoX `PASS`；flash-attn `WAITING` | Breeze eager、`-FastAll` 與 local SoX runtime 可用 | system SoX 尚未安裝；`flash-attn==2.8.3` 尚未成功 import；人工聽測未完成 | [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md) |
 | 7 | CosyVoice frontend cuDNN 8 GPU | partial `PASS` | 主模型 CUDA；持久化專案 wrapper 可重跑隔離 cuDNN 8 probe，且最新 artifact 證明 speech tokenizer node 實際使用 CUDA | 預設主流程不載入隔離 cuDNN 8；CampPlus 上游明確固定 CPU，因此不是全 frontend GPU | [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) |
-| 8 | RVC training data audit、訓練命令、模型註冊 | tooling `PASS`；資料 `BLOCKED` | 可依 guide audit、dry-run register、驗證 hash 與 provenance 欄位 | `dataset/raw` 目前沒有 WAV，audit 正確回傳 exit 2；必須放入有授權乾聲並補完整 metadata 才能訓練／ready | [`model-training-guide.md`](model-training-guide.md)、[`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
+| 8 | RVC training data audit、訓練命令、模型註冊 | tooling `PASS`；資料 `BLOCKED` | 可依 guide audit、dry-run register、驗證 hash、provenance 與 verification evidence | `dataset/raw` 目前沒有 WAV，audit 正確回傳 exit 2；ready gate 負向回歸會拒絕 unknown metadata、缺失或 FAIL artifact；必須放入有授權乾聲並補完整 metadata 才能訓練／ready | [`model-training-guide.md`](model-training-guide.md)、[`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
+
+## 本輪工具契約修正與可重跑檢查
+
+- `tools/rvc-ready-gate-regression.ps1`：PASS；拒絕 ready 的 unknown metadata、缺失 verification artifact、FAIL status 與 malformed JSON。
+- `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。
+- `tools/vcclient-rvc-probe.ps1` 與矩陣：報告新增 requested／active slot 與 model evidence；本機 active slot `7` 的 runtime probe 仍為 `DEGRADED`（28/30 zero chunks），矩陣短測失敗後長測維持 `BLOCKED`。
+- `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft，workflow 明確保留 manual review gate。
+
+可重跑：
+
+```powershell
+Set-Location D:\AetherTune
+& .\tools\rvc-ready-gate-regression.ps1
+& .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py --fail-on-waiting
+```
 
 ## 目前可直接使用的路線
 

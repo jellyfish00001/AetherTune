@@ -68,8 +68,8 @@ $outputPath = [System.IO.Path]::GetFullPath($Output)
 $outputParent = Split-Path -Parent $outputPath
 New-Item -ItemType Directory -Force -Path $outputParent | Out-Null
 
-# 未指定 reference 時，預設使用輸入音檔作為目標聲線；這適合快速 smoke test。
-# 正式 clone 請明確提供 ReferenceAudio 與人工核對過的 ReferenceTextFile。
+# 未指定 reference 時，使用輸入音檔作為目標聲線；這適合快速 smoke test。
+# ReferenceTextFile 只代表 reference audio 的 prompt transcript；TextFile 只代表要合成的目標文字。
 $referencePath = $inputPath
 if ($ReferenceAudio) {
     if (-not (Test-Path -LiteralPath $ReferenceAudio -PathType Leaf)) {
@@ -105,13 +105,16 @@ if ($ttsTextPath) {
 }
 
 $promptTextPath = $ReferenceTextFile
+$referenceTextSource = 'human_reviewed_file'
 if ($promptTextPath) {
     if (-not (Test-Path -LiteralPath $promptTextPath -PathType Leaf)) { throw "找不到 reference transcript：$promptTextPath" }
     $promptTextPath = (Resolve-Path -LiteralPath $promptTextPath).Path
-} elseif ($referencePath -eq $inputPath) {
+} elseif ($referencePath -eq $inputPath -and -not $TextFile) {
     $promptTextPath = $ttsTextPath
+    $referenceTextSource = 'stt_draft_reused_same_audio'
 } else {
     $promptTextPath = Invoke-Stt $referencePath 'reference'
+    $referenceTextSource = 'stt_draft_reference_audio'
 }
 
 if ($Backend -eq 'cosyvoice') {
@@ -150,10 +153,13 @@ $workflowManifest = [ordered]@{
     reference_audio = $referencePath
     tts_text_file = $ttsTextPath
     reference_text_file = $promptTextPath
+    tts_text_source = if ($TextFile) { 'caller_text_file' } else { 'stt_draft_source_audio' }
+    reference_text_source = $referenceTextSource
+    reference_audio_equals_input = ($referencePath -eq $inputPath)
     output = $outputPath
     stt = @($sttRecords)
     manual_review_required = $true
-    note = 'STT transcript is a draft unless the caller supplied a human-reviewed text file; inspect audio quality manually.'
+    note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。未提供人工核對文字時，對應 transcript 會標示為 STT draft，必須人工逐字確認。'
 }
 $workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ([System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')) -Encoding UTF8
 Write-Output ($workflowManifest | ConvertTo-Json -Depth 6)

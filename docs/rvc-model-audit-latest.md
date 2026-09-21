@@ -12,7 +12,7 @@
 | `dataset/raw` audit | BLOCKED | 執行 `tools/dataset_audit.py --fail-on-invalid`；目前沒有 WAV，只有 `dataset/raw/README.md` |
 | ready gate | WAITING | 沒有任何模型符合完整 metadata、verification artifact 與 ready 條件 |
 
-本輪重跑證據：`rvc-model-audit.py` 產生 `artifacts/rvc-model-audit/rvc-model-audit.json`，四列均為 `candidate`、檔案 issues 為空；已從 checkpoint 內嵌值核對 sample rate／version，但不能把內嵌 `f0=1` 解讀成 FCPE 或 RMVPE。`dataset_audit.py` 產生 `artifacts/rvc-model-audit/raw-audit.csv` 並以 exit `2` 阻擋空資料集。`rvc-register-model.ps1 -UpdateExisting -DryRun` 已以 Wukong 檔案重算 weights/index SHA-256；來源、授權、dataset、revision 與 f0 演算法仍必須填真實值，不能冒充完成。
+本輪重跑證據：`rvc-model-audit.py` 產生 `artifacts/rvc-model-audit/rvc-model-audit.json`，四列均為 `candidate`、檔案 issues 為空；已從 checkpoint 內嵌值核對 sample rate／version，但不能把內嵌 `f0=1` 解讀成 FCPE 或 RMVPE。`dataset_audit.py` 產生 `artifacts/rvc-model-audit/raw-audit.csv` 並以 exit `2` 阻擋空資料集。`rvc-register-model.ps1 -UpdateExisting -DryRun` 已以 Wukong 檔案重算 weights/index SHA-256；來源、授權、dataset、revision 與 f0 演算法仍必須填真實值，不能冒充完成。ready audit 現在會解析 verification JSON，要求 `status=PASS` 並逐一核對 model、index、input、output 的路徑與 SHA-256。
 
 模型 audit 可重跑：
 
@@ -24,10 +24,16 @@ Set-Location D:\AetherTune
 若要在 CI／交接時把 WAITING 當錯誤：
 
 ```powershell
-& .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py -FailOnWaiting
+& .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py --fail-on-waiting
 ```
 
 這個工具會重新計算兩個檔案的 SHA-256、檢查未登記配對與欄位，不會自動修改 CSV，也不會把 `candidate` 升成 `ready`。
+
+ready gate 負向回歸（只在暫存目錄建立測試 CSV／JSON，不寫入 artifacts）：
+
+```powershell
+& .\tools\rvc-ready-gate-regression.ps1
+```
 
 ## 建立可訓練資料集的下一步
 

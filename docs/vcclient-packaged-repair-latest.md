@@ -42,7 +42,7 @@ VCClient 的 `/api/operation/initialize` 在本版會移除/rebuild `model_dir` 
 & .\tools\vcclient-rvc-register.ps1 `
   -ModelPath .\models\weights\Wukong_HeroicMale.pth `
   -IndexPath .\models\indexes\Wukong_HeroicMale.index `
-  -SlotIndex 8 `
+  -SlotIndex 9 `
   -Name 'AetherTune Wukong Heroic Male'
 ```
 
@@ -50,11 +50,12 @@ VCClient 的 `/api/operation/initialize` 在本版會移除/rebuild `model_dir` 
 
 ```powershell
 & .\tools\vcclient-rvc-probe.ps1 `
-  -SlotIndex 8 `
+  -SlotIndex 9 `
+  -ConfigureSlot `
   -FfmpegPath 'C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe'
 ```
 
-Probe 只有在輸出 bytes 足夠、float32 sample 有限、至少一個非零 sample 且每個 chunk 都不是全零時才會 `PASS`。目前若再出現 `SlotInfo.chunk_sec` 或全零 chunk，請保留 JSON/log，等待相容版 VCClient 或改用專案 RVC WebUI offline route。
+Probe 會先核對 `requested_slot_index` 與 VCClient configuration 的 active/current slot，並把 `slot_model_evidence` 寫入 JSON；不一致時直接 `BLOCKED`。只有在輸出 bytes 足夠、float32 sample 有限、至少一個非零 sample 且每個 chunk 都不是全零時才會 `PASS`。目前若再出現 `SlotInfo.chunk_sec` 或全零 chunk，請保留 JSON/log，等待相容版 VCClient 或改用專案 RVC WebUI offline route。
 
 ## 與專案 RVC 的邊界
 

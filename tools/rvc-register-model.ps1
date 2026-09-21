@@ -46,14 +46,40 @@ function Resolve-RepoFile([string]$InputPath, [string]$Extension) {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($TrainedAt)) { $TrainedAt = (Get-Date).ToString('o') }
 $weight = Resolve-RepoFile $WeightsPath '.pth'
 $index = Resolve-RepoFile $IndexPath '.index'
 $weightHash = (Get-FileHash -LiteralPath $weight.Full -Algorithm SHA256).Hash.ToLowerInvariant()
 $indexHash = (Get-FileHash -LiteralPath $index.Full -Algorithm SHA256).Hash.ToLowerInvariant()
 
-if ($Status -eq 'ready' -and ([string]::IsNullOrWhiteSpace($VerificationArtifact) -or @($SourceUrl, $LicenseOrPermission, $TrainingEnvironment) | Where-Object { $_ -match '^(?i)(unknown|pending|pending-manual)$' })) {
-    throw 'ready 必須同時提供來源、授權、訓練環境與 verification_artifact；未知值只能保留 candidate。'
+function Test-UnknownMetadata([string]$Value) {
+    $normalized = if ($null -eq $Value) { '' } else { $Value.Trim().ToLowerInvariant() }
+    return [string]::IsNullOrWhiteSpace($normalized) -or $normalized -match '^(unknown|pending|pending-manual|tbd|todo|n/?a|not[-_ ]?(provided|verified)|replace_with_sha256)([-_ ].*)?$'
+}
+
+if ($Status -eq 'ready') {
+    # ready 是可追溯驗收狀態，即使 -DryRun 也不能用 placeholder 或自動產生訓練時間。
+    $readyFields = [ordered]@{
+        model_id = $ModelId
+        sample_rate = [string]$SampleRate
+        f0 = $F0
+        version = $Version
+        dataset_batch_id = $DatasetBatchId
+        rvc_revision = $RvcRevision
+        trained_at = $TrainedAt
+        source_url = $SourceUrl
+        license_or_permission = $LicenseOrPermission
+        training_environment = $TrainingEnvironment
+        verification_artifact = $VerificationArtifact
+    }
+    $invalidReadyFields = @($readyFields.GetEnumerator() | Where-Object { Test-UnknownMetadata ([string]$_.Value) } | ForEach-Object { $_.Key })
+    if ($invalidReadyFields.Count -gt 0) {
+        throw "ready 必須提供完整且可追溯欄位；空白或 unknown/pending placeholder：$($invalidReadyFields -join ', ')。未知值只能保留 candidate。"
+    }
+
+    $verification = Resolve-RepoFile $VerificationArtifact ([System.IO.Path]::GetExtension($VerificationArtifact))
+    if (-not $verification.Full -or -not (Test-Path -LiteralPath $verification.Full -PathType Leaf)) {
+        throw "ready 必須提供 repository 內存在的 verification_artifact：$VerificationArtifact"
+    }
 }
 
 $existing = @()
