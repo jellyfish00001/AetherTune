@@ -8,6 +8,7 @@ param(
     [string]$ReferenceAudio = '',
     [string]$ReferenceTextFile = '',
     [switch]$ReferenceTextVerified,
+    [switch]$VoiceDesign,
     [string]$Instruction = 'A natural, clear, warm speaking voice with a medium pace.',
     [string]$SttModel = 'small',
     [string]$Language = '',
@@ -55,6 +56,12 @@ if (-not (Test-Path -LiteralPath $InputWav -PathType Leaf)) {
 $inputPath = (Resolve-Path -LiteralPath $InputWav).Path
 if ($ReferenceTextVerified -and -not $ReferenceTextFile) {
     throw '-ReferenceTextVerified 必須與 -ReferenceTextFile 一起提供'
+}
+if ($VoiceDesign -and $Backend -ne 'breeze-tts-2') {
+    throw '-VoiceDesign 只能與 -Backend breeze-tts-2 一起使用'
+}
+if ($VoiceDesign -and ($ReferenceAudio -or $ReferenceTextFile)) {
+    throw '-VoiceDesign 不可與 reference audio 或 reference transcript 同時使用'
 }
 $outputRoot = (New-Item -ItemType Directory -Force -Path $OutputDir).FullName
 $inputItem = Get-Item -LiteralPath $inputPath
@@ -111,7 +118,11 @@ if ($ttsTextPath) {
 $promptTextPath = $ReferenceTextFile
 $referenceTextSource = 'stt_draft_reference_audio'
 $referenceTextWasVerified = $false
-if ($promptTextPath) {
+if ($VoiceDesign) {
+    $referencePath = ''
+    $promptTextPath = ''
+    $referenceTextSource = 'not_applicable_voice_design'
+} elseif ($promptTextPath) {
     if (-not (Test-Path -LiteralPath $promptTextPath -PathType Leaf)) { throw "找不到 reference transcript：$promptTextPath" }
     $promptTextPath = (Resolve-Path -LiteralPath $promptTextPath).Path
     if ($ReferenceTextVerified) {
@@ -147,7 +158,10 @@ if ($Backend -eq 'cosyvoice') {
         Output = $outputPath
         Distro = $Distro
     }
-    if ($ReferenceAudio -or $referencePath -eq $inputPath) {
+    if ($VoiceDesign) {
+        if (-not $Instruction) { throw '-VoiceDesign 需要提供非空 -Instruction' }
+        $breezeParameters.Instruction = $Instruction
+    } elseif ($ReferenceAudio -or $referencePath -eq $inputPath) {
         $breezeParameters.ReferenceAudio = $referencePath
         $breezeParameters.ReferenceTextFile = $promptTextPath
     } elseif ($Instruction) {
@@ -167,12 +181,13 @@ $workflowManifest = [ordered]@{
     tts_text_source = if ($TextFile) { 'caller_text_file' } else { 'stt_draft_source_audio' }
     reference_text_source = $referenceTextSource
     reference_text_verified = $referenceTextWasVerified
+    voice_design = [bool]$VoiceDesign
     reference_audio_equals_input = ($referencePath -eq $inputPath)
     output = $outputPath
     stt = @($sttRecords)
     # 沒有 caller TextFile 時，目標內容仍來自 source STT draft；即使 reference transcript
     # 已 verified，也必須保留人工審核 gate。只有 caller text 與 verified reference 都具備時才可清除。
-    manual_review_required = ((-not $TextFile) -or (-not $referenceTextWasVerified))
+    manual_review_required = ($VoiceDesign -or (-not $TextFile) -or (-not $referenceTextWasVerified))
     note = 'TextFile 是目標合成內容；ReferenceTextFile 是 reference audio 的 prompt transcript。只有明確指定 -ReferenceTextVerified 才會標示 caller_provided_verified；STT draft 或未核對的 caller text 仍需人工逐字確認。manual_review_required 只有在 caller 提供 TextFile 且 reference transcript verified 時才為 false。'
 }
 $workflowManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath ([System.IO.Path]::ChangeExtension($outputPath, '.workflow.json')) -Encoding UTF8

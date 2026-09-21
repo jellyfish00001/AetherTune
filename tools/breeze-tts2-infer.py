@@ -25,6 +25,7 @@ from breeze_infer.runtime import (
 )
 from breeze_infer.templates import get_template, prepare_inputs, select_template_name
 from models.fast_streaming import FastBreezeStreamingRuntime, FastStreamingConfig
+from audio_output_validation import validate_wav_file
 
 
 def sha256(path: Path) -> str:
@@ -145,6 +146,7 @@ def main() -> int:
 
     with sf.SoundFile(args.output) as audio_file:
         output_seconds = len(audio_file) / audio_file.samplerate
+    output_validation = validate_wav_file(args.output, expected_sample_rate=runtime.sample_rate)
     manifest = {
         "status": "PASS",
         "backend": "breeze-tts-2",
@@ -163,6 +165,7 @@ def main() -> int:
             "sha256": sha256(args.output),
             "bytes": args.output.stat().st_size,
         },
+        "output_validation": output_validation,
         "sample_rate": runtime.sample_rate,
         "output_seconds": output_seconds,
         "load_seconds": load_seconds,

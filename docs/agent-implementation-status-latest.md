@@ -11,7 +11,7 @@
 | 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | 最新 Sage slot 7 v2 post-gate probe 已核對 requested／active／initial=`7/7/7`，30 chunks 僅 2 個 valid、28 個 invalid（全零 28）；仍不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](vcclient-packaged-repair-latest.md) |
 | 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行 bounded 矩陣並取得 p50/p95、invalid/dropout、RMS，且報告 slot 核對證據 | Sage slot 7 v2 的 0.25／0.50／0.75／1.00 秒短測 invalid/dropout 為 58/60、28/30、19/20、15/15；1.00 秒為 `0/15` valid，stability=`stability_seconds=0` 為 `BLOCKED`，尚非 600 秒證據 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
 | 3 | Seed-VC realtime tiny、長音檔 | 60 秒 headless `PASS`；裝置 E2E `WAITING` | 離線男女互轉、60 秒長檔、200 block headless GPU stream 可用 | 尚未以官方 GUI、PortAudio 麥克風和實際輸出裝置完成 10 分鐘以上 realtime | [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md) |
-| 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 10 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
+| 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 11 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash；BLOCKED row 不會被彙總成 PASS | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
 | 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash | 現有四組仍是 `candidate`；source、license、f0、sample rate、revision、dataset 等仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
 | 6 | Breeze `sox`、`flash-attn`、`fast-all` | `fast-all PASS`；project-local SoX `PASS`；flash-attn `WAITING` | Breeze eager、`-FastAll` 與 local SoX runtime 可用 | system SoX 尚未安裝；`flash-attn==2.8.3` 尚未成功 import；人工聽測未完成 | [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md) |
 | 7 | CosyVoice frontend cuDNN 8 GPU | partial `PASS` | 主模型 CUDA；持久化專案 wrapper 可重跑隔離 cuDNN 8 probe，且最新 artifact 證明 speech tokenizer node 實際使用 CUDA | 預設主流程不載入隔離 cuDNN 8；CampPlus 上游明確固定 CPU，因此不是全 frontend GPU | [`cosyvoice-verification-latest.md`](cosyvoice-verification-latest.md) |
@@ -24,6 +24,9 @@
 - `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。
 - `tools/vcclient-rvc-probe.ps1` 與矩陣：最新 post-gate v2 artifact `artifacts/vcclient-rvc-test-postgate-v2/c0d00306-ce10-4746-9b81-9f0cff5d3ed5/vcclient-rvc-probe.json` 已保存 requested／active／initial slot 與 model evidence；Sage slot `7` runtime probe 為 `DEGRADED`（2/30 valid、28/30 invalid，且 28 個全零）。bounded 矩陣 `artifacts/vcclient-rvc-latency-matrix-postgate-v2/524e1a71-c00c-49c0-9127-82ae23aca119/vcclient-rvc-latency-matrix.json` 的短測 invalid/dropout 為 58/60、28/30、19/20、15/15，1.00 秒與 stability row 維持 `BLOCKED`。v1 Sage 與舊 Wukong／600 秒矩陣只作 historical/full-gate evidence。
 - `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft；caller text 預設是 `caller_provided_unverified`，只有明確 `-ReferenceTextVerified` 才標 verified，workflow 保存 `reference_text_verified` 與 manual review gate。
+- `tools/audio-quality-batch-regression.py`：PASS；同一 backend 的 `PASS + BLOCKED` 彙總為 `BLOCKED`，`PASS + DEGRADED` 彙總為 `DEGRADED`。
+- `tools/audio-output-validation-regression.py`：PASS；CosyVoice／Breeze 共用輸出 gate 拒絕空檔、無 frame、非 finite、錯誤取樣率與有效靜音。
+- `tools/speech-reconstruction-run.ps1 -VoiceDesign`：Breeze wrapper smoke PASS；實際產生 24 kHz、10.48 秒非零 WAV，workflow 記錄 `voice_design=true` 與 `not_applicable_voice_design`。預設未加 switch 的 clone smoke 行為保留。
 
 可重跑：
 
@@ -32,6 +35,8 @@ Set-Location D:\AetherTune
 & .\tools\rvc-ready-gate-regression.ps1
 & .\tools\vcclient-rvc-chunk-validation-regression.ps1
 & .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py --fail-on-waiting
+& .\.venv\Scripts\python.exe .\tools\audio-quality-batch-regression.py
+& .\.venv\Scripts\python.exe .\tools\audio-output-validation-regression.py
 ```
 
 ## 目前可直接使用的路線
@@ -41,7 +46,7 @@ Set-Location D:\AetherTune
 1. RVC 專案離線推論：`tools/rvc-fcpe-gpu-infer.py`，使用 `FCPE + cuda:0`，輸入自己的 WAV 與現有 `candidate` 模型。
 2. Seed-VC 離線轉換：`tools/seed-vc-run.ps1`，用 male／female reference WAV 做雙向測試。
 3. CosyVoice2 離線 TTS／reference clone：`tools/speech-reconstruction-run.ps1 -Backend cosyvoice`。
-4. Breeze TTS 2 離線 Voice Design／reference clone：同一 wrapper 使用 `-Backend breeze-tts-2`；需要人工核對的 reference transcript。
+4. Breeze TTS 2 離線 Voice Design／reference clone：同一 wrapper 使用 `-Backend breeze-tts-2`；Voice Design 加 `-VoiceDesign -Instruction`，reference clone 需要人工核對 transcript。
 
 其中第 1 項是「可測試」而不是「模型已獲授權的 ready preset」；第 2～4 項是離線輸出路線，不等於麥克風即時變聲。
 

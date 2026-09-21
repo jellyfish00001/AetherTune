@@ -16,6 +16,9 @@
 - `cosyvoice-setup.ps1`：在 WSL2 Ubuntu 建立 CosyVoice Python 3.10 environment、安裝官方依賴與下載 CosyVoice2-0.5B；搭配 `cosyvoice-infer.py` 做 zero-shot／reference clone。
 - `breeze-tts2-setup.ps1`：在 WSL2 Ubuntu 建立 Breeze TTS 2 Python 3.10 environment 與下載官方 checkpoint；模型受 research/non-commercial license 限制。
 - `breeze-tts2-run.ps1`／`breeze-tts2-infer.py`：使用 UTF-8 text file、reference audio／transcript 或 voice design 產生 24 kHz WAV 與 JSON manifest。
+- `audio_output_validation.py`：供 CosyVoice／Breeze runner 共用的 WAV 輸出 gate；會拒絕空檔、無 frame、非 finite、錯誤取樣率與全零輸出。
+- `audio-quality-batch.py`／`audio-quality-batch-regression.py`：四 backend 的 signal-level 比較與狀態彙總 regression；任何 BLOCKED row 不得被彙總成 PASS。
+- `audio-output-validation-regression.py`：WAV 輸出 gate 的空值、非 finite 與有效訊號 regression。
 - `stt-setup.ps1`／`stt-transcribe.py`：建立 Faster-Whisper STT environment，對 reference 產生 draft transcript 與 JSON evidence；正式 clone 前仍需人工核對。
 - `rvc-fcpe-gpu-infer.py`：直接使用 RVC WebUI pipeline，以 FCPE + CUDA 對角色模型做離線推論並寫出 manifest。
 - `vcclient-rvc-probe.ps1`：對已啟動的 VCClient REST endpoint 做官方 sample 短 WAV → RVC chunk probe；目前只能證明 chunk request 被接受，舊 artifact 的輸出不是有效 WAV，不能代替 RVC WebUI 的 FCPE + GPU role matrix。

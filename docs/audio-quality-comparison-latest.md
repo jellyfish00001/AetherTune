@@ -4,7 +4,7 @@
 
 ## 結論
 
-四種後端各有可解碼、finite、non-zero 的 WAV，signal-level 批次檢查 `PASS`。本報告的「音量」是 RMS／peak dBFS proxy，「品質」只涵蓋檔案有效性、靜音比例與 clipping；不代表 MOS、自然度、聲線相似度或人工聽感通過。
+四種後端共 11 個樣本皆可解碼、finite、non-zero，signal-level 批次檢查 `PASS`。批次工具現在會保留任何 `BLOCKED` row，不會被同一 backend 的有效 row 掩蓋。本報告的「音量」是 RMS／peak dBFS proxy，「品質」只涵蓋檔案有效性、靜音比例與 clipping；不代表 MOS、自然度、聲線相似度或人工聽感通過。
 
 可重跑命令：
 
@@ -19,7 +19,7 @@ Set-Location D:\AetherTune
 
 | 後端 | 樣本 | sample rate | duration | RMS dBFS | peak dBFS | clipping |
 |---|---:|---:|---:|---:|---:|---:|
-| RVC + FCPE GPU | 4 個角色輸出 | 40/48 kHz | 14.86 s | -22.53 ～ -16.57 | -2.48 ～ -0.48 | 0 |
+| RVC + FCPE GPU | 5 個角色輸出 | 40/48 kHz | 13.38 ～ 14.86 s | -22.53 ～ -14.62 | -2.48 ～ -0.41 | 0 |
 | Seed-VC | 男→女、女→男 | 22.05 kHz | 13.40 ～ 14.87 s | -33.20 ～ -30.23 | -11.70 ～ -9.33 | 0 |
 | CosyVoice2 | male/female clone | 24 kHz | 12.64 ～ 14.72 s | -34.26 ～ -25.91 | -15.66 ～ -7.22 | 0 |
 | Breeze TTS 2 | male/female clone | 24 kHz | 9.68 s | -31.94 ～ -31.76 | -16.04 ～ -12.25 | 0 |

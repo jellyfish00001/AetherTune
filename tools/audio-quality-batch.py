@@ -110,12 +110,22 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     summaries = []
     for backend, items in sorted(grouped.items()):
         good = [item for item in items if item.get("status") in {"PASS", "DEGRADED"}]
+        blocked = [item for item in items if item.get("status") == "BLOCKED"]
+        if blocked:
+            status = "BLOCKED"
+        elif not good:
+            status = "BLOCKED"
+        elif any(item.get("status") == "DEGRADED" for item in good):
+            status = "DEGRADED"
+        else:
+            status = "PASS"
         summaries.append(
             {
                 "backend": backend,
-                "status": "PASS" if good and all(item["status"] == "PASS" for item in good) else "DEGRADED" if good else "BLOCKED",
+                "status": status,
                 "files": len(items),
                 "pass_or_degraded": len(good),
+                "blocked": len(blocked),
                 "sample_rates": sorted({item.get("sample_rate") for item in good}),
                 "durations_sec": [round(float(item["duration_sec"]), 5) for item in good],
                 "rms_dbfs": [item.get("rms_dbfs") for item in good],
@@ -138,7 +148,12 @@ def main() -> int:
     summaries = summarize(rows)
     backends = {row["backend"] for row in rows}
     expected = {"RVC", "Seed-VC", "CosyVoice2", "Breeze TTS 2"}
-    overall = "PASS" if backends == expected and all(row["status"] == "PASS" for row in rows) else "DEGRADED" if rows else "BLOCKED"
+    if not rows or backends != expected or any(row["status"] == "BLOCKED" for row in rows):
+        overall = "BLOCKED"
+    elif any(row["status"] == "DEGRADED" for row in rows):
+        overall = "DEGRADED"
+    else:
+        overall = "PASS"
     report = {
         "status": overall,
         "measurement_scope": "signal-level WAV decode, volume proxy, sample rate and validity; not MOS or human quality",

@@ -16,6 +16,8 @@ import torch
 import torchaudio
 from cosyvoice.cli.cosyvoice import CosyVoice2
 
+from audio_output_validation import validate_wav_file
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -75,6 +77,7 @@ def main() -> int:
 
     speech = torch.cat([item["tts_speech"].cpu() for item in outputs], dim=1)
     torchaudio.save(str(args.output), speech, cosyvoice.sample_rate)
+    output_validation = validate_wav_file(args.output, expected_sample_rate=cosyvoice.sample_rate)
     inference_seconds = time.perf_counter() - inference_started
     output_seconds = speech.shape[1] / cosyvoice.sample_rate
 
@@ -86,6 +89,7 @@ def main() -> int:
         "prompt_text": prompt_text,
         "text": text,
         "output": {"path": str(args.output), "sha256": sha256(args.output), "bytes": args.output.stat().st_size},
+        "output_validation": output_validation,
         "sample_rate": cosyvoice.sample_rate,
         "output_seconds": output_seconds,
         "load_seconds": load_seconds,

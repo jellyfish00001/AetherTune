@@ -89,6 +89,8 @@ Faster-Whisper、CosyVoice2 與 Breeze TTS 2 都已建立獨立環境並完成�
 
 把 `-Backend cosyvoice` 換成 `-Backend breeze-tts-2` 即可使用 Breeze。 `-TextFile` 是要合成的目標文字，`-ReferenceTextFile` 是 reference audio 的 prompt transcript；未提供人工核對文字時，workflow 會標記 `caller_provided_unverified` 或 STT draft 與 `manual_review_required=true`。若沒有 `-TextFile`，目標內容仍是 source STT draft，即使 reference transcript 已 verified，`manual_review_required` 也維持 `true`；只有 caller 提供 `TextFile` 且 reference verified 時才會是 `false`。只有使用者已逐字核對 reference transcript 時，才加上 `-ReferenceTextVerified`；沒有 `-ReferenceTextFile` 時使用這個 switch 會被拒絕。
 
+Breeze 若要使用 Voice Design 而不取 reference voice，請在同一個 wrapper 加上 `-VoiceDesign -Instruction '...'`；這個模式不可同時指定 `-ReferenceAudio` 或 `-ReferenceTextFile`。若未加 `-VoiceDesign`，wrapper 維持以輸入音檔作為快速 clone smoke test 的相容行為。
+
 ## 三種方法的資料流
 
 ```text

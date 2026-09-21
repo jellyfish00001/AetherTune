@@ -40,6 +40,17 @@ Set-Location D:\AetherTune
 
 `-Backend` 可選 `cosyvoice` 或 `breeze-tts-2`。輸出預設位於 `artifacts/speech-reconstruction/`，旁邊會有後端 JSON 與 `.workflow.json`；workflow 會保留 `tts_text_source`、`reference_text_source`、`reference_text_verified`、STT draft 與 `manual_review_required`。若沒有 caller `-TextFile`，目標內容仍是 source STT draft，因此 `manual_review_required` 維持 `true`；只有 caller 提供 `TextFile` 且 reference transcript verified 時才會是 `false`。
 
+若要透過同一個 wrapper 使用 Breeze Voice Design（不使用 reference voice），加上 `-VoiceDesign`；這會讓 `-Instruction` 真正傳給 Breeze，且不能同時指定 `-ReferenceAudio` 或 `-ReferenceTextFile`：
+
+```powershell
+& .\tools\speech-reconstruction-run.ps1 `
+  -InputWav .\dataset\reference-voices\voice-male-m1.wav `
+  -Backend breeze-tts-2 `
+  -VoiceDesign `
+  -Instruction '一位溫柔明亮的成年女性，聲音清晰自然，語氣親切而帶有溫暖笑意。' `
+  -Output .\artifacts\speech-reconstruction\breeze-wrapper-design-female.wav
+```
+
 若 reference transcript 已由人工逐字核對，可明確記錄 verified provenance：
 
 ```powershell
@@ -74,7 +85,7 @@ Set-Location D:\AetherTune
   -Output .\artifacts\speech-reconstruction\breeze-clone-male.wav
 ```
 
-Voice Design 不需要 reference：
+Voice Design 不需要 reference（也可直接使用上面的 `speech-reconstruction-run.ps1 -VoiceDesign`）：
 
 ```powershell
 & .\tools\breeze-tts2-run.ps1 `
