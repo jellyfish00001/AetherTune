@@ -8,8 +8,9 @@
 
 它驗證的是「GUI 啟動 + GUI 設定 + PortAudio stream + Seed-VC 推論 + 輸出擷取」；
 輸入聲音以 deterministic male WAV 注入 callback，因此可重現且不依賴虛擬麥克風
-的 MME 輸入權限。它不等同於人工聽測，也不會把輸出送進 Discord。所有輸出只寫入
-artifacts。
+的 MME 輸入權限。使用 `--capture-loopback` 時，另外錄取 WASAPI `CABLE Output`
+作為 VB-CABLE playback-to-recording evidence。它不等同於人工聽測、Light Host
+plugin full-chain 或 Discord 收音。所有輸出只寫入 artifacts。
 """
 
 from __future__ import annotations
@@ -78,6 +79,7 @@ USERFLOW_SETTINGS = {
 
 PLAYBACK_SR = 22050
 PLAYBACK_SECONDS = 5.0
+LOOPBACK_SAMPLE_RATE = 48_000
 # 官方 GUI 第一次 callback 會觸發 VAD／CUDA／vocoder warm-up；目前實測約
 # 11.2 秒。多保留一段只給首個 case 的 capture window，避免把「輸出尚未
 # 形成」誤判成模型無輸出；這段 warm-up 仍必須在 LIVE latency 報告中分開記錄。
@@ -96,6 +98,8 @@ _CAPTURES: dict[str, dict[str, object]] = {}
 _CURRENT_LABEL = ""
 _SOURCE_PATH = DEFAULT_SOURCE
 _OUTPUT_ROOT = DEFAULT_OUT
+_LOOPBACK_RECORDER = None
+_LOOPBACK_SETUP_ERROR: str | None = None
 
 
 # FunASR import 時只用 ffmpeg 做可選能力探針；本測試所有輸入都是 WAV，且系統
@@ -119,6 +123,70 @@ def _save_capture(label: str, input_chunks: list[np.ndarray], output_chunks: lis
         sf.write(case_dir / "gui-input-injected-male.wav", np.concatenate(input_chunks, axis=0), sample_rate)
     if output_chunks:
         sf.write(case_dir / "gui-output-after-vc.wav", np.concatenate(output_chunks, axis=0), sample_rate)
+
+
+def _find_wasapi_device(fragment: str, *, output: bool) -> int:
+    """以方向與 endpoint 名稱找 loopback 裝置，不依賴當日的 device index。"""
+
+    devices = sd.query_devices()
+    hostapis = sd.query_hostapis()
+    for index, device in enumerate(devices):
+        host_name = hostapis[device["hostapi"]]["name"]
+        channels = device["max_output_channels"] if output else device["max_input_channels"]
+        if host_name == "Windows WASAPI" and fragment.casefold() in device["name"].casefold() and channels > 0:
+            return index
+    direction = "output" if output else "input"
+    raise RuntimeError(f"找不到 Windows WASAPI {direction} endpoint: {fragment}")
+
+
+class _CableOutputLoopbackRecorder:
+    """在官方 GUI 將輸出送到 CABLE Input 時，另錄 CABLE Output。"""
+
+    def __init__(self, output_root: Path, fragment: str) -> None:
+        self._output_root = output_root
+        self._fragment = fragment
+        self._device = _find_wasapi_device(fragment, output=False)
+        self._stream = None
+        self._label = ""
+        self._chunks: list[np.ndarray] = []
+        self.errors: dict[str, str] = {}
+        self.completed: set[str] = set()
+
+    def start(self, label: str) -> None:
+        self._label = label
+        self._chunks = []
+        try:
+            self._stream = sd.InputStream(
+                device=self._device,
+                samplerate=LOOPBACK_SAMPLE_RATE,
+                channels=2,
+                blocksize=960,
+                callback=self._callback,
+                extra_settings=sd.WasapiSettings(exclusive=False),
+            )
+            self._stream.start()
+        except Exception as error:  # pragma: no cover - endpoint is host-specific
+            self.errors[label] = repr(error)
+            self._stream = None
+
+    def _callback(self, indata, _frames, _time, _status):
+        self._chunks.append(np.array(indata, copy=True))
+
+    def stop(self) -> None:
+        if self._stream is None:
+            return
+        try:
+            self._stream.stop()
+            self._stream.close()
+            data = np.concatenate(self._chunks, axis=0) if self._chunks else np.zeros((0, 2), dtype=np.float32)
+            case_dir = self._output_root / self._label
+            case_dir.mkdir(parents=True, exist_ok=True)
+            sf.write(case_dir / "cable-output-loopback.wav", data, LOOPBACK_SAMPLE_RATE)
+            self.completed.add(self._label)
+        except Exception as error:  # pragma: no cover - device is host-specific
+            self.errors[self._label] = repr(error)
+        finally:
+            self._stream = None
 
 
 class _RecordingStream:
@@ -222,6 +290,8 @@ class _UserFlowWindowMixin:
             desired["reference_audio_path"] = str(reference)
             self._pending_values = desired
             print(f"USERFLOW configure label={label} reference={reference}", flush=True)
+            if _LOOPBACK_RECORDER is not None:
+                _LOOPBACK_RECORDER.start(label)
             self.write_event_value("start_vc", None)
             time.sleep(3.0)
             print(f"USERFLOW inject male source at GUI callback label={label}", flush=True)
@@ -233,6 +303,8 @@ class _UserFlowWindowMixin:
             )
             time.sleep(PLAYBACK_SECONDS + startup_grace)
             self.write_event_value("stop_vc", None)
+            if _LOOPBACK_RECORDER is not None:
+                _LOOPBACK_RECORDER.stop()
             time.sleep(1.5)
         print("USERFLOW close GUI", flush=True)
         self.write_event_value(sg.WIN_CLOSED, None)
@@ -459,7 +531,7 @@ def _audio_difference(input_path: Path, output_path: Path) -> dict[str, object]:
 
 
 def main() -> int:
-    global _SOURCE_PATH, _OUTPUT_ROOT
+    global _SOURCE_PATH, _OUTPUT_ROOT, _LOOPBACK_RECORDER, _LOOPBACK_SETUP_ERROR
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
@@ -467,6 +539,16 @@ def main() -> int:
         "--preflight",
         action="store_true",
         help="只檢查檔案、PortAudio 裝置與 FreeSimpleGUI import，不啟動 GUI 或錄製音訊",
+    )
+    parser.add_argument(
+        "--capture-loopback",
+        action="store_true",
+        help="同步錄取 Windows WASAPI CABLE Output，驗證 GUI backend output 是否穿過 VB-CABLE",
+    )
+    parser.add_argument(
+        "--loopback-input-fragment",
+        default="CABLE Output",
+        help="loopback 錄音端點名稱片段；只在 --capture-loopback 時使用",
     )
     args = parser.parse_args()
     _SOURCE_PATH = args.source.resolve()
@@ -476,6 +558,18 @@ def main() -> int:
     _load_runtime_dependencies()
     _OUTPUT_ROOT = args.output.resolve()
     _OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    if args.capture_loopback:
+        try:
+            _LOOPBACK_RECORDER = _CableOutputLoopbackRecorder(_OUTPUT_ROOT, args.loopback_input_fragment)
+            print(
+                f"LOOPBACK capture endpoint={_LOOPBACK_RECORDER._device}: {args.loopback_input_fragment}; "
+                f"sample_rate={LOOPBACK_SAMPLE_RATE}",
+                flush=True,
+            )
+        except Exception as error:
+            _LOOPBACK_SETUP_ERROR = repr(error)
+            print(f"LOOPBACK setup failed: {_LOOPBACK_SETUP_ERROR}", flush=True)
+            _LOOPBACK_RECORDER = None
 
     sys.path.insert(0, str(GUI_PATH.parent))
     # runpy 會沿用目前程序的 argv；先將測試工具自己的參數隔離，避免官方
@@ -523,19 +617,36 @@ def main() -> int:
         input_metrics = _audio_metrics(input_path)
         output_metrics = _audio_metrics(output_path)
         comparison = _audio_difference(input_path, output_path)
-        output_pass = bool(
+        backend_output_pass = bool(
             output_metrics.get("exists")
             and output_metrics.get("finite")
             and float(output_metrics.get("rms", 0.0)) > 1e-4
             and float(output_metrics.get("seconds", 0.0)) > 0.5
             and comparison.get("different_from_input") is True
         )
+        loopback_path = case_dir / "cable-output-loopback.wav"
+        loopback_metrics = _audio_metrics(loopback_path)
+        loopback_pass = bool(
+            not args.capture_loopback
+            or (
+                _LOOPBACK_RECORDER is not None
+                and label in _LOOPBACK_RECORDER.completed
+                and loopback_metrics.get("exists")
+                and loopback_metrics.get("finite")
+                and float(loopback_metrics.get("rms", 0.0)) > 1e-4
+                and float(loopback_metrics.get("seconds", 0.0)) > 0.5
+            )
+        )
+        output_pass = backend_output_pass and loopback_pass
         cases[label] = {
             "status": "PASS" if output_pass else "WAITING",
             "reference": str(REFERENCE_CASES[label]),
             "input": input_metrics,
             "output": output_metrics,
             "comparison": comparison,
+            "backend_output_status": "PASS" if backend_output_pass else "WAITING",
+            "loopback": loopback_metrics,
+            "loopback_status": "PASS" if loopback_pass else "WAITING",
         }
 
     report = {
@@ -546,6 +657,15 @@ def main() -> int:
         "portaudio_output_device": USERFLOW_SETTINGS["sg_output_device"],
         "input_injection": "callback-injected deterministic male WAV",
         "first_case_startup_grace_seconds": FIRST_CASE_STARTUP_GRACE_SECONDS,
+        "loopback_capture": {
+            "enabled": args.capture_loopback,
+            "input_fragment": args.loopback_input_fragment if args.capture_loopback else None,
+            "sample_rate": LOOPBACK_SAMPLE_RATE if args.capture_loopback else None,
+            "errors": (
+                _LOOPBACK_RECORDER.errors if _LOOPBACK_RECORDER is not None else {}
+            ),
+            "setup_error": _LOOPBACK_SETUP_ERROR,
+        },
         "cases": cases,
     }
     report_path = _OUTPUT_ROOT / "gui-userflow-report.json"

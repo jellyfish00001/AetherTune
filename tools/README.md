@@ -15,6 +15,7 @@
 - `audio-rack-evidence-regression.py`：回歸測試 rack evidence 分類、hash gate、Δ latency 缺失與超過 5 秒情況。
 - `voice-backend-check.ps1`：唯讀檢查 RVC venv、Seed-VC source／isolated environment／checkpoint、男／女 reference voice 與 CosyVoice/Breeze TTS 2 模型狀態；不代表端到端品質通過。
 - `seed-vc-run.ps1`：檢查輸入、checkpoint、config 與 SHA-256 後呼叫官方 Seed-VC offline inference，並寫出可追溯的 `seed-vc-run.json`；輸出仍須人工聽測與另行登錄。
+- `seed-vc-gui-userflow-test.py`：以官方 GUI event path 驗證 Seed-VC callback；加上 `--capture-loopback` 時同步錄取 WASAPI `CABLE Output`，確認 backend output 穿過 VB-CABLE，但不代表 Light Host full-chain 或 LIVE。
 - `seed-vc-setup.ps1`：建立獨立 Python 3.10 Seed-VC environment，使用 Torch `2.7.1+cu128` 對齊目前 GPU runtime，再安裝 Seed-VC 其餘依賴。
 - `cosyvoice-setup.ps1`：在 WSL2 Ubuntu 建立 CosyVoice Python 3.10 environment、安裝官方依賴與下載 CosyVoice2-0.5B；搭配 `cosyvoice-infer.py` 做 zero-shot／reference clone。
 - `breeze-tts2-setup.ps1`：在 WSL2 Ubuntu 建立 Breeze TTS 2 Python 3.10 environment 與下載官方 checkpoint；模型受 research/non-commercial license 限制。

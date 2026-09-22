@@ -55,6 +55,11 @@
       "kind": "voicemeeter-remote-api",
       "status": "PASS",
       "report": "artifacts/voicemeeter-b1-route-check.json"
+    },
+    {
+      "kind": "seed-vc-gui-to-vb-cable",
+      "status": "PASS",
+      "report": "artifacts/seed-vc/gui-userflow/phase-20260922-cable-loopback/gui-userflow-report.json"
     }
   ],
   "limitations": [

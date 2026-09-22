@@ -26,6 +26,14 @@
 
 下一步：以同一 Seed-VC source、同一 route 完成 Light Host bypass 與 Graillon full-chain paired run；若缺少實際 plugin output、timing 或人工聽測，維持 `WAITING`。
 
+## 2026-09-22：Seed-VC backend output 的 VB-CABLE capture
+
+決定：在等待 Light Host native UI chain 可操作前，先把官方 Seed-VC GUI callback 的 output 送入 `CABLE Input`，同步從 WASAPI `CABLE Output` 錄取；此證據獨立標記為 backend → VB-CABLE screening，不升格為 audio-rack 或 LIVE。
+
+結果：四個 reference case 均產生 finite／非零 backend output，且同步 `CABLE Output` capture 均為 finite／非零；report 為 `artifacts/seed-vc/gui-userflow/phase-20260922-cable-loopback/gui-userflow-report.json`。輸入仍是 deterministic male WAV，非實體麥克風。
+
+未解：Light Host 是否載入 Graillon、bypass/full-chain 的 paired output、plugin Δ latency、實體麥克風 first-packet timing 與 600 秒 stability 仍為 `WAITING`。
+
 ## 目前選擇
 
 | 模組 | 目前選擇 | 選擇原因 | 何時改選 |
