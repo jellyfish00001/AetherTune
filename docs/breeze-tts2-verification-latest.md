@@ -1,6 +1,6 @@
 # Breeze TTS 2 最新驗證
 
-更新日期：2026-09-21（Asia/Taipei）
+更新日期：2026-09-22（Asia/Taipei）
 
 ## 結論
 
@@ -11,6 +11,7 @@ Breeze TTS 2 已完成獨立 WSL2 安裝與 CUDA 實際輸出，狀態為 `PASS`
 - model snapshot：`7,683,628,957` bytes，位於 `models/speech-reconstruction/breeze-tts-2/`
 - environment：`tools/venvs/breeze-tts-wsl`、Python 3.10.20、Torch `2.9.1+cu128`
 - GPU：NVIDIA GeForce RTX 5060 Ti、16 GB VRAM
+- UI：上游沒有官方 WebUI；本專案的 `tools/breeze-tts2-webui.py` 是 project-local wrapper，呼叫同一套官方 runtime。
 
 ## 實際輸出證據
 
@@ -29,6 +30,25 @@ Breeze TTS 2 已完成獨立 WSL2 安裝與 CUDA 實際輸出，狀態為 `PASS`
 | SoX project-local extraction | PASS | `artifacts/sox-local/usr/bin/sox`，SoX `14.4.2`；搭配 local `libltdl7` 可執行，runner 會自動注入 PATH／LD_LIBRARY_PATH |
 | fast-all + project-local SoX runner | PASS | `breeze-fast-all-sox-local.wav`、24 kHz、11.36 s、545,324 bytes；runner stdout 確認使用 `/mnt/d/AetherTune/artifacts/sox-local/usr/bin/sox` |
 | Exact transcript | WAITING | 男女 reference 已有 Faster-Whisper STT draft；仍需人工逐字聽核 |
+
+## 實際 UI 操作驗證
+
+本輪以真實瀏覽器開啟 project-local UI，完成以下操作：上傳 female reference WAV、填入 exact transcript、修改女性 instruction、修改 seed、按下「生成音訊」，再以相同 UI 工作階段修改 seed 後再次生成。兩次都由官方 Breeze runtime 在 CUDA 執行，且瀏覽器 console 沒有 error（只有 Gradio `Method not implemented` warning）。
+
+| UI 流程 | 狀態 | 證據 |
+|---|---|---|
+| UI 首次 eager reference clone | PASS | `artifacts/breeze-ui/run-20260922-170407-08873c93/output.wav`；24 kHz、7.92 s；`runtime_reused=false`；model load `82.4 s`、inference `36.3 s`；RTX 5060 Ti |
+| UI 第二次 eager reference clone | PASS | `artifacts/breeze-ui/run-20260922-170851-c51e7232/output.wav`；24 kHz、7.76 s；`runtime_reused=true`；model load `0 s`、inference `32.5 s`；seed `124` |
+| UI output validation | PASS | 兩個 WAV 均為單聲道 PCM16、finite、非靜音；對應 `output.json` 與 `ui-run.json` 保存參數、hash、runtime 與 timing |
+
+啟動 UI：
+
+```powershell
+Set-Location D:\AetherTune
+wsl.exe -d Ubuntu -- bash -lc 'cd /mnt/d/AetherTune; /mnt/d/AetherTune/tools/venvs/breeze-tts-wsl/bin/python -u tools/breeze-tts2-webui.py --port 50081'
+```
+
+瀏覽器開啟 `http://127.0.0.1:50081`。第一次生成會載入模型；同一 UI 工作階段只要維持 `eager`／`Fast-all` 設定不變，後續按「生成音訊」會重用模型。切換 `Fast-all CUDA graph` 或 attention backend 會重新載入，且 `flash_attention_2` 目前仍是 `WAITING`，不要當成預設值。
 
 ## 可重跑命令
 

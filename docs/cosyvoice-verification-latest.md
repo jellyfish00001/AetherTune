@@ -1,12 +1,13 @@
 # CosyVoice 最新驗證
 
-更新日期：2026-09-21（Asia/Taipei）
+更新日期：2026-09-22（Asia/Taipei）
 
 ## 結論
 
 - CosyVoice2 官方 zero-shot TTS：`PASS`，已在 WSL2 RTX 5060 Ti 產生可解碼 WAV。
 - Faster-Whisper STT：`PASS`（CPU draft），男女 reference 均成功辨識為日文。
 - CosyVoice2 男／女 reference clone：`PASS`（runtime）；transcript 仍標為 STT draft，尚需人工逐字確認。
+- CosyVoice2 官方 Gradio UI：`PASS`（瀏覽器 upload clone flow）；麥克風錄音權限與部分 frontend 資源仍有非阻塞限制。
 - Breeze TTS 2：另見 [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md)，已完成安裝與輸出測試。
 
 因此現在可以直接試 CosyVoice2 的離線 TTS、男女 reference clone 與統一 STT → TTS wrapper；完整流程的剩餘品質 gate 是人工確認 STT transcript 與聽測。
@@ -30,6 +31,23 @@
 | Faster-Whisper STT | PASS（draft） | `artifacts/stt/voice-male-m1.json`、`voice-female-f1.json`；language=`ja` |
 | Exact transcript 人工核對 | WAITING | 女聲 STT 有「いっている／言っている」文字差異；clone smoke 已完成，但正式 voice clone 仍應人工聽核 |
 | Unified `speech-reconstruction-run.ps1` | PASS | `cosyvoice-wrapper-smoke-fixed.wav`、24 kHz、CUDA runtime、workflow manifest |
+
+## 實際官方 UI 操作驗證
+
+本輪以官方 `tools/external/CosyVoice/webui.py` 啟動 Gradio UI，完成 `3s极速复刻` 模式的實際操作：選擇模式、上傳 female reference WAV、填入 prompt transcript、修改 speed=`0.9` 與 seed=`42`、按下「生成音频」，並下載 UI 顯示的輸出。結果為 `PASS`：
+
+- artifact：[cosyvoice-ui-female-clone.wav](/D:/AetherTune/artifacts/ui-tests/cosyvoice-ui-female-clone.wav)
+- 格式：24 kHz、單聲道、PCM16、15.659 秒、finite、非靜音。
+- UI 輸入：target text 為中文生日禮物句；reference 為 `voice-female-f1.wav`；prompt transcript 為日文 exact transcript。
+
+啟動官方 UI：
+
+```powershell
+Set-Location D:\AetherTune
+wsl.exe -d Ubuntu -- bash -lc 'set -e; export PYTHONPATH=/mnt/d/AetherTune/tools/external/CosyVoice:/mnt/d/AetherTune/tools/external/CosyVoice/third_party/Matcha-TTS; export HF_HUB_OFFLINE=1; cd /mnt/d/AetherTune/tools/external/CosyVoice; /mnt/d/AetherTune/tools/venvs/cosyvoice-wsl/bin/python -u webui.py --port 50080 --model_dir /mnt/d/AetherTune/models/speech-reconstruction/cosyvoice'
+```
+
+瀏覽器開啟 `http://127.0.0.1:50080`，建議先用 upload，不要先用瀏覽器錄音。官方 UI 的錄音按鈕在本次瀏覽器測試因 microphone permission denied 未通過；upload clone flow 已通過。另有 font resource 404、Gradio warning、預設 ONNX frontend 缺 `libcudnn.so.8` 而 fallback CPU，以及 wetext ModelScope 403/no token；這些沒有阻止本次 upload 生成，但仍屬 `WAITING`／partial runtime 限制。
 
 ## 可重跑命令
 
