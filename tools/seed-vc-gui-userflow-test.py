@@ -78,6 +78,10 @@ USERFLOW_SETTINGS = {
 
 PLAYBACK_SR = 22050
 PLAYBACK_SECONDS = 5.0
+# 官方 GUI 第一次 callback 會觸發 VAD／CUDA／vocoder warm-up；目前實測約
+# 11.2 秒。多保留一段只給首個 case 的 capture window，避免把「輸出尚未
+# 形成」誤判成模型無輸出；這段 warm-up 仍必須在 LIVE latency 報告中分開記錄。
+FIRST_CASE_STARTUP_GRACE_SECONDS = 15.0
 
 # GUI／音訊依賴延後載入，讓 --help 與 --preflight 不會被 Tcl/Tk 啟動失敗
 # 阻擋。這些全域值只在實際 user-flow 前由 _load_runtime_dependencies() 設定。
@@ -183,19 +187,20 @@ class _RecordingStream:
         return getattr(self._stream, name)
 
 
-class _UserFlowWindow:
+class _UserFlowWindowMixin:
     """在官方 GUI 的 start event 上套用使用者會填入的欄位。"""
 
     def __init__(self, *args, **kwargs):
-        # 使用 wrapper 而不是在模組載入時繼承 FreeSimpleGUI.Window，讓唯讀
-        # preflight 能在 Tcl/Tk 壞掉時仍正常啟動並提供可操作的診斷結果。
-        self._window = _ORIGINAL_WINDOW(*args, **kwargs)
+        # 由 _load_runtime_dependencies() 動態混入官方 Window；保留官方的
+        # class-level state（例如 NumOpenWindows），避免改變 GUI framework 的
+        # lifecycle。唯讀 preflight 仍不會建立此 class。
+        super().__init__(*args, **kwargs)
         self._pending_values: dict[str, object] | None = None
         if kwargs.get("finalize"):
             threading.Thread(target=self._drive_user_flow, name="seed-vc-gui-userflow", daemon=True).start()
 
     def read(self, *args, **kwargs):
-        event, values = self._window.read(*args, **kwargs)
+        event, values = super().read(*args, **kwargs)
         if event == "start_vc" and self._pending_values is not None:
             desired = self._pending_values
             self._pending_values = None
@@ -207,12 +212,6 @@ class _UserFlowWindow:
                     pass
                 values[key] = value
         return event, values
-
-    def __getitem__(self, key):
-        return self._window[key]
-
-    def __getattr__(self, name):
-        return getattr(self._window, name)
 
     def _drive_user_flow(self) -> None:
         global _CURRENT_LABEL
@@ -227,7 +226,12 @@ class _UserFlowWindow:
             time.sleep(3.0)
             print(f"USERFLOW inject male source at GUI callback label={label}", flush=True)
             # Stream wrapper 會在這段期間持續把男聲注入官方 GUI callback。
-            time.sleep(PLAYBACK_SECONDS + 1.0)
+            startup_grace = (
+                FIRST_CASE_STARTUP_GRACE_SECONDS
+                if label == next(iter(REFERENCE_CASES))
+                else 1.0
+            )
+            time.sleep(PLAYBACK_SECONDS + startup_grace)
             self.write_event_value("stop_vc", None)
             time.sleep(1.5)
         print("USERFLOW close GUI", flush=True)
@@ -281,7 +285,13 @@ def _load_runtime_dependencies() -> None:
 
     funasr.AutoModel = _OfflineAutoModel
     sd.Stream = _RecordingStream
-    sg.Window = _UserFlowWindow
+
+    # FreeSimpleGUI 需要從 Window class 讀取全域生命週期狀態；用多重繼承
+    # 保留原 class 的 attributes/methods，再只覆寫測試需要的 read／driver。
+    class _RuntimeUserFlowWindow(_UserFlowWindowMixin, _ORIGINAL_WINDOW):
+        pass
+
+    sg.Window = _RuntimeUserFlowWindow
 
 
 def _preflight(source: Path) -> int:
@@ -535,6 +545,7 @@ def main() -> int:
         "settings": USERFLOW_SETTINGS,
         "portaudio_output_device": USERFLOW_SETTINGS["sg_output_device"],
         "input_injection": "callback-injected deterministic male WAV",
+        "first_case_startup_grace_seconds": FIRST_CASE_STARTUP_GRACE_SECONDS,
         "cases": cases,
     }
     report_path = _OUTPUT_ROOT / "gui-userflow-report.json"

@@ -85,7 +85,7 @@ Set-Location D:\AetherTune
 - `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
 - `backends/seed-vc/README.md` 與 `docs/agent-implementation-status-latest.md`：Seed-VC 輸入契約與目前實際驗證摘要。
 
-目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔與 `realtime-tiny` headless GPU block；但官方 GUI、PortAudio 麥克風端到端、人工聽測與長時間 realtime 穩定性仍待補。
+目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及官方 GUI callback user-flow 的四組 reference 輸出；但 virtual route loopback、人工聽測與長時間 realtime 穩定性仍待補。
 
 正式啟動 GUI user-flow 前，先做不改裝置、不開 stream 的唯讀 preflight：
 
@@ -94,6 +94,15 @@ Set-Location D:\AetherTune
 ```
 
 回傳 `0/PASS` 才表示檔案、預期 MME 裝置與 `FreeSimpleGUI` import 都通過；回傳 `3/WAITING` 表示環境仍被 GUI 依賴阻塞，回傳 `2/BLOCKED` 表示必要資源或裝置缺失。這項檢查不會建立音訊 artifact，也不等於完整 mic → Seed-VC → virtual route 的 LIVE evidence。
+
+preflight 通過後執行官方 GUI callback user-flow：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-gui-userflow-test.py `
+  --output .\artifacts\seed-vc\gui-userflow\<run-id>
+```
+
+目前最新實測報告在 `artifacts/seed-vc/gui-userflow/phase-20260922-final/gui-userflow-report.json`；它使用 deterministic WAV 注入 callback，輸出只到 VB-CABLE，通過的是 GUI／CUDA／PortAudio callback 與訊號差異 gate，不是人工聽測或完整 `LIVE <= 5s` gate。
 
 ## 4. 使用 RVC
 
