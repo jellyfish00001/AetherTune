@@ -59,7 +59,7 @@
     {
       "kind": "seed-vc-gui-to-vb-cable",
       "status": "PASS",
-      "report": "artifacts/seed-vc/gui-userflow/phase-20260922-cable-loopback/gui-userflow-report.json"
+      "report": "artifacts/seed-vc/gui-userflow/phase-20260922-cable-loopback-timing-v2/gui-userflow-report.json"
     }
   ],
   "limitations": [

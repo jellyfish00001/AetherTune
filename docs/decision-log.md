@@ -34,6 +34,14 @@
 
 未解：Light Host 是否載入 Graillon、bypass/full-chain 的 paired output、plugin Δ latency、實體麥克風 first-packet timing 與 600 秒 stability 仍為 `WAITING`。
 
+## 2026-09-22：Seed-VC callback／VB-CABLE partial timing
+
+決定：在完整 mic → backend → audio-rack → virtual route 尚未可操作前，先在同一個 GUI→CABLE screening 中保存三個時間點：duplex callback 首次輸入、首次非零 backend output，以及 backend output 後首次非零 `CABLE Output`。這些欄位只能作 warm-up／路由延遲篩檢，不得填入完整 `e2e_first_packet_ms` 或把 `LIVE` gate 改成通過。
+
+結果：v2 report 四案均 `PASS`；stream 開始後首次 backend output 為 `2153.6–3034.1 ms`，backend 後首次 CABLE output 為 `134.1–161.0 ms`。前一版曾出現 CABLE 首次非零早於當案 backend output 的 route buffer 殘留，故工具保留 raw timestamp，但正式解讀改用 `cable_output_first_nonzero_after_backend_ms`。
+
+未解：實體麥克風輸入、Light Host／Graillon bypass/full-chain、Voicemeeter B1 串接、完整 first-packet、600 秒 zero dropout／underrun 與人工聽測仍為 `WAITING`。
+
 ## 目前選擇
 
 | 模組 | 目前選擇 | 選擇原因 | 何時改選 |

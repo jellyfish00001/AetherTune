@@ -151,10 +151,17 @@ class _CableOutputLoopbackRecorder:
         self._chunks: list[np.ndarray] = []
         self.errors: dict[str, str] = {}
         self.completed: set[str] = set()
+        self.timing_ms: dict[str, dict[str, float | None]] = {}
+        self._started_at = 0.0
+        self._first_nonzero_at: float | None = None
+        self._first_nonzero_after_backend_at: float | None = None
 
     def start(self, label: str) -> None:
         self._label = label
         self._chunks = []
+        self._started_at = time.perf_counter()
+        self._first_nonzero_at = None
+        self._first_nonzero_after_backend_at = None
         try:
             self._stream = sd.InputStream(
                 device=self._device,
@@ -170,6 +177,17 @@ class _CableOutputLoopbackRecorder:
             self._stream = None
 
     def _callback(self, indata, _frames, _time, _status):
+        now = time.perf_counter()
+        if np.any(np.abs(indata) > 1e-5):
+            if self._first_nonzero_at is None:
+                self._first_nonzero_at = now
+            backend_output_at = _CAPTURES.get(self._label, {}).get("_first_output_at")
+            if (
+                self._first_nonzero_after_backend_at is None
+                and isinstance(backend_output_at, float)
+                and now >= backend_output_at
+            ):
+                self._first_nonzero_after_backend_at = now
         self._chunks.append(np.array(indata, copy=True))
 
     def stop(self) -> None:
@@ -183,6 +201,23 @@ class _CableOutputLoopbackRecorder:
             case_dir.mkdir(parents=True, exist_ok=True)
             sf.write(case_dir / "cable-output-loopback.wav", data, LOOPBACK_SAMPLE_RATE)
             self.completed.add(self._label)
+            self.timing_ms[self._label] = {
+                "cable_output_first_nonzero_ms": (
+                    (self._first_nonzero_at - self._started_at) * 1000
+                    if self._first_nonzero_at is not None
+                    else None
+                ),
+                "cable_output_first_nonzero_after_backend_ms": (
+                    (
+                        self._first_nonzero_after_backend_at
+                        - _CAPTURES[self._label]["_first_output_at"]
+                    )
+                    * 1000
+                    if self._first_nonzero_after_backend_at is not None
+                    and isinstance(_CAPTURES.get(self._label, {}).get("_first_output_at"), float)
+                    else None
+                )
+            }
         except Exception as error:  # pragma: no cover - device is host-specific
             self.errors[self._label] = repr(error)
         finally:
@@ -197,6 +232,9 @@ class _RecordingStream:
         self._output_chunks: list[np.ndarray] = []
         self._sample_rate = int(kwargs.get("samplerate") or PLAYBACK_SR)
         self._label = _CURRENT_LABEL
+        self._started_at = time.perf_counter()
+        self._first_input_at: float | None = None
+        self._first_output_at: float | None = None
         source, source_sr = sf.read(_SOURCE_PATH, always_2d=False)
         if source.ndim > 1:
             source = source.mean(axis=1)
@@ -212,6 +250,9 @@ class _RecordingStream:
         callback = kwargs["callback"]
 
         def wrapped_callback(indata, outdata, frames, times, status):
+            callback_started_at = time.perf_counter()
+            if self._first_input_at is None:
+                self._first_input_at = callback_started_at
             # 讓官方 GUI callback 看到男聲輸入。每個 callback 會循環 source，
             # 因此不用依賴 VB-CABLE 的 input endpoint，也不會因 source 結束變成靜音。
             injected = np.zeros_like(indata)
@@ -230,6 +271,9 @@ class _RecordingStream:
                     remaining -= available
             self._input_chunks.append(np.array(injected, copy=True))
             callback(injected, outdata, frames, times, status)
+            if self._first_output_at is None and np.any(np.abs(outdata) > 1e-5):
+                self._first_output_at = time.perf_counter()
+                _CAPTURES.setdefault(self._label, {})["_first_output_at"] = self._first_output_at
             self._output_chunks.append(np.array(outdata, copy=True))
 
         kwargs["callback"] = wrapped_callback
@@ -249,6 +293,18 @@ class _RecordingStream:
         try:
             return self._stream.close()
         finally:
+            _CAPTURES.setdefault(self._label, {})["timing_ms"] = {
+                "callback_first_input_ms": (
+                    (self._first_input_at - self._started_at) * 1000
+                    if self._first_input_at is not None
+                    else None
+                ),
+                "callback_first_nonzero_output_ms": (
+                    (self._first_output_at - self._started_at) * 1000
+                    if self._first_output_at is not None
+                    else None
+                ),
+            }
             _save_capture(self._label, self._input_chunks, self._output_chunks, self._sample_rate)
 
     def __getattr__(self, name):
@@ -647,6 +703,14 @@ def main() -> int:
             "backend_output_status": "PASS" if backend_output_pass else "WAITING",
             "loopback": loopback_metrics,
             "loopback_status": "PASS" if loopback_pass else "WAITING",
+            "timing_ms": {
+                **(_CAPTURES.get(label, {}).get("timing_ms", {})),
+                **(
+                    _LOOPBACK_RECORDER.timing_ms.get(label, {})
+                    if _LOOPBACK_RECORDER is not None
+                    else {}
+                ),
+            },
         }
 
     report = {

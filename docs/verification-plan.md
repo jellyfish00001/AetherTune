@@ -99,6 +99,7 @@
 - [x] 建立 `docs/live-gate.md` 的 `aethertune-live-gate/v1` evidence 契約。
 - [x] 建立 `tools/live-gate-validate.py`，分類 `LIVE`／`OFFLINE`／`WAITING`／`BLOCKED`。
 - [x] Seed-VC deterministic GUI callback → `CABLE Input` → `CABLE Output` screening；此項只證明 backend output 到 VB-CABLE，不含 physical mic、Light Host audio-rack 或完整 LIVE timing。
+- [x] 在上述 screening 保存 callback 首次輸入、首次非零 backend output 與 backend 後首次非零 `CABLE Output` timing；這是 partial timing evidence，不是完整 `e2e_first_packet_ms`。
 - [ ] Seed-VC 完成 mic／PortAudio → backend → audio-rack → virtual route → loopback 的 60 秒 screening。
 - [ ] 通過至少 600 秒 stability、zero dropout／underrun，才可稱為 `live_candidate`。
 - [ ] 所有 first-packet timing 必須是完整鏈路，不可只填 inference 或 RTF。
