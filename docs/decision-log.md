@@ -18,6 +18,14 @@
 
 撤回／回滾：保留既有 RVC verifier、模型 register、runtime artifact 與 Windows route 文件；若新候選 intake 失敗，只移除候選 profile，不回退到把 RVC 稱為唯一主線。完整契約見 [`architecture.md`](architecture.md)、[`live-gate.md`](live-gate.md)、[`audio-rack/`](../audio-rack/) 與 [`benchmarks/`](../benchmarks/)。
 
+## 2026-09-22：Audio Rack profile 與 evidence contract
+
+決定：先把 `audio-rack/` 的 profile、route、preset 與 A/B evidence schema 登記完成，再進行 Light Host 實際 plugin loading；任何 profile 的 `candidate-unverified`、`WAITING` 與 synthetic route `PASS` 都不代表人類批准或完整 LIVE。
+
+證據：`audio-rack/routing/seed-vc-virtual-route.json` 對應已通過的 VB-CABLE／Voicemeeter synthetic route；`audio-rack/plugin-profiles/graillon-free-3.2.json` 保留 binary PASS、host loading WAITING；`audio-rack/benchmarks/rack-evidence-v1.schema.json` 與 `tools/audio-rack-evidence-validate.py` 固定 paired bypass/full-chain、Δ latency、輸出 hash 與 continuity 欄位。
+
+下一步：以同一 Seed-VC source、同一 route 完成 Light Host bypass 與 Graillon full-chain paired run；若缺少實際 plugin output、timing 或人工聽測，維持 `WAITING`。
+
 ## 目前選擇
 
 | 模組 | 目前選擇 | 選擇原因 | 何時改選 |

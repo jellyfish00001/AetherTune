@@ -1,6 +1,6 @@
 # AetherTune Wiring Verification
 
-檢查時間：2026-09-22 19:27:55 +08:00
+檢查時間：2026-09-22 22:45:35 +08:00
 
 摘要：PASS=17；WAITING=4；BLOCKED=1
 
@@ -18,7 +18,7 @@ RunInferenceProbes：True；FailOnWaiting：False
 | Light Host Modern | PASS | path=D:\AetherTune\tools\external\LightHostModern\app\Light Host Modern.exe process=0 |
 | Graillon VST3 binary | PASS | C:\Program Files\Common Files\VST3\Auburn Sounds Graillon 3.vst3\Contents\x86_64-win\Auburn Sounds Graillon 3.vst3 |
 | Graillon loaded in Light Host | WAITING | VST3 binary 存在，但尚未以 Light Host chain、bypass/active loopback 證明已載入與處理音訊 |
-| Windows audio endpoint inventory | PASS | PortAudio inventory=107; CIM=0; cim_error=拒絕存取 |
+| Windows audio endpoint inventory | PASS | PortAudio inventory=111; CIM=0; cim_error=拒絕存取 |
 | Endpoint: CABLE Input playback | PASS | CABLE Input (VB-Audio Virtual C; input=0; output=16 \| CABLE Input (VB-Audio Virtual Cable); input=0; output=16 \| CABLE Input (VB-Audio Virtual Cable); input=0; output=2 |
 | Endpoint: CABLE Output recording | PASS | CABLE Output (VB-Audio Virtual ; input=16; output=0 \| CABLE Output (VB-Audio Virtual Cable); input=16; output=0 \| CABLE Output (VB-Audio Virtual Cable); input=2; output=0 \| CABLE Output (VB-Audio Point); input=16; output=0 |
 | Endpoint: Voicemeeter Input playback | PASS | Voicemeeter Input (VB-Audio Voi; input=0; output=8 \| Voicemeeter Input (VB-Audio Voicemeeter VAIO); input=0; output=8 \| Voicemeeter Input (VB-Audio Voicemeeter VAIO); input=0; output=2 |
@@ -29,6 +29,6 @@ RunInferenceProbes：True；FailOnWaiting：False
 | Voicemeeter B1 Remote API route diagnosis | PASS | report=D:\AetherTune\artifacts\voicemeeter-b1-route-check.json; frames=144000/144000; rms=0.0825825557112694; nonzero_api_levels=15; sha256=cf0997902c0f5574f2b41bfb32046c90ef7cc8f60d941abfa1bb8ce3e843ce98 |
 | VCClient localhost Web UI | WAITING | 尚未啟動或 port 18000 無法連線 |
 | RVC venv CUDA runtime | PASS | 2.7.1+cu128 True 64.0 ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'] |
-| Project ONNX synthetic inference | WAITING | run_id=60cc74df-e14b-4cf6-bfc8-7bdd1295cb00; model_sha256=725cd4ff3a0858c5c738f2b07b5b469fa6708ef67f13c26aa7b8723dc5f1e0e5; inference 成功但實際 provider=CPUExecutionProvider（目前不是 CUDA）；requested=CUDAExecutionProvider; artifact=D:\AetherTune\artifacts\onnx-runtime-probe.json |
+| Project ONNX synthetic inference | WAITING | run_id=d8d4c81b-2667-47c0-a68f-46c1205ffc89; model_sha256=725cd4ff3a0858c5c738f2b07b5b469fa6708ef67f13c26aa7b8723dc5f1e0e5; inference 成功但實際 provider=CPUExecutionProvider（目前不是 CUDA）；requested=CUDAExecutionProvider; artifact=D:\AetherTune\artifacts\onnx-runtime-probe.json |
 
 這是唯讀驗證；沒有錄製實體麥克風、沒有改寫預設音訊裝置。合成 loopback 與 ONNX probe 只會寫入 artifacts/ 證據，不代表角色音色品質或 Discord/OBS 已驗收。

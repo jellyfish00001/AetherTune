@@ -87,7 +87,7 @@
 
 ### Phase 5：Common Audio Rack
 
-- [ ] 在 `audio-rack/` 登記 plugin／host／route profile、版本、license classification 與來源。
+- [x] 在 `audio-rack/` 登記 plugin／host／route profile、版本、license classification 與來源；實際 runtime 與 plugin loading 仍分開驗證。
 - [x] 建立 VB-CABLE／Voicemeeter virtual route smoke evidence；這不等同 audio-rack plugin full-chain。
 - [ ] 以同一 backend、同一 source、同一 output route 完成 `Post-FX bypass`。
 - [ ] 以同一組輸入完成 `Post-FX full-chain`。

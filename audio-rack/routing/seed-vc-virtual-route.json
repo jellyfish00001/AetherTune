@@ -1,0 +1,65 @@
+{
+  "schema_version": "aethertune-audio-routing/v1",
+  "profile_id": "seed-vc-virtual-route",
+  "status": "candidate",
+  "evidence_status": "WAITING",
+  "synthetic_route_smoke_status": "PASS",
+  "scope": "synthetic virtual route only",
+  "backend_id": "seed-vc",
+  "capture": {
+    "source": "deterministic WAV for route smoke",
+    "physical_microphone_e2e": "WAITING"
+  },
+  "route": [
+    {
+      "stage": "backend_output",
+      "endpoint_fragment": "CABLE Input",
+      "direction": "playback/output"
+    },
+    {
+      "stage": "rack_input",
+      "endpoint_fragment": "CABLE Output",
+      "direction": "recording/input",
+      "host": "Light Host Modern"
+    },
+    {
+      "stage": "rack_output",
+      "endpoint_fragment": "Voicemeeter Input",
+      "direction": "playback/output"
+    },
+    {
+      "stage": "virtual_output",
+      "endpoint_fragment": "Voicemeeter Out B1",
+      "direction": "recording/input"
+    }
+  ],
+  "audio": {
+    "sample_rate_hz": 48000,
+    "channels": 2,
+    "block_frames": 960,
+    "host_api": "Windows WASAPI",
+    "exclusive": false
+  },
+  "evidence": [
+    {
+      "kind": "vb-cable-loopback",
+      "status": "PASS",
+      "report": "artifacts/virtual-cable-loopback.json"
+    },
+    {
+      "kind": "voicemeeter-b1-loopback",
+      "status": "PASS",
+      "report": "artifacts/voicemeeter-b1-loopback.json"
+    },
+    {
+      "kind": "voicemeeter-remote-api",
+      "status": "PASS",
+      "report": "artifacts/voicemeeter-b1-route-check.json"
+    }
+  ],
+  "limitations": [
+    "尚未以實體麥克風內容完成 backend → rack → route。",
+    "Light Host plugin chain 尚未完成 bypass/full-chain A/B。",
+    "此 profile 不代表 LIVE <= 5s 或 live_candidate。"
+  ]
+}

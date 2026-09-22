@@ -22,7 +22,7 @@
 | 工作 | 狀態 | 已完成 | 尚未完成 |
 |---|---|---|---|
 | Research Workbench 定義與 backend 分組 | `PASS`（文件） | README、`docs/architecture.md`、`docs/voice-conversion-architecture.md` 已改為 Streaming VC／Speech Reconstruction 分層 | 文件重構不代表任何新 backend runtime PASS |
-| Common `audio-rack/` | `PLANNED`／`WAITING` | 建立 presets、plugin-profiles、routing、benchmarks 契約；VB-CABLE 與 Voicemeeter virtual route smoke 已有可重跑 PASS | Light Host 實體 bypass/full-chain、plugin Δ latency、完整 backend → rack → route loopback 尚未完成 |
+| Common `audio-rack/` | 契約／route smoke `PASS`；runtime `WAITING` | 已登記 `seed-vc-neutral` preset、Graillon 3.2 profile、Seed-VC virtual route 與 `rack-evidence-v1` schema；VB-CABLE 與 Voicemeeter virtual route smoke 可重跑 | Light Host 實體 bypass/full-chain、plugin Δ latency、完整 backend → rack → route loopback 尚未完成 |
 | `LIVE_GATE <= 5s` | validator `PASS`；evidence `WAITING` | `docs/live-gate.md` 與 `tools/live-gate-validate.py` 可分類 `LIVE/OFFLINE/WAITING/BLOCKED` | 尚無完整 mic → backend → rack → virtual route 的本機 evidence |
 | Seed-VC realtime fork | `PLANNED`／`candidate` | 完成 source／scope intake 文件 | 尚未固定本機 revision、建立獨立 environment 或驗證 |
 | MeanVC2 | `PLANNED`／`candidate` | 完成研究來源與驗收契約文件 | 尚未下載 checkpoint、安裝、確認 Windows／RTX 5060 Ti 或 E2E |
@@ -39,6 +39,7 @@
 - `tools/audio-quality-batch-regression.py`：PASS；同一 backend 的 `PASS + BLOCKED` 彙總為 `BLOCKED`，`PASS + DEGRADED` 彙總為 `DEGRADED`。
 - `tools/audio-output-validation-regression.py`：PASS；共用 helper 與檔案 gate 覆蓋空檔、零 frame、非 finite、錯誤取樣率、PCM16 與有效訊號；CosyVoice／Breeze runner 的原始 chunk gate 另在實際 runner 執行時生效。
 - `tools/audio-runner-entry-regression.py`：PASS；實際啟動 Breeze／CosyVoice runner subprocess，覆蓋 `--help` 保留 stale PASS、四個明確 output 別名 (`--output`／`--out`／`--outp`／`--o`) 的分開與 `=` 形式（含 `--outp=path`、`--o path`）、重複 output 只清理最後目標、`--` 終止符、四個分開空值與既有 `--out=` 空值在 parser exit 2 時保留 stale output/manifest、非 0 parse failure 的 FAIL manifest 入口，以及 top-level dependency-safe import AST 契約。
+- `tools/audio-rack-evidence-regression.py`：PASS；固定檢查 rack evidence 的 PASS／WAITING／OFFLINE／BLOCKED、SHA-256 欄位與 Δ latency 缺失 gate。
 - `tools/seed-vc-gui-userflow-test.py --preflight`：Codex 沙箱內因原生 Tcl 無法讀取 `C:\Users\User\...` 安裝路徑而回傳 `WAITING`／exit `3`；同一命令在受控非沙箱環境回傳 `PASS`，檔案、checkpoint、config、HF cache、四個 reference、MME 裝置配對與 `FreeSimpleGUI` import 均通過。preflight 只讀取資源與裝置，不開啟 stream、不啟動 GUI、不建立音訊 artifact；`--help` 與 `py_compile` 均通過。
 - Seed-VC 官方 GUI callback user-flow：受控非沙箱環境實測 `PASS`；使用 MME `麥克風 (HyperX QuadCast S)` → CUDA Seed-VC → `CABLE Input (VB-Audio Virtual C)`，四個 reference 都產生 finite／非零 WAV 且與 deterministic male input 不同。artifact／metrics 見 `artifacts/seed-vc/gui-userflow/phase-20260922-final/gui-userflow-report.json`；這不是人工聽測或完整 LIVE evidence。
 - Voicemeeter virtual route：`tools/virtual_cable_loopback.py` 以 WASAPI 合成音實測 `Voicemeeter Input → B1 → Voicemeeter Out B1` `PASS`，144000/144000 frames、RMS `0.0824916288`；`tools/voicemeeter-route-check.py` 另以 Remote API 讀取 `Strip[2].B1=1`、未 mute、15 個非零內部 level，並保存 `artifacts/voicemeeter-b1-route-check.json`。這是 virtual route smoke，不是實體麥克風、VST full-chain 或 `LIVE <= 5s` 證據。
@@ -56,6 +57,7 @@ Set-Location D:\AetherTune
 & .\.venv\Scripts\python.exe .\tools\audio-quality-batch-regression.py
 & .\.venv\Scripts\python.exe .\tools\audio-output-validation-regression.py
 & .\.venv\Scripts\python.exe .\tools\live-gate-regression.py
+& .\.venv\Scripts\python.exe .\tools\audio-rack-evidence-regression.py
 ```
 
 這一行只驗證 classifier 契約；它不產生真實 LIVE evidence。實際 gate 要把真實 JSON 路徑傳給 `tools/live-gate-validate.py`，沒有 evidence 時不要用虛構資料補 PASS。

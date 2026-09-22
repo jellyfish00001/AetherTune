@@ -1,0 +1,28 @@
+{
+  "schema_version": "aethertune-audio-plugin/v1",
+  "plugin_id": "graillon-free-3.2",
+  "name": "Graillon Free",
+  "version": "3.2",
+  "format": ["VST3", "VST2"],
+  "source_url": "https://www.auburnsounds.com/products/Graillon.html",
+  "license_classification": "free-proprietary",
+  "host": "Light Host Modern 1.3.1",
+  "installed_path": "C:\\Program Files\\Common Files\\VST3\\Auburn Sounds Graillon 3.vst3",
+  "status": "candidate",
+  "runtime_status": "WAITING",
+  "latency_ms": {
+    "bypass": null,
+    "active": null,
+    "delta": null
+  },
+  "evidence": {
+    "binary": "PASS",
+    "loaded_in_host": "WAITING",
+    "bypass_full_chain_loopback": "WAITING",
+    "human_listening": "WAITING"
+  },
+  "limitations": [
+    "檔案存在不代表已由 Light Host 載入。",
+    "未完成實際 bypass/active latency 與人工聽測，不得標成 approved default。"
+  ]
+}

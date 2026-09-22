@@ -1,0 +1,32 @@
+{
+  "schema_version": "aethertune-audio-rack-preset/v1",
+  "preset_id": "seed-vc-neutral",
+  "backend_id": "seed-vc",
+  "status": "candidate-unverified",
+  "purpose": "固定同一 route 的 bypass/full-chain 對照，不代表聲音風格批准。",
+  "sample_rate_hz": 48000,
+  "channels": 2,
+  "modes": {
+    "bypass": {
+      "status": "WAITING",
+      "plugin_chain": [],
+      "required_evidence": "audio-rack benchmark v1 output and route report"
+    },
+    "full-chain": {
+      "status": "WAITING",
+      "plugin_chain": [
+        {
+          "plugin_id": "graillon-free-3.2",
+          "state": "active",
+          "pitch_correction": "optional"
+        }
+      ],
+      "required_evidence": "Light Host loaded plugin, paired output, delta_latency_ms and human listening"
+    }
+  },
+  "approval": {
+    "human_approved": false,
+    "review_owner": null,
+    "reviewed_at": null
+  }
+}

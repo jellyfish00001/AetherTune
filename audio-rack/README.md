@@ -20,8 +20,8 @@ backend output
 
 ## 目前狀態
 
-- `PLANNED`：建立 profile、plugin inventory、routing map 與 bypass/full-chain latency evidence。
-- `WAITING`：目前尚未以同一 source、同一輸出、同一 route 完成完整 rack A/B 與 Δ latency。
+- `PASS`（契約／路由 smoke）：已登記 Seed-VC virtual route、Graillon candidate profile、neutral preset 與 rack evidence schema；VB-CABLE／Voicemeeter synthetic route 有可重跑證據。
+- `WAITING`（runtime）：目前尚未以同一 source、同一輸出、同一 route 完成 Light Host plugin bypass/full-chain A/B、Δ latency 與人工聽測。
 - 既有 Light Host、Graillon、VB-CABLE、Voicemeeter 文件與實際部署保留；它們只是目前 Windows 實作候選，不是所有 backend 的架構定義。
 
 ## 子目錄
@@ -30,6 +30,13 @@ backend output
 - `plugin-profiles/`：記錄 plugin、version、format、license、latency evidence 與 bypass 狀態。
 - `routing/`：記錄裝置方向、取樣率、buffer 與 loopback evidence。
 - `benchmarks/`：記錄 rack bypass、full-chain 與 Δ latency 測量規則。
+
+目前 profile：
+
+- `presets/seed-vc-neutral.json`：candidate-unverified；bypass／full-chain 都必須補 evidence。
+- `plugin-profiles/graillon-free-3.2.json`：binary PASS、host loading／latency WAITING。
+- `routing/seed-vc-virtual-route.json`：synthetic virtual route PASS；physical mic E2E WAITING。
+- `benchmarks/rack-evidence-v1.schema.json`：固定 A/B evidence 欄位，不產生假 artifact。
 
 ## 安全邊界
 

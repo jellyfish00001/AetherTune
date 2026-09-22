@@ -134,5 +134,5 @@ Voicemeeter UI 上的 `B` 是 strip bus button；`Voicemeeter Out B1` 是 Window
 
 - 既有 RVC、Seed-VC、CosyVoice2、Breeze artifacts 與 verifier 保留；這次重構只改架構定位與共用契約，不刪除已存在的 runtime evidence。
 - MeanVC2、Seed-VC realtime fork、CosyVoice3 目前只有 candidate intake 文件，沒有本機安裝或模型 PASS。
-- audio-rack 與三層 benchmark 已建立文件骨架；實體 VST chain、完整 mic E2E、blind listening 仍 `PLANNED/WAITING`。
+- audio-rack 已建立 profile、routing、preset 與 `rack-evidence-v1` schema；VB-CABLE／Voicemeeter synthetic route smoke `PASS`，但實體 VST chain、完整 mic E2E、blind listening 仍 `PLANNED/WAITING`。
 - 任何與 RVC packaged VCClient、CUDA provider、模型 ready gate 有關的判定仍以各自最新 verifier 為準；不能被新的架構文件覆蓋。
