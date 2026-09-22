@@ -15,6 +15,7 @@ artifacts。
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import runpy
@@ -24,17 +25,28 @@ import threading
 import time
 from pathlib import Path
 
-import FreeSimpleGUI as sg
-import librosa
-import numpy as np
-import sounddevice as sd
-import soundfile as sf
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE = PROJECT_ROOT / "dataset" / "reference-voices" / "voice-male-m1.wav"
 DEFAULT_OUT = PROJECT_ROOT / "artifacts" / "seed-vc" / "gui-userflow"
 GUI_PATH = PROJECT_ROOT / "tools" / "external" / "seed-vc" / "real-time-gui.py"
+CHECKPOINT_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "seed-vc"
+    / "checkpoints"
+    / "offline-v1"
+    / "DiT_seed_v2_uvit_whisper_small_wavenet_bigvgan_pruned.pth"
+)
+REALTIME_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "tools"
+    / "external"
+    / "seed-vc"
+    / "configs"
+    / "presets"
+    / "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
+)
+HF_CACHE_PATH = GUI_PATH.parent / "checkpoints" / "hf_cache"
 
 REFERENCE_CASES = {
     "female-young-f004": PROJECT_ROOT / "dataset" / "reference-voices" / "female-young-f004.wav",
@@ -67,8 +79,15 @@ USERFLOW_SETTINGS = {
 PLAYBACK_SR = 22050
 PLAYBACK_SECONDS = 5.0
 
-_ORIGINAL_WINDOW = sg.Window
-_ORIGINAL_STREAM = sd.Stream
+# GUI／音訊依賴延後載入，讓 --help 與 --preflight 不會被 Tcl/Tk 啟動失敗
+# 阻擋。這些全域值只在實際 user-flow 前由 _load_runtime_dependencies() 設定。
+sg = None
+librosa = None
+np = None
+sd = None
+sf = None
+_ORIGINAL_WINDOW = None
+_ORIGINAL_STREAM = None
 _CAPTURES: dict[str, dict[str, object]] = {}
 _CURRENT_LABEL = ""
 _SOURCE_PATH = DEFAULT_SOURCE
@@ -85,29 +104,6 @@ def _check_output_for_funasr_probe(command, *args, **kwargs):
     if isinstance(command, (list, tuple)) and command and str(command[0]).lower() == "ffmpeg":
         return b"ffmpeg version local-wav-test"
     return _ORIGINAL_CHECK_OUTPUT(command, *args, **kwargs)
-
-
-subprocess.check_output = _check_output_for_funasr_probe
-import funasr  # noqa: E402  # import 時需要上述探針隔離
-subprocess.check_output = _ORIGINAL_CHECK_OUTPUT
-_ORIGINAL_AUTOMODEL = funasr.AutoModel
-
-
-class _OfflineAutoModel(_ORIGINAL_AUTOMODEL):
-    """避免已快取的 VAD 模型在 GUI 啟動時額外發起更新檢查。"""
-
-    def __init__(self, *args, **kwargs):
-        if kwargs.get("model") == "fsmn-vad":
-            # ModelScope cache 內已有完整 VAD 模型；直接傳本機資料夾可避開
-            # .mdl 更新標記的權限問題，仍由 FunASR 建立同一個 VAD pipeline。
-            local_vad = Path.home() / ".cache" / "modelscope" / "hub" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
-            kwargs["model"] = str(local_vad)
-            kwargs.pop("model_revision", None)
-        kwargs.setdefault("disable_update", True)
-        super().__init__(*args, **kwargs)
-
-
-funasr.AutoModel = _OfflineAutoModel
 
 
 def _save_capture(label: str, input_chunks: list[np.ndarray], output_chunks: list[np.ndarray], sample_rate: int) -> None:
@@ -187,20 +183,19 @@ class _RecordingStream:
         return getattr(self._stream, name)
 
 
-sd.Stream = _RecordingStream
-
-
-class _UserFlowWindow(_ORIGINAL_WINDOW):
+class _UserFlowWindow:
     """在官方 GUI 的 start event 上套用使用者會填入的欄位。"""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        # 使用 wrapper 而不是在模組載入時繼承 FreeSimpleGUI.Window，讓唯讀
+        # preflight 能在 Tcl/Tk 壞掉時仍正常啟動並提供可操作的診斷結果。
+        self._window = _ORIGINAL_WINDOW(*args, **kwargs)
         self._pending_values: dict[str, object] | None = None
         if kwargs.get("finalize"):
             threading.Thread(target=self._drive_user_flow, name="seed-vc-gui-userflow", daemon=True).start()
 
     def read(self, *args, **kwargs):
-        event, values = super().read(*args, **kwargs)
+        event, values = self._window.read(*args, **kwargs)
         if event == "start_vc" and self._pending_values is not None:
             desired = self._pending_values
             self._pending_values = None
@@ -212,6 +207,12 @@ class _UserFlowWindow(_ORIGINAL_WINDOW):
                     pass
                 values[key] = value
         return event, values
+
+    def __getitem__(self, key):
+        return self._window[key]
+
+    def __getattr__(self, name):
+        return getattr(self._window, name)
 
     def _drive_user_flow(self) -> None:
         global _CURRENT_LABEL
@@ -233,7 +234,168 @@ class _UserFlowWindow(_ORIGINAL_WINDOW):
         self.write_event_value(sg.WIN_CLOSED, None)
 
 
-sg.Window = _UserFlowWindow
+def _load_runtime_dependencies() -> None:
+    """載入實際 GUI／音訊依賴並安裝測試用 adapter。"""
+
+    global sg, librosa, np, sd, sf, _ORIGINAL_WINDOW, _ORIGINAL_STREAM
+
+    # 不在模組 import 階段載入 FreeSimpleGUI；其 import 會建立 Tcl/Tk，
+    # 若系統 Python 的 Tcl runtime 損壞，應由 --preflight 回報 WAITING。
+    sg = importlib.import_module("FreeSimpleGUI")
+    librosa = importlib.import_module("librosa")
+    np = importlib.import_module("numpy")
+    sd = importlib.import_module("sounddevice")
+    sf = importlib.import_module("soundfile")
+    _ORIGINAL_WINDOW = sg.Window
+    _ORIGINAL_STREAM = sd.Stream
+
+    # FunASR import 時只用 ffmpeg 做可選能力探針；所有輸入都是 WAV，
+    # 因此只隔離該探針，不攔截其他 subprocess，也不修改正式 runtime。
+    subprocess.check_output = _check_output_for_funasr_probe
+    try:
+        funasr = importlib.import_module("funasr")
+    finally:
+        subprocess.check_output = _ORIGINAL_CHECK_OUTPUT
+
+    original_automodel = funasr.AutoModel
+
+    class _OfflineAutoModel(original_automodel):
+        """避免已快取的 VAD 模型在 GUI 啟動時額外發起更新檢查。"""
+
+        def __init__(self, *args, **kwargs):
+            if kwargs.get("model") == "fsmn-vad":
+                # ModelScope cache 內已有完整 VAD 模型；直接傳本機資料夾可避開
+                # .mdl 更新標記的權限問題，仍由 FunASR 建立同一個 VAD pipeline。
+                local_vad = (
+                    Path.home()
+                    / ".cache"
+                    / "modelscope"
+                    / "hub"
+                    / "iic"
+                    / "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                )
+                kwargs["model"] = str(local_vad)
+                kwargs.pop("model_revision", None)
+            kwargs.setdefault("disable_update", True)
+            super().__init__(*args, **kwargs)
+
+    funasr.AutoModel = _OfflineAutoModel
+    sd.Stream = _RecordingStream
+    sg.Window = _UserFlowWindow
+
+
+def _preflight(source: Path) -> int:
+    """只做唯讀資源、裝置與 GUI import 檢查，不開啟 stream 或建立音訊檔。"""
+
+    resources = {
+        "source": source,
+        "gui": GUI_PATH,
+        "checkpoint": CHECKPOINT_PATH,
+        "realtime_config": REALTIME_CONFIG_PATH,
+        "hf_cache": HF_CACHE_PATH,
+        **REFERENCE_CASES,
+    }
+    resource_report = {}
+    missing_resources = []
+    for label, path in resources.items():
+        exists = path.exists()
+        is_file = path.is_file() if exists else False
+        size = path.stat().st_size if is_file else 0
+        resource_report[label] = {
+            "path": str(path),
+            "exists": exists,
+            "is_file": is_file,
+            "size": size,
+        }
+        if not exists or (label != "hf_cache" and (not is_file or size == 0)):
+            missing_resources.append(label)
+
+    device_report: dict[str, object] = {
+        "status": "WAITING",
+        "hostapis": [],
+        "devices": [],
+        "expected_hostapi": USERFLOW_SETTINGS["sg_hostapi"],
+        "expected_input": USERFLOW_SETTINGS["sg_input_device"],
+        "expected_output": USERFLOW_SETTINGS["sg_output_device"],
+        "input_matches": [],
+        "output_matches": [],
+    }
+    try:
+        preflight_sd = importlib.import_module("sounddevice")
+        hostapis = preflight_sd.query_hostapis()
+        hostapi_names = [str(item.get("name", "")) for item in hostapis]
+        device_report["hostapis"] = hostapi_names
+        for index, device in enumerate(preflight_sd.query_devices()):
+            hostapi_index = int(device.get("hostapi", -1))
+            hostapi_name = hostapi_names[hostapi_index] if 0 <= hostapi_index < len(hostapi_names) else ""
+            item = {
+                "index": index,
+                "name": str(device.get("name", "")),
+                "hostapi": hostapi_name,
+                "max_input_channels": int(device.get("max_input_channels", 0)),
+                "max_output_channels": int(device.get("max_output_channels", 0)),
+            }
+            device_report["devices"].append(item)
+            if (
+                hostapi_name.casefold() == str(USERFLOW_SETTINGS["sg_hostapi"]).casefold()
+                and str(USERFLOW_SETTINGS["sg_input_device"]).casefold() in item["name"].casefold()
+                and item["max_input_channels"] > 0
+            ):
+                device_report["input_matches"].append(item)
+            if (
+                hostapi_name.casefold() == str(USERFLOW_SETTINGS["sg_hostapi"]).casefold()
+                and str(USERFLOW_SETTINGS["sg_output_device"]).casefold() in item["name"].casefold()
+                and item["max_output_channels"] > 0
+            ):
+                device_report["output_matches"].append(item)
+        device_report["status"] = (
+            "PASS"
+            if device_report["input_matches"] and device_report["output_matches"]
+            else "BLOCKED"
+        )
+    except Exception as exc:
+        device_report["status"] = "BLOCKED"
+        device_report["error_type"] = type(exc).__name__
+        device_report["error"] = str(exc)
+
+    try:
+        importlib.import_module("FreeSimpleGUI")
+        gui_report = {"status": "PASS", "module": "FreeSimpleGUI"}
+    except Exception as exc:
+        # Tcl/Tk 初始化問題屬環境 WAITING；這裡保留完整錯誤給修復／重跑使用，
+        # 但不自行改寫 Python 安裝或下載第三方 runtime。
+        gui_report = {
+            "status": "WAITING",
+            "module": "FreeSimpleGUI",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
+
+    if missing_resources or device_report["status"] == "BLOCKED":
+        status = "BLOCKED"
+        exit_code = 2
+    elif gui_report["status"] != "PASS":
+        status = "WAITING"
+        exit_code = 3
+    else:
+        status = "PASS"
+        exit_code = 0
+    report = {
+        "status": status,
+        "test": "official-seed-vc-gui-userflow-preflight",
+        "read_only": True,
+        "resources": resource_report,
+        "missing_resources": missing_resources,
+        "devices": device_report,
+        "gui_dependency": gui_report,
+        "next_step": (
+            "修復或官方重裝 Python Tcl/Tk 後重跑 --preflight，再執行正式 GUI user-flow。"
+            if gui_report["status"] != "PASS"
+            else "可進入正式 GUI user-flow；正式結果仍需人工聽測與完整 live gate。"
+        ),
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
+    return exit_code
 
 
 def _audio_metrics(path: Path) -> dict[str, object]:
@@ -291,22 +453,29 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="只檢查檔案、PortAudio 裝置與 FreeSimpleGUI import，不啟動 GUI 或錄製音訊",
+    )
     args = parser.parse_args()
     _SOURCE_PATH = args.source.resolve()
+    if args.preflight:
+        return _preflight(_SOURCE_PATH)
+
+    _load_runtime_dependencies()
     _OUTPUT_ROOT = args.output.resolve()
     _OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     sys.path.insert(0, str(GUI_PATH.parent))
     # runpy 會沿用目前程序的 argv；先將測試工具自己的參數隔離，避免官方
     # argparse 把 --output 誤當成 real-time-gui.py 的參數。
-    checkpoint = PROJECT_ROOT / "models" / "seed-vc" / "checkpoints" / "offline-v1" / "DiT_seed_v2_uvit_whisper_small_wavenet_bigvgan_pruned.pth"
-    realtime_config = PROJECT_ROOT / "tools" / "external" / "seed-vc" / "configs" / "presets" / "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
     sys.argv = [
         str(GUI_PATH),
         "--checkpoint-path",
-        str(checkpoint),
+        str(CHECKPOINT_PATH),
         "--config-path",
-        str(realtime_config),
+        str(REALTIME_CONFIG_PATH),
         # 官方 real-time-gui.py 的 fp16 路徑在目前 checkpoint／CUDA runtime
         # 會讓 SOLA callback 混用 HalfTensor 與 FloatTensor；FP32 才是可連續
         # 啟動與輸出的穩定 user-flow 參數。
@@ -322,14 +491,14 @@ def main() -> int:
         # 所需模型已在專案的 checkpoints cache；避免每個 GUI cycle 都做遠端 HEAD。
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        os.environ["HF_HOME"] = str(GUI_PATH.parent / "checkpoints" / "hf_cache")
-        os.environ["HF_HUB_CACHE"] = str(GUI_PATH.parent / "checkpoints" / "hf_cache")
+        os.environ["HF_HOME"] = str(HF_CACHE_PATH)
+        os.environ["HF_HUB_CACHE"] = str(HF_CACHE_PATH)
         import huggingface_hub.constants as hf_constants
 
         # huggingface_hub 已在 FunASR import 時載入 constants，需同步更新記憶體中的
         # cache 路徑，讓 BigVGAN／Whisper 也能使用專案隨附的本機快取。
-        hf_constants.HF_HUB_CACHE = str(GUI_PATH.parent / "checkpoints" / "hf_cache")
-        hf_constants.HUGGINGFACE_HUB_CACHE = str(GUI_PATH.parent / "checkpoints" / "hf_cache")
+        hf_constants.HF_HUB_CACHE = str(HF_CACHE_PATH)
+        hf_constants.HUGGINGFACE_HUB_CACHE = str(HF_CACHE_PATH)
         runpy.run_path(str(GUI_PATH), run_name="__main__")
     except SystemExit:
         pass

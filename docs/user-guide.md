@@ -87,6 +87,14 @@ Set-Location D:\AetherTune
 
 目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔與 `realtime-tiny` headless GPU block；但官方 GUI、PortAudio 麥克風端到端、人工聽測與長時間 realtime 穩定性仍待補。
 
+正式啟動 GUI user-flow 前，先做不改裝置、不開 stream 的唯讀 preflight：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-gui-userflow-test.py --preflight
+```
+
+回傳 `0/PASS` 才表示檔案、預期 MME 裝置與 `FreeSimpleGUI` import 都通過；回傳 `3/WAITING` 表示環境仍被 GUI 依賴阻塞，回傳 `2/BLOCKED` 表示必要資源或裝置缺失。這項檢查不會建立音訊 artifact，也不等於完整 mic → Seed-VC → virtual route 的 LIVE evidence。
+
 ## 4. 使用 RVC
 
 ### RVC 的基本順序

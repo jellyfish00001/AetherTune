@@ -10,7 +10,7 @@
 |---:|---|---|---|---|---|
 | 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | 最新 Sage slot 7 v2 post-gate probe 已核對 requested／active／initial=`7/7/7`，30 chunks 僅 2 個 valid、28 個 invalid（全零 28）；仍不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](vcclient-packaged-repair-latest.md) |
 | 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行 bounded 矩陣並取得 p50/p95、invalid/dropout、RMS，且報告 slot 核對證據 | Sage slot 7 v2 的 0.25／0.50／0.75／1.00 秒短測 invalid/dropout 為 58/60、28/30、19/20、15/15；1.00 秒為 `0/15` valid，stability=`stability_seconds=0` 為 `BLOCKED`，尚非 600 秒證據 | [`vcclient-rvc-latency-matrix-latest.md`](vcclient-rvc-latency-matrix-latest.md) |
-| 3 | Seed-VC realtime tiny、長音檔 | 60 秒 headless `PASS`；裝置 E2E `WAITING` | 離線男女互轉、60 秒長檔、200 block headless GPU stream 可用 | 尚未以官方 GUI、PortAudio 麥克風和實際輸出裝置完成 10 分鐘以上 realtime | [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md) |
+| 3 | Seed-VC realtime tiny、長音檔 | 60 秒 headless `PASS`；PortAudio preflight `PASS`；官方 GUI `WAITING` | 離線男女互轉、60 秒長檔、200 block headless GPU stream 可用；兩個本機 Python 環境都找到預期 MME 麥克風與 VB-CABLE 輸出 | `FreeSimpleGUI` import 因 Python Tcl/Tk 找不到 `init.tcl` 而 `WAITING`；尚未執行官方 GUI、PortAudio callback、實際輸出與 10 分鐘以上 realtime | [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)、[`seed-vc-gui-userflow-test.py`](../tools/seed-vc-gui-userflow-test.py) |
 | 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 11 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash；BLOCKED row 不會被彙總成 PASS | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](audio-quality-comparison-latest.md) |
 | 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash；checkpoint sample rate/version 已核對為 40/48 kHz、v2 | 現有四組仍是 `candidate`；source、license、f0、revision、dataset、trained-at 與 verification evidence 仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](rvc-model-audit-latest.md) |
 | 6 | Breeze `sox`、`flash-attn`、`fast-all`、project-local UI | eager UI resident runtime `PASS`；fast-all `PASS`；project-local SoX `PASS`；flash-attn `WAITING` | Breeze eager CLI、project-local UI、`-FastAll` 與 local SoX runtime 可用；同一 UI session 第二次生成已證明可重用模型 | system SoX 尚未安裝；`flash-attn==2.8.3` 尚未成功 import；人工聽測未完成；切換 fast-all／attention 會重新載入 | [`breeze-tts2-verification-latest.md`](breeze-tts2-verification-latest.md) |
@@ -39,6 +39,7 @@
 - `tools/audio-quality-batch-regression.py`：PASS；同一 backend 的 `PASS + BLOCKED` 彙總為 `BLOCKED`，`PASS + DEGRADED` 彙總為 `DEGRADED`。
 - `tools/audio-output-validation-regression.py`：PASS；共用 helper 與檔案 gate 覆蓋空檔、零 frame、非 finite、錯誤取樣率、PCM16 與有效訊號；CosyVoice／Breeze runner 的原始 chunk gate 另在實際 runner 執行時生效。
 - `tools/audio-runner-entry-regression.py`：PASS；實際啟動 Breeze／CosyVoice runner subprocess，覆蓋 `--help` 保留 stale PASS、四個明確 output 別名 (`--output`／`--out`／`--outp`／`--o`) 的分開與 `=` 形式（含 `--outp=path`、`--o path`）、重複 output 只清理最後目標、`--` 終止符、四個分開空值與既有 `--out=` 空值在 parser exit 2 時保留 stale output/manifest、非 0 parse failure 的 FAIL manifest 入口，以及 top-level dependency-safe import AST 契約。
+- `tools/seed-vc-gui-userflow-test.py --preflight`：兩個本機環境都回傳 `WAITING`／exit `3`；檔案、checkpoint、config、HF cache、四個 reference 與 MME 裝置配對均 `PASS`，阻塞細節是 `FreeSimpleGUI` 的 `TclError: Can't find a usable init.tcl`。preflight 只讀取資源與裝置，不開啟 stream、不啟動 GUI、不建立音訊 artifact；`--help` 與 `py_compile` 均通過。
 - `tools/speech-reconstruction-failure-regression.ps1`：PASS；缺少輸入音檔時仍先移除精確的舊 workflow，且不啟動 WSL／模型。
 - `tools/speech-reconstruction-run.ps1 -VoiceDesign`：Breeze wrapper smoke PASS；實際產生 24 kHz、10.48 秒非零 WAV，workflow 記錄 `voice_design=true` 與 `not_applicable_voice_design`。預設未加 switch 的 clone smoke 行為保留。
 - 最新 runner smoke：Breeze `artifacts/speech-reconstruction/breeze-output-gate-v2.json` 為 24 kHz／11.52 秒、`run_id` 與 `output_validation` 通過；CosyVoice `artifacts/speech-reconstruction/cosyvoice-output-gate-v2.json` 為 24 kHz／10.28 秒、`run_id` 與 `output_validation` 通過。兩者仍不是人工音質或 realtime E2E 證據。
@@ -76,6 +77,7 @@ Set-Location D:\AetherTune
 - VCClient：可繼續追查上游 packaged binary／版本相容性，或改用另一個已支援 RTX 5060 Ti 的 runtime；在沒有新 binary 或 source 修復前，不能由文件把 `BLOCKED` 改成 `PASS`。
 - RVC realtime：可在 VCClient 修復後重跑矩陣；目前短測 dropout 已足以阻擋 10 分鐘測試，不應反覆把同一份失敗證據重命名成通過。
 - Seed-VC：可補 PortAudio／官方 GUI、實體 loopback 與長時間穩定性；目前 headless 測試不涵蓋麥克風權限與裝置 buffer。
+- Seed-VC GUI：先依 `tools/seed-vc-gui-userflow-test.py --preflight` 的錯誤修復或官方重裝 Python Tcl/Tk，再重跑 preflight；只有回傳 `PASS` 才能進入正式 GUI user-flow。不得以目前 PortAudio 裝置 `PASS` 取代 GUI／E2E 證據。
 - 四方法比較：可加入人工聽測表或固定評分規則，但需要使用者實際聽音與確認評分，不應由 Agent 代填主觀音質結論。
 - 共用 audio-rack：先以 Seed-VC 作第一個 mic／loopback candidate，分別測 `bypass` 與 `full-chain`，再把同一 profile 套到其他 backend。
 - MeanVC2／Seed-VC realtime fork／CosyVoice3：依 candidate intake 順序做來源、授權、revision、環境與模型驗收；未完成前不要下載大型權重或改正式主線。
