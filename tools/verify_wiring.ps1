@@ -98,6 +98,56 @@ function Add-LoopbackArtifactCheck {
     }
 }
 
+function Add-VoicemeeterRouteArtifactCheck {
+    param(
+        [string]$ReportPath,
+        [string]$WavPath
+    )
+
+    $component = 'Voicemeeter B1 Remote API route diagnosis'
+    if (-not (Test-Path -LiteralPath $WavPath -PathType Leaf) -or -not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) {
+        Add-Check $component 'WAITING' "尚未產生唯讀 Remote API route report；請執行 tools/voicemeeter-route-check.py"
+        return
+    }
+
+    try {
+        $report = Get-Content -LiteralPath $ReportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $actualHash = Get-Hash $WavPath
+        $reportedHash = [string]$report.wav_sha256
+        $hashMatches = $reportedHash -and ($actualHash -eq $reportedHash.ToLowerInvariant())
+        $metricsOk = ([double]$report.captured_frames -ge [double]$report.minimum_captured_frames) -and ([double]$report.rms -ge 0.01)
+        $pathMatches = $false
+        if ($report.wav_path) {
+            try { $pathMatches = ((Resolve-Path -LiteralPath ([string]$report.wav_path)).Path -eq (Resolve-Path -LiteralPath $WavPath).Path) } catch { $pathMatches = $false }
+        }
+        $parameterMap = @{}
+        if ($report.parameters) {
+            foreach ($property in $report.parameters.PSObject.Properties) {
+                $parameterMap[$property.Name] = [double]$property.Value.value
+            }
+        }
+        $routeConfigOk = ($parameterMap['Strip[2].B1'] -eq 1) -and
+            ($parameterMap['Strip[2].Mute'] -eq 0) -and
+            ($parameterMap['Bus[1].Mute'] -eq 0)
+        $levelCount = 0
+        if ($report.level_maxima) {
+            foreach ($levelType in $report.level_maxima.PSObject.Properties) {
+                $levelCount += @($levelType.Value.PSObject.Properties).Count
+            }
+        }
+        $apiOk = (-not $report.api_error) -and (-not $report.stream_error) -and ($levelCount -gt 0)
+        if (-not $hashMatches -or -not $pathMatches -or -not $routeConfigOk) {
+            Add-Check $component 'BLOCKED' "Remote API report、路由參數、WAV path 或 hash 不一致；report=$ReportPath; route_config=$routeConfigOk; actual_sha256=$actualHash; reported_sha256=$reportedHash"
+        } elseif ($report.status -eq 'PASS' -and $metricsOk -and $apiOk) {
+            Add-Check $component 'PASS' "report=$ReportPath; frames=$($report.captured_frames)/$($report.requested_frames); rms=$($report.rms); nonzero_api_levels=$levelCount; sha256=$actualHash"
+        } else {
+            Add-Check $component 'WAITING' "Remote API/endpoint 可檢查但 B1 訊號未形成完整證據；report=$ReportPath; status=$($report.status); metrics_ok=$metricsOk; api_ok=$apiOk"
+        }
+    } catch {
+        Add-Check $component 'BLOCKED' "無法解析 Voicemeeter Remote API evidence：$($_.Exception.Message)"
+    }
+}
+
 # 1. 專案隔離環境與 RVC 訓練基礎資產。
 $python = Join-Path $projectRoot '.venv\Scripts\python.exe'
 $rvcRoot = Join-Path $projectRoot 'tools\external\Retrieval-based-Voice-Conversion-WebUI'
@@ -304,6 +354,9 @@ $cableLoopback = Join-Path $projectRoot 'artifacts\virtual-cable-loopback.wav'
 Add-LoopbackArtifactCheck 'VB-CABLE synthetic loopback' $cableLoopback (Join-Path $projectRoot 'artifacts\virtual-cable-loopback.json') 'CABLE Input' 'CABLE Output'
 $vmLoopback = Join-Path $projectRoot 'artifacts\voicemeeter-b1-loopback.wav'
 Add-LoopbackArtifactCheck 'Voicemeeter B1 synthetic loopback' $vmLoopback (Join-Path $projectRoot 'artifacts\voicemeeter-b1-loopback.json') 'Voicemeeter Input' 'Voicemeeter Out B1'
+$vmRouteReport = Join-Path $projectRoot 'artifacts\voicemeeter-b1-route-check.json'
+$vmRouteWav = Join-Path $projectRoot 'artifacts\voicemeeter-b1-route-check.wav'
+Add-VoicemeeterRouteArtifactCheck $vmRouteReport $vmRouteWav
 
 # 4. VCClient health endpoint。只做 GET，不操作模型與音訊。
 try {

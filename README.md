@@ -153,9 +153,9 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 ## 目前缺少什麼
 
 - RVC 四組現有 `.pth/.index` 已各自通過 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型 hash／配對 audit `PASS`，checkpoint 內嵌 sample rate／v2 version 已核對，但來源、授權、f0 演算法、revision、dataset metadata 與 ready gate 仍 `WAITING`。詳見 [`docs/rvc-model-audit-latest.md`](docs/rvc-model-audit-latest.md)。
-- RVC 即時 latency、長時間穩定性、Light Host chain、VB-CABLE／Voicemeeter／Discord／OBS loopback 仍未驗收，現定位為 historical baseline。
-- 共用 audio-rack 的 bypass/full-chain、plugin Δ latency 與 loopback 仍需建立；現有 Light Host + Graillon 記錄不再代表所有 backend 的架構。
-- Seed-VC 已完成雙向離線、60 秒長音檔與 realtime-tiny headless latency；仍缺人工聽測、多說話者、PortAudio 麥克風 E2E、共用 rack 與 10 分鐘穩定性。
+- RVC 即時 latency、長時間穩定性、Light Host chain、Discord／OBS loopback 仍未驗收；VB-CABLE 與 Voicemeeter B1 synthetic loopback 已通過，現仍定位為 historical baseline。
+- 共用 audio-rack 的 bypass/full-chain、plugin Δ latency 與 backend 實際 loopback 仍需建立；現有 Light Host + Graillon 記錄不再代表所有 backend 的架構。
+- Seed-VC 已完成雙向離線、60 秒長音檔、realtime-tiny headless latency 與 synthetic virtual route；仍缺人工聽測、多說話者、PortAudio 實體麥克風 E2E、共用 rack 與 10 分鐘穩定性。
 - Seed-VC realtime fork 與 MeanVC2 尚未安裝；CosyVoice3 尚未建立本機 candidate evidence。
 - `LIVE_GATE` validator 已建立，但沒有真實 mic／virtual route evidence 就不能產生 LIVE PASS。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。

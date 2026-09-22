@@ -4,7 +4,7 @@
 
 ## 結論
 
-`offline-v1` 已在本機 RTX 5060 Ti 上完成男聲／女聲雙向實際推論，並完成 60 秒長音檔測試；`realtime-tiny` 已完成 3 block smoke 與 200 block／60 秒連續 headless GPU streaming。官方 GUI callback user-flow 也已在受控非沙箱環境實測通過四組 reference，但這些仍不等同 virtual route loopback、人工聽測或完整 `LIVE <= 5s`。
+`offline-v1` 已在本機 RTX 5060 Ti 上完成男聲／女聲雙向實際推論，並完成 60 秒長音檔測試；`realtime-tiny` 已完成 3 block smoke 與 200 block／60 秒連續 headless GPU streaming。官方 GUI callback user-flow 與 VB-CABLE／Voicemeeter synthetic virtual route 也已在受控非沙箱環境實測通過，但這些仍不等同實體麥克風 E2E、Light Host full-chain、人工聽測或完整 `LIVE <= 5s`。
 
 | 測試 | 狀態 | RTF | 輸出 | manifest |
 |---|---|---:|---|---|
@@ -19,7 +19,8 @@
 | realtime-tiny 60 秒連續 headless GPU | PASS | 200 個 0.3 秒 block；p50 `122.0 ms`、p95 `146.6 ms`、mean RTF `0.4312`、200/200 finite／non-zero | `artifacts/seed-vc/realtime-long-60s/seed-vc-realtime-tiny-test.json` |
 | realtime-tiny warmup | INFO | 首個 block 約 `9.34 s`；模型載入約 `38.69 s`，不可當成穩態延遲 | 同上 |
 | GUI／PortAudio callback user-flow | PASS | 官方 `real-time-gui.py`；CUDA available；MME input `麥克風 (HyperX QuadCast S)`、output `CABLE Input (VB-Audio Virtual C)`；四個 case 均 finite／非零且與 deterministic input 不同 | `artifacts/seed-vc/gui-userflow/phase-20260922-final/gui-userflow-report.json` |
-| virtual route loopback／完整 mic E2E | WAITING | callback 輸入是 deterministic WAV，尚未保存 VB-CABLE／Voicemeeter loopback、first-packet timing、dropout／underrun 與人工聽測 | `docs/live-gate.md` 契約；尚無完整 evidence |
+| VB-CABLE／Voicemeeter synthetic virtual route | PASS | `CABLE Input → CABLE Output` 與 `Voicemeeter Input → B1 → Voicemeeter Out B1` 均 144000/144000 frames、非零 RMS；Remote API route check 也保存 B1 設定與內部 level | [`wiring-verification-latest.md`](wiring-verification-latest.md)、`artifacts/voicemeeter-b1-route-check.json` |
+| 完整 mic E2E／audio-rack／LIVE gate | WAITING | callback 輸入仍是 deterministic WAV；尚未保存實體麥克風 → backend → Light Host full-chain → virtual route 的 first-packet timing、dropout／underrun 與人工聽測 | `docs/live-gate.md` 契約；synthetic route PASS 不等於完整 evidence |
 
 GUI callback 四個 case 的最新訊號摘要：
 
@@ -56,11 +57,25 @@ Set-Location D:\AetherTune
   --output .\artifacts\seed-vc\gui-userflow\<run-id>
 ```
 
+Voicemeeter virtual route smoke（只播放合成音，不使用實體麥克風，也不修改
+Voicemeeter 參數）：
+
+```powershell
+& .\.venv\Scripts\python.exe .\tools\virtual_cable_loopback.py `
+  --output-fragment 'Voicemeeter Input' `
+  --input-fragment 'Voicemeeter Out B1' `
+  --out .\artifacts\voicemeeter-b1-loopback.wav `
+  --report .\artifacts\voicemeeter-b1-loopback.json
+& .\.venv\Scripts\python.exe .\tools\voicemeeter-route-check.py `
+  --out .\artifacts\voicemeeter-b1-route-check.wav `
+  --report .\artifacts\voicemeeter-b1-route-check.json
+```
+
 ## 已知警告與未完成項目
 
 - 上游推論流程提示應明確傳入 `sampling_rate`；目前仍能產生結果，但應在後續 wrapper 修補或向上游確認。
 - checkpoint 載入時略過 `estimator.input_pos` 與 `estimator.f0_embedder.weight` 兩個 shape mismatch keys；本次沒有因此中止，但尚未完成品質回歸。
 - `realtime-tiny` wrapper 現在 local-first 並預設離線；本機 cache 包含 CampPlus、HiFT 與 Whisper assets。若 cache 不完整，需明確加 `--allow-network-assets`。
-- 官方 GUI／PortAudio callback user-flow 已通過，但 deterministic callback 不等於實體麥克風內容已經過完整輸入；仍需 loopback、實際 route、人工聽測、10 分鐘以上穩定性與 underrun/dropout 證據。
+- 官方 GUI／PortAudio callback 與 synthetic virtual route 已通過，但 deterministic callback／合成音不等於實體麥克風內容已經過完整輸入；仍需 Light Host full-chain、人工聽測、10 分鐘以上穩定性與 underrun/dropout 證據。
 - 尚未做人工聽測、MOS／相似度比較、10 分鐘以上 realtime 穩定性與多說話者測試；60 秒 headless PASS 不能替代實體裝置 E2E。
 - 這個 PASS 只涵蓋離線 WAV 產生；CosyVoice2 與 Breeze TTS 2 也已各自完成 CUDA TTS 輸出，但人工音質與即時 latency 仍需分開評估。

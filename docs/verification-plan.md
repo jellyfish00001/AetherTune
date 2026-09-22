@@ -73,12 +73,13 @@
 - [ ] 由 Light Host 掃描 Graillon、設定 input/output、完成離線/loopback 音訊通過。
 - [ ] 以 Chromatic、慢速、低深度的修音候選做 A/B；不得只記參數、不記聲音結果。
 - [x] 實際列舉 VB-CABLE/Voicemeeter 裝置名稱，記錄播放端與錄音端方向。
+- [x] 以合成音完成 VB-CABLE 與 `Voicemeeter Input → B1 → Voicemeeter Out B1` virtual route smoke；保存 WAV、JSON、SHA-256 與 Remote API level evidence。
 - [ ] 完成「麥克風 → VCClient → VST → 虛擬輸出 → loopback 錄音」P3 證據。
 - [ ] 最後才以 Discord/OBS 測試收音；確認對方端或錄影檔聽到的是後製訊號。
 
 ## 完成定義
 
-只有當 Phase 1–4 各自有可追溯證據，且 P3 loopback/終端測試成功，才能標示「系統完成」。目前狀態為 `wiring deployed; role dataset/model and P2/P3 audio evidence pending`。最新唯讀結果見 `docs/wiring-verification-latest.md`。
+只有當 Phase 1–4 各自有可追溯證據，且實體 P3 loopback/終端測試成功，才能標示「系統完成」。目前狀態為 `wiring deployed; synthetic virtual route smoke PASS; role dataset/model, audio-rack full-chain and physical P2/P3 evidence pending`。最新唯讀結果見 `docs/wiring-verification-latest.md`。
 
 ## 新架構追加的研究 Gate
 
@@ -87,6 +88,7 @@
 ### Phase 5：Common Audio Rack
 
 - [ ] 在 `audio-rack/` 登記 plugin／host／route profile、版本、license classification 與來源。
+- [x] 建立 VB-CABLE／Voicemeeter virtual route smoke evidence；這不等同 audio-rack plugin full-chain。
 - [ ] 以同一 backend、同一 source、同一 output route 完成 `Post-FX bypass`。
 - [ ] 以同一組輸入完成 `Post-FX full-chain`。
 - [ ] 保存 bypass latency、full-chain latency、`delta_latency_ms`、WAV、metrics JSON 與 hash。

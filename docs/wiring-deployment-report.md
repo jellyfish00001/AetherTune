@@ -1,6 +1,6 @@
 # AetherTune 線路部署與新人操作報告
 
-報告日期：2026-09-19（Asia/Taipei）
+報告日期：2026-09-22（Asia/Taipei）
 工作目錄：`D:\AetherTune`
 用途：交給高階模型審查目前部署、證據、限制與後續補缺。
 
@@ -18,7 +18,7 @@
 
 > 安裝與端點層已就緒；現在主要剩下授權素材、4 組既有 RVC 角色模型的 provenance/register、角色模型載入，以及第一次由 Light Host 設定 input/output 後的 P2/P3 聲音驗收。
 
-最新可重跑的唯讀結果：[`wiring-verification-latest.md`](wiring-verification-latest.md)，目前 `PASS=16 / WAITING=4 / BLOCKED=1`。這個摘要已把「四組角色模型 metadata／ready gate 未完成、VCClient embedded CUDA 尚未以自有角色驗證、Graillon 尚未在 host chain 通過、Voicemeeter B1 全零、ONNX CUDA provider 未實際執行」分開列出；官方 sample offline conversion 另見 `docs/vcclient-rvc-probe-latest.md`。
+最新可重跑的唯讀結果：[`wiring-verification-latest.md`](wiring-verification-latest.md)，目前 `PASS=17 / WAITING=4 / BLOCKED=1`。這個摘要已把「四組角色模型 metadata／ready gate 未完成、VCClient embedded CUDA 尚未以自有角色驗證、Graillon 尚未在 host chain 通過、完整 mic E2E 未完成、ONNX CUDA provider 未實際執行」分開列出；VB-CABLE 與 Voicemeeter B1 synthetic route 已通過，官方 sample offline conversion 另見 `docs/vcclient-rvc-probe-latest.md`。
 
 ## 2. 目標線路與實際 Windows 方向
 
@@ -174,7 +174,7 @@ D:\AetherTune\
 | P0 來源、版本、授權 | RVC、VCClient、Light Host、Auburn、VB-Audio 官方來源已記錄；授權仍要依各元件條款管理 |
 | P1 檔案、hash、GPU、裝置、localhost | 部分通過；專案 Torch 實際 CUDA op 成功，但 VCClient embedded cu118/sm_120 仍 WAITING；詳見 `wiring-verification-latest.md` |
 | P2 真實角色模型離線推論 | 已完成 slot／pipeline 選擇層與 conversion probe；REST conversion 被 packaged API 的 `vc_chunk_sec/chunk_sec` AttributeError 阻塞，尚無可驗證輸出 WAV；register 來源／授權 metadata 仍待補齊 |
-| P3 麥克風→VC→VST→loopback→Discord/OBS | 尚未完成；VB-CABLE 合成 loopback PASS，但 Voicemeeter `Input → B1` 合成 loopback 目前 RMS=0，Light Host 的實際 device/chain 與 Discord/OBS 仍需設定與聽測 |
+| P3 麥克風→VC→VST→loopback→Discord/OBS | 部分完成；VB-CABLE 與 Voicemeeter `Input → B1` synthetic loopback PASS，Remote API route diagnosis 也 PASS，但 Light Host 的實際 device/chain、實體麥克風、延遲與 Discord/OBS 仍需設定與聽測 |
 
 合成音證據必須同時包含 WAV 與同名 JSON；JSON 保存 48 kHz、時長、frames、RMS、peak、測試參數與 WAV SHA-256。既有 WAV 若沒有 JSON，重新執行 loopback 後才能重新判定。Voicemeeter B1 全零只能表示當次沒有收到足夠訊號，不能直接推論單一原因。
 
@@ -186,7 +186,7 @@ VCClient 的獨立驗收步驟與失敗分流見 [`vcclient-runtime-gate.md`](vc
 
 1. VCClient 是否應改成與 RTX 5060 Ti `sm_120` 相容的更新版／ONNX 路徑？
 2. Light Host Modern 是否能以目前版本穩定選到 `CABLE Output → Voicemeeter Input`，還是應改用 Carla／其他 host？
-3. Voicemeeter Standard 的 `Voicemeeter Input → B1` 為何目前全零：mixer bus、mute/volume、引擎或 endpoint 哪一項仍未就緒？
+3. Voicemeeter Standard 的 `Voicemeeter Input → B1` synthetic route 已 PASS；下一步是否以同一 route 接入實際 Light Host full-chain 與固定測試句？
 4. 角色模型完成後，VCClient embedded `cu118` 是否能在 RTX 5060 Ti `sm_120` 實際輸出；若不能，應採相容 CUDA 包還是量測 ONNX/DirectML？
 5. Light Host + Graillon 的 bypass/active 延遲與自然度比較結果，是否足以保留目前選型？
 

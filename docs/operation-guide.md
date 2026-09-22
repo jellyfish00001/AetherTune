@@ -179,7 +179,7 @@ Graillon VST3 預設位置：`C:\Program Files\Common Files\VST3\Auburn Sounds G
 
 ### Phase 7：完成驗收
 
-目前 P1 軟體／裝置證據已寫入 `docs/wiring-verification-latest.md`；仍需 P2 角色模型離線輸出與人工聽測，以及 P3 loopback、延遲與 Discord/OBS 收音證據。只看到 UI、只成功載入模型或只通過 mock，不算完整完成。
+目前 P1 軟體／裝置證據已寫入 `docs/wiring-verification-latest.md`；VB-CABLE 與 Voicemeeter B1 synthetic route 已有可重跑 PASS，但仍需 P2 角色模型離線輸出與人工聽測，以及實體麥克風 → backend → Light Host full-chain → virtual route 的 P3 延遲與 Discord/OBS 收音證據。只看到 UI、只成功載入模型或只通過 synthetic route，不算完整完成。
 
 ## 4. 日常使用流程（完成後）
 
