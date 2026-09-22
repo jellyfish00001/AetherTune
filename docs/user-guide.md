@@ -83,7 +83,7 @@ Set-Location D:\AetherTune
 
 - `artifacts/seed-vc/<run>/vc_*.wav`：音訊結果。
 - `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
-- `docs/seed-vc-verification-latest.md`：目前實際驗證摘要。
+- `backends/seed-vc/README.md` 與 `docs/agent-implementation-status-latest.md`：Seed-VC 輸入契約與目前實際驗證摘要。
 
 目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔與 `realtime-tiny` headless GPU block；但官方 GUI、PortAudio 麥克風端到端、人工聽測與長時間 realtime 穩定性仍待補。
 

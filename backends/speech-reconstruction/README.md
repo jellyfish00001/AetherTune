@@ -13,7 +13,8 @@
 | 元件 | 狀態 | 已驗證內容 |
 |---|---|---|
 | Faster-Whisper STT | PASS（CPU） | small model 成功辨識男／女 reference，輸出 JSON transcript |
-| CosyVoice2 0.5B | PASS（CUDA） | 官方 zero-shot 與男／女 reference clone 都產生 24 kHz WAV |
+| CosyVoice2 0.5B | PASS（CUDA） | 官方 zero-shot 與男／女 reference clone 都產生 24 kHz WAV；offline baseline |
+| Fun-CosyVoice3 | PLANNED / candidate | 先做[官方 CosyVoice repository](https://github.com/QwenAudio/CosyVoice) 的 source、model／license intake，再與 CosyVoice2 A/B；尚未安裝 |
 | Breeze TTS 2 | PASS（CUDA） | Voice Design 男／女與 reference clone 男／女均產生 24 kHz WAV |
 
 模型與環境分開保存：
@@ -117,3 +118,4 @@ Faster-Whisper 的輸出是 `STT draft`，voice clone 前仍應人工核對 refe
 - Breeze `flash-attn==2.8.3` 已嘗試安裝但仍無法 import，現在使用 manual PyTorch path；不要把 `-AttentionImplementation flash_attention_2` 當成可用預設。
 - Breeze system SoX 仍未安裝（sudo 需要密碼），但已完成 `artifacts/sox-local/` 的 SoX `14.4.2` portable extraction；runner 會自動注入 local PATH／LD_LIBRARY_PATH，該目錄不存在時才回到系統 SoX。
 - CosyVoice 主模型 CUDA 已 PASS；`tools/cosyvoice-frontend-cudnn8-probe.ps1` 可用隔離 cuDNN 8 library path 重跑 speech tokenizer 的實際 ONNX Node provider CUDA 證據，但上游 CampPlus embedding 明確固定 CPU，因此目前是 partial frontend GPU，不是全 frontend GPU。證據見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
+- CosyVoice3 只列為 candidate；不要把上游「相較 CosyVoice2 改善」的描述寫成 AetherTune 本機品質 PASS。完成隔離環境、模型來源／license、固定 corpus、RTF／TTFA 與人工聽測後，才能建立 A/B verification report。

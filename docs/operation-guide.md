@@ -1,9 +1,23 @@
 # AetherTune 完整操作流程
 
-文件版本：2026-09-20
-目前狀態：`Wiring deployed / role model candidate / VCClient conversion blocked`
+文件版本：2026-09-22
+目前狀態：`Common rack planned / role model candidate / VCClient baseline blocked`
 
-使用入口：先讀根目錄 `README.md` 選擇 RVC／Seed-VC／STT → TTS；本文件只負責 RVC 選定後的 Windows 即時路由與驗收。RVC 資料準備與訓練請先讀 [`model-training-guide.md`](model-training-guide.md)。
+使用入口：先讀根目錄 `README.md`，依 `LIVE_GATE <= 5s`、是否保留原始表演與是否重建文字選擇路線。本文件保留 RVC legacy 的 Windows 操作細節，同時定義所有 backend 共用的 audio-rack、virtual route、loopback 與驗收邊界。RVC 資料準備與訓練請先讀 [`model-training-guide.md`](model-training-guide.md)；共用 gate 讀 [`live-gate.md`](live-gate.md)。
+
+## 0. 共用研究流程
+
+所有需要播放或直播輸出的 backend 都應依下列順序建立 paired evidence：
+
+```text
+capture/source → backend adapter → audio-rack bypass
+                              → audio-rack full-chain
+                              → virtual route → loopback
+```
+
+先測 `Post-FX bypass`，再測 `full-chain`，並實測 `delta_latency_ms`。不要用「掛了幾個 VST 增加幾毫秒」推估延遲；lookahead compressor、linear-phase EQ、pitch correction、convolution ambience 都可能改變 latency。
+
+只有完整 capture → backend → rack → virtual route 的 `e2e_first_packet_ms <= 5000` 才能分類為 `LIVE`。Seed-VC headless、RVC offline、CosyVoice/Breeze runtime 或 UI 可開啟都不能直接通過這個 gate。
 
 ## 1. 先看結論
 

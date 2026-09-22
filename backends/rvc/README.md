@@ -1,6 +1,6 @@
-# RVC（目前主線）
+# RVC（historical baseline）
 
-RVC 是目前 AetherTune 的即時變聲主線，沿用既有 `tools/external/Retrieval-based-Voice-Conversion-WebUI` 與 VCClient。
+RVC 是 AetherTune 的既有即時變聲基準，沿用既有 `tools/external/Retrieval-based-Voice-Conversion-WebUI` 與 VCClient。它保留作 latency、失真與路由對照，不再預設為研究主線；VCClient packaged realtime 的最新狀態仍以 verifier 為準。
 
 人類入口：先讀 [`docs/user-guide.md`](../../docs/user-guide.md)；要準備資料、訓練與登錄 `.pth/.index` 讀 [`docs/model-training-guide.md`](../../docs/model-training-guide.md)；要接 VCClient、VST、VB-CABLE、Discord／OBS 讀 [`docs/operation-guide.md`](../../docs/operation-guide.md)。
 
@@ -11,6 +11,7 @@ RVC 是目前 AetherTune 的即時變聲主線，沿用既有 `tools/external/Re
 - 現有模型交接路徑：`models/weights/`、`models/indexes/`、`models/model-register.csv`。這些舊路徑先保留，避免破壞既有 verifier 與文件。
 - 目前有 4 組本機角色 `.pth/.index` 配對，已寫入 `models/model-register.csv`；四組都已通過專案 RVC WebUI 的 `FCPE + cuda:0` 離線推論並產生非零 WAV。來源、授權與訓練 metadata 尚未補齊，且 VCClient 即時鏈路仍待驗收。名稱與 hash 見 `docs/current-rvc-model-inventory.md`。
 - VCClient 的 role model 需要透過其 slot/upload path 建立到自己的 `model_dir`；請使用 `tools/vcclient-rvc-register.ps1`，不要直接複製大型模型進 Git。最新 packaged 修復、限制與 conversion 證據見 [`docs/vcclient-packaged-repair-latest.md`](../../docs/vcclient-packaged-repair-latest.md)。
+- RVC 輸出仍應接到共用 [`audio-rack/`](../../audio-rack/)，但目前 Light Host／Graillon chain 尚未完成 full-chain loopback 與 Δ latency evidence。
 
 ## 驗證順序
 

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aethertune.local/schema/live-gate/v1",
+  "title": "AetherTune LIVE_GATE evidence v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "backend_id",
+    "route_profile",
+    "hardware",
+    "capture",
+    "timing_ms",
+    "continuity",
+    "output_validation"
+  ],
+  "properties": {
+    "schema_version": {"const": "aethertune-live-gate/v1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "backend_id": {"type": "string", "minLength": 1},
+    "route_profile": {"type": "string", "minLength": 1},
+    "hardware": {"type": "object"},
+    "capture": {"type": "object"},
+    "timing_ms": {
+      "type": "object",
+      "required": [
+        "capture_to_backend_first_packet_ms",
+        "backend_first_packet_ms",
+        "postfx_first_packet_ms",
+        "routing_first_packet_ms",
+        "e2e_first_packet_ms",
+        "e2e_p50_ms",
+        "e2e_p95_ms"
+      ],
+      "properties": {
+        "capture_to_backend_first_packet_ms": {"type": "number", "minimum": 0},
+        "backend_first_packet_ms": {"type": "number", "minimum": 0},
+        "postfx_first_packet_ms": {"type": "number", "minimum": 0},
+        "routing_first_packet_ms": {"type": "number", "minimum": 0},
+        "e2e_first_packet_ms": {"type": "number", "minimum": 0},
+        "e2e_p50_ms": {"type": "number", "minimum": 0},
+        "e2e_p95_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "continuity": {
+      "type": "object",
+      "required": ["continuous_seconds", "dropouts", "underruns"],
+      "properties": {
+        "continuous_seconds": {"type": "number", "minimum": 0},
+        "dropouts": {"type": "integer", "minimum": 0},
+        "underruns": {"type": "integer", "minimum": 0}
+      }
+    },
+    "output_validation": {
+      "type": "object",
+      "required": ["status", "finite", "non_zero"],
+      "properties": {
+        "status": {"type": "string"},
+        "finite": {"type": "boolean"},
+        "non_zero": {"type": "boolean"}
+      }
+    }
+  }
+}

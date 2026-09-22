@@ -1,6 +1,6 @@
 # Seed-VC／Zero-Shot VC
 
-Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。官方同時提供離線 VC 與即時 GUI；本專案已完成 `offline-v1` 男／女雙向與 60 秒長音檔推論，以及 `realtime-tiny` 的 3 block smoke 與 200 block／60 秒 headless GPU streaming。實際麥克風／PortAudio 端到端仍需另外驗證。
+Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔提供內容與表現，參考音檔提供目標聲線。原始 [Plachtaa/seed-vc](https://github.com/Plachtaa/seed-vc) 已於 2025-11-21 archived，因此本目錄現在定位為 `established-baseline`，不是「最新 SOTA」。官方離線 VC 與即時 GUI 的本機 evidence 保留；實際麥克風／PortAudio → audio-rack → virtual route 端到端仍需另外驗證。另有候選 fork 見 [`backends/seed-vc-realtime/README.md`](../seed-vc-realtime/README.md)。
 
 ## 輸入契約
 
@@ -77,8 +77,8 @@ New-Item -ItemType Directory -Force .\artifacts\seed-vc\long | Out-Null
 - realtime-tiny：3 個 block 均產生 finite／non-zero output；warmup 後 p50 `190.6 ms`、steady-state RTF 約 `0.633`。
 - realtime-tiny 60 秒連續：200 個 block 均產生 finite／non-zero output；p50 `122.0 ms`、p95 `146.6 ms`、mean RTF `0.4312`。
 
-這代表「可以執行並產生 WAV」與「60 秒 headless GPU streaming 可跑」已通過；聲音相似度、自然度、PortAudio 麥克風端到端、官方 GUI 與 10 分鐘以上穩定性仍需獨立驗收。所有測試都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/seed-vc-verification-latest.md`](../../docs/seed-vc-verification-latest.md)。
+這代表「可以執行並產生 WAV」與「60 秒 headless GPU streaming 可跑」已通過；聲音相似度、自然度、PortAudio 麥克風端到端、官方 GUI 與 10 分鐘以上穩定性仍需獨立驗收。所有測試都留下上游 warning：`sampling_rate` 建議明確傳入，以及部分 estimator keys 因 shape mismatch 被略過；目前不影響產檔，但列為後續清理項目。完整紀錄見 [`docs/agent-implementation-status-latest.md`](../../docs/agent-implementation-status-latest.md) 與既有 artifacts。
 
-官方 repo：<https://github.com/Plachtaa/seed-vc>
+官方 upstream：<https://github.com/Plachtaa/seed-vc>（archived/read-only）
 
-模型與 license 以官方 Hugging Face model card 為準；Seed-VC code/model page 目前標示 GPL-3.0，使用前仍需核對上游條款與輸入聲音授權。
+模型與 license 以官方 upstream／Hugging Face model card 為準；目前 upstream code page 標示 GPL-3.0，使用前仍需核對固定 revision、模型條款與輸入聲音授權。

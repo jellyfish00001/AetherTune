@@ -2,6 +2,22 @@
 
 本文件不是永久綁定；每個模組都可替換，但替換時要重新做相容性、授權、延遲與音質驗證。
 
+## 2026-09-22：從 RVC-centric 改為 Research Workbench
+
+決定：將 AetherTune 的核心定義改為「本地 Streaming VC 與 Speech Reconstruction 比較工作台」，以完整端到端 `<= 5 秒` 作為 `LIVE` 分類門檻；`> 5 秒` 只列為 `OFFLINE`，不與 Live 混排。
+
+理由：現有 RVC packaged realtime 有 invalid／全零 chunk，Seed-VC headless evidence 比較接近即時主線，而 CosyVoice／Breeze 的 runtime／RTF 證據不能代替完整 mic E2E。把 Post-FX、routing、benchmark 從 RVC 抽成共用層，才能公平比較模型與後製鏈。
+
+採納內容：
+
+- `audio-rack/` 是 cross-cutting infrastructure，不是第五個 backend。
+- benchmark 分為 Live Technical、Acoustic Objective、Human Listening；任何一層都不能冒充另一層。
+- RVC 降為 historical baseline；Seed-VC upstream 保留為 established baseline。
+- Seed-VC realtime fork、MeanVC2、CosyVoice3 只建立 candidate intake，不在本輪下載權重或宣稱 runtime PASS。
+- Pitch correction 必須 optional；VST latency 用 bypass/full-chain 實測 Δ，不用元件數量猜測。
+
+撤回／回滾：保留既有 RVC verifier、模型 register、runtime artifact 與 Windows route 文件；若新候選 intake 失敗，只移除候選 profile，不回退到把 RVC 稱為唯一主線。完整契約見 [`architecture.md`](architecture.md)、[`live-gate.md`](live-gate.md)、[`audio-rack/`](../audio-rack/) 與 [`benchmarks/`](../benchmarks/)。
+
 ## 目前選擇
 
 | 模組 | 目前選擇 | 選擇原因 | 何時改選 |

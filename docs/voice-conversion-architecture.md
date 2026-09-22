@@ -1,59 +1,115 @@
-# AetherTune 多後端語音架構
+# AetherTune 多後端語音架構與比較契約
 
-## 目標
+更新日期：2026-09-22（Asia/Taipei）
 
-把「語音變聲」拆成可互相比較的三種方法，而不是把所有模型塞進 RVC 的 `.pth/.index` 流程：
-
-```text
-                         ┌─ RVC + FCPE/RMVPE ── VCClient ── 即時路由
-來源語音 ──┬─────────────┤
-           │             └─ Seed-VC ─────────── 參考聲音 ── 離線/準即時 WAV
-           │
-           └─ STT ── transcript ──┬─ CosyVoice ──┐
-                                  └─ Breeze TTS 2 ─┴─ 參考聲音/voice design ── WAV
-```
-
-## 路線責任
-
-| 路線 | 保留什麼 | 需要什麼 | 適合的問題 |
-|---|---|---|---|
-| RVC | 內容、部分韻律與即時聲學表現 | 訓練角色 `.pth/.index`、f0 | 長時間即時通話與低延遲調校 |
-| Seed-VC | 來源內容與表現，目標聲線來自 reference | 1–30 秒 reference；不用訓練 | 快速比較男／女聲線與 zero-shot VC |
-| STT → CosyVoice/Breeze | 文字內容，重新生成聲學表現 | STT transcript、reference transcript 或 voice design | 跨語言、重寫文字、情緒／速度控制 |
-
-## 使用決策
+## 研究分組
 
 ```text
-需要即時麥克風？
-├─ 是 → RVC + FCPE/RMVPE
-└─ 否 → 需要保留原始語氣與表演？
-          ├─ 是 → Seed-VC（source + reference，不訓練）
-          └─ 否 → STT → TTS（CosyVoice／Breeze，可改寫文字）
+                         AetherTune
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+       Streaming VC                   Speech Reconstruction
+       保留來源表演                    重新生成聲學表演
+              │                             │
+   RVC / Seed-VC / MeanVC2       CosyVoice2 / CosyVoice3 / Breeze
+              │                             │
+              └──────────────┬──────────────┘
+                             ▼
+                  Common Audio Rack
+                             │
+                    Virtual Routing
+                             │
+                       Benchmarks
 ```
 
-不要用「模型大小」或「看起來能 import」選方法；先看輸入、延遲與是否要保留原始 acoustic performance。人類操作入口見 [`docs/user-guide.md`](user-guide.md)，RVC 訓練入口見 [`docs/model-training-guide.md`](model-training-guide.md)。
+Streaming VC 優先比較內容、韻律、情緒、呼吸、笑聲與目標音色保留；Speech Reconstruction 優先比較內容一致性、聲線、自然度與可控制性。不能把兩組用同一個「效果分數」混成單一排名。
 
-## 共用資料契約
+## Backend adapter 契約
 
-每次實驗要能回溯：
+每個 adapter 都要有：
 
-1. source WAV 與 SHA-256。
-2. target/reference WAV 與 SHA-256；若使用 voice design，記錄 prompt。
-3. model id、上游 URL、revision、license、runtime environment。
-4. STT transcript；TTS voice clone 必須標示 `exact`、`machine-generated` 或 `manual-verified`。
-5. 實際 device/provider、取樣率、RTF／延遲、輸出 hash 與聽測結果。
+- `backend_id` 與 profile 名稱。
+- source／reference audio path、SHA-256、sample rate、channels、provenance。
+- upstream URL、固定 revision、license classification、runtime environment。
+- input mode：`microphone`、`source_wav`、`stt_text` 或 `voice_design`。
+- output WAV／stream、output hash、finite／non-zero／clipping 驗證。
+- device/provider、chunk／block、buffer、RTF 與完整鏈路 timing。
+- `PASS`、`WAITING`、`PLANNED`、`BLOCKED` 或更精確的 `candidate`／`historical-baseline`。
 
-## Windows 執行邊界
+### 路線責任
 
-- 現有 RVC `.venv` 保持穩定；CosyVoice、Breeze 與 STT 使用各自的 WSL2／Python environment，不混裝大型或 Linux-specific 依賴。
-- Seed-VC 已使用獨立 Python 3.10 環境完成 offline-v1 雙向 WAV 推論；real-time tiny model 仍待 latency 測試。
-- CosyVoice 官方安裝文件以 Python 3.10、Conda 與 Linux 依賴為基線；本機已用 WSL2 + uv 建立環境並完成 GPU zero-shot／reference clone 輸出。
-- Breeze TTS 2 官方 quick start 要求 Linux、CUDA 與約 12 GB 以上 VRAM；本機 16 GB 顯存已完成 eager CUDA 安裝與 Voice Design／reference clone 輸出。
+| 路線 | 來源輸入 | 目標條件 | 能保留什麼 | 不能宣稱什麼 |
+|---|---|---|---|---|
+| RVC | mic/source + trained role model | `.pth/.index` + f0 | 內容與部分 acoustic performance | 訓練／離線輸出不等於 VCClient realtime |
+| Seed-VC | source + 1–30 秒 reference | zero-shot reference | 來源內容與較多原始表演線索 | upstream benchmark 不等於本機 LIVE |
+| MeanVC2 | streaming source + reference | zero-shot streaming candidate | 研究目標是低延遲與表演保留 | 上游 latency 不等於 RTX 5060 Ti E2E |
+| CosyVoice2/3 | text + prompt/reference | TTS／clone | 文字內容與重建聲線 | 不保證原始笑聲、呼吸、停頓與情緒 |
+| Breeze TTS 2 | text + reference 或 instruction | clone／voice design | 文字內容與重建聲線 | 本機 runtime／RTF 不等於 LIVE |
 
-## 驗收順序
+## Common Audio Rack
 
-1. 先驗證參考聲音存在、授權與 hash。
-2. Seed-VC 用同一個 source 分別轉成 female/male，確認離線輸出與 CUDA/CPU provider；此項已完成初版。
-3. STT 對同一批 source 產生 transcript，人工抽查；錯誤 transcript 不送 voice clone。
-4. CosyVoice 與 Breeze 各自輸出同一段文字，再比較內容一致性、聲線、情緒與延遲。
-5. 最後才接回 VB-CABLE／Discord／OBS；離線 WAV PASS 不代表即時鏈路 PASS。
+所有需要輸出至直播／通話端點的 backend 都接到 `audio-rack/`：
+
+```text
+backend output
+  → corrective EQ
+  → de-esser
+  → compressor
+  → saturation
+  → optional pitch correction
+  → light ambience
+  → limiter
+  → virtual route
+```
+
+每個 backend 至少跑 `Post-FX bypass` 與 `Post-FX full-chain`。報告需量實際 `delta_latency_ms`；不能用 VST 數量推估延遲。Pitch correction 預設 optional，避免把模型自身韻律全部修平。
+
+## 三層 benchmark
+
+### 1. Live Technical
+
+完整鏈路：
+
+```text
+capture input
+  → backend
+  → audio-rack
+  → virtual routing
+  → loopback／terminal capture
+```
+
+`e2e_first_packet_ms <= 5000` 才是 `LIVE`。正式 live candidate 還需至少 600 秒連續 evidence、zero dropout／underrun 與人工聽測。schema 與分類見 [`docs/live-gate.md`](live-gate.md)。
+
+### 2. Acoustic Objective
+
+固定 corpus、固定 reference、固定 sample rate／loudness policy，記錄 decode、finite、non-zero、RMS、peak、silence、DC、clipping、hash、內容正確性 proxy。這一層不能導出 MOS、自然度或聲線相似度。
+
+### 3. Human Listening
+
+建議盲測維度：自然度、目標音色相似度、原始表演／情緒保留、內容正確性、噪音／破音、可接受度與偏好。每筆評分要能回指 source、reference、backend profile、rack profile 與 output hash。
+
+## Windows 路由邊界
+
+目前候選路徑是：
+
+```text
+physical microphone
+  → backend
+  → CABLE Input (VB-Audio Virtual Cable)
+  → CABLE Output (VB-Audio Virtual Cable)
+  → Light Host / audio-rack
+  → Voicemeeter Input (VB-Audio Voicemeeter VAIO)
+  → Voicemeeter B bus
+  → Voicemeeter Out B1
+  → OBS / Discord / VTube Studio
+```
+
+正式驗證要記錄裝置名稱、input/output direction、sample rate、channel、buffer、WAV、metrics JSON 與 hash。`Voicemeeter Out B1` 是 Windows endpoint，不是 UI 上的 `B` 按鈕；不能混寫。
+
+## 目前 scope
+
+- RVC 既有 verifier、模型 audit 與 VCClient failure evidence 保留，重新定位為 baseline。
+- Seed-VC upstream 的本機 headless evidence 保留；Seed-VC realtime fork 先做 candidate intake。
+- MeanVC2、CosyVoice3 只建立候選位置與驗收契約，不在本輪下載模型或宣稱 runtime PASS。
+- Audio Rack、固定 corpus、LIVE_GATE validator 與三層 benchmark 文件先落地；實際 mic E2E、VST chain、blind listening 是後續工作。

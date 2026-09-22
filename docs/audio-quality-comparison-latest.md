@@ -1,10 +1,10 @@
-# 四種後端 WAV 批次比較
+# 既有四種 profile WAV 批次比較
 
 更新日期：2026-09-21
 
 ## 結論
 
-四種後端共 11 個樣本皆可解碼、finite、non-zero，signal-level 批次檢查 `PASS`。批次工具現在會保留任何 `BLOCKED` row，不會被同一 backend 的有效 row 掩蓋。本報告的「音量」是 RMS／peak dBFS proxy，「品質」只涵蓋檔案有效性、靜音比例與 clipping；不代表 MOS、自然度、聲線相似度或人工聽感通過。
+本報告只涵蓋目前既有的四種 backend/profile 與 11 個樣本；它不是新研究矩陣的完整結果。所有樣本皆可解碼、finite、non-zero，signal-level 批次檢查 `PASS`。批次工具現在會保留任何 `BLOCKED` row，不會被同一 backend 的有效 row 掩蓋。本報告的「音量」是 RMS／peak dBFS proxy，「品質」只涵蓋檔案有效性、靜音比例與 clipping；不代表 MOS、自然度、聲線相似度或人工聽感通過。
 
 可重跑命令：
 

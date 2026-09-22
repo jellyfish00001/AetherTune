@@ -79,3 +79,38 @@
 ## 完成定義
 
 只有當 Phase 1–4 各自有可追溯證據，且 P3 loopback/終端測試成功，才能標示「系統完成」。目前狀態為 `wiring deployed; role dataset/model and P2/P3 audio evidence pending`。最新唯讀結果見 `docs/wiring-verification-latest.md`。
+
+## 新架構追加的研究 Gate
+
+既有 Phase 1–4 保留作 RVC／Windows wiring 歷史基線；新的跨 backend 研究必須另外通過以下分層，不能用既有 RVC 的成功或失敗代替：
+
+### Phase 5：Common Audio Rack
+
+- [ ] 在 `audio-rack/` 登記 plugin／host／route profile、版本、license classification 與來源。
+- [ ] 以同一 backend、同一 source、同一 output route 完成 `Post-FX bypass`。
+- [ ] 以同一組輸入完成 `Post-FX full-chain`。
+- [ ] 保存 bypass latency、full-chain latency、`delta_latency_ms`、WAV、metrics JSON 與 hash。
+- [ ] Pitch correction 保持 `optional`；未經人工聽測不得變成所有 backend 的預設。
+
+### Phase 6：LIVE_GATE
+
+- [x] 建立 `docs/live-gate.md` 的 `aethertune-live-gate/v1` evidence 契約。
+- [x] 建立 `tools/live-gate-validate.py`，分類 `LIVE`／`OFFLINE`／`WAITING`／`BLOCKED`。
+- [ ] Seed-VC 完成 mic／PortAudio → backend → audio-rack → virtual route → loopback 的 60 秒 screening。
+- [ ] 通過至少 600 秒 stability、zero dropout／underrun，才可稱為 `live_candidate`。
+- [ ] 所有 first-packet timing 必須是完整鏈路，不可只填 inference 或 RTF。
+
+### Phase 7：三層比較
+
+- [ ] `benchmarks/corpus/` 建立有授權且固定 hash 的測試語料：對話、快語速、氣音、大笑、驚叫、嘆氣、拉長音、音域變化、中日英混合、60 秒與 10 分鐘。
+- [ ] `benchmarks/live/` 完成 Live Technical paired run。
+- [ ] `benchmarks/quality/` 完成同 sample rate／loudness policy 的 Acoustic Objective paired run。
+- [ ] `benchmarks/subjective/` 由人類完成 blind listening；Agent 不代填自然度、相似度或情緒保留分數。
+
+### Phase 8：候選 intake
+
+- [ ] Seed-VC realtime fork：固定 revision、來源、license、獨立 environment 與實測 gate。
+- [ ] MeanVC2：確認上游 code／checkpoint／依賴／license、RTX 5060 Ti 相容性，再進固定 corpus。
+- [ ] Fun-CosyVoice3：與 CosyVoice2 做 isolated A/B；先確認 model snapshot、license、RTF／TTFA 與人工聽測。
+
+在 Phase 5–8 尚未完成前，README 的新架構只是正確的研究方向與證據邊界，不代表新 backend 或共用 audio-rack 已可直接使用。
