@@ -67,16 +67,20 @@ $repoFiles = @(
     'configs\hifigan.yml'
 )
 foreach ($relativePath in $repoFiles) {
-    if (-not (Test-Path -LiteralPath (Join-Path $repoPath $relativePath))) {
-        $missing.Add("Seed-VC required file/cache is missing: $relativePath")
+    $requiredPath = Join-Path $repoPath $relativePath
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf) -or
+        (Get-Item -LiteralPath $requiredPath -ErrorAction SilentlyContinue).Length -le 0) {
+        $missing.Add("Seed-VC required file/cache is missing, not a regular file, or empty: $relativePath")
     }
 }
 foreach ($projectAsset in @(
     'models\seed-vc\checkpoints\offline-v1\DiT_seed_v2_uvit_whisper_small_wavenet_bigvgan_pruned.pth',
     'models\seed-vc\checkpoints\realtime-tiny\DiT_uvit_tat_xlsr_ema.pth'
 )) {
-    if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $projectAsset) -PathType Leaf)) {
-        $missing.Add("Project-local Seed-VC checkpoint is missing: $projectAsset; setup will not download it")
+    $checkpointPath = Join-Path $projectRoot $projectAsset
+    if (-not (Test-Path -LiteralPath $checkpointPath -PathType Leaf) -or
+        (Get-Item -LiteralPath $checkpointPath -ErrorAction SilentlyContinue).Length -le 0) {
+        $missing.Add("Project-local Seed-VC checkpoint is missing, not a regular file, or empty: $projectAsset; setup will not download it")
     }
 }
 

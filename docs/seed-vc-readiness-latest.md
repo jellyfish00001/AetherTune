@@ -44,6 +44,8 @@ pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
 
 GUI launcher 需 PowerShell 7.0 以上（`pwsh`）。若 setup 找不到 Python 3.10 base interpreter，只對 `seed-vc-setup.ps1` 指定 `-Python310 <base-python.exe>`；GUI launcher 預設使用 setup 建立且含 GUI dependencies 的 `tools\venvs\seed-vc\Scripts\python.exe`。若使用自訂 venv，才傳 `-Python <venv\Scripts\python.exe>` 給 GUI launcher。Preflight 會先確認固定 Seed-VC revision、offline/realtime checkpoint、`configs/hifigan.yml`、HF `refs/main` 指向 snapshot 的必要 XLS-R／CampPlus／CosyVoice HiFT 檔案、完整 ModelScope FSMN-VAD snapshot、Python 3.10 x64/Tcl/Tk、GUI dependency 與 CUDA 0。任何必需項目缺失都在 pip、GUI、cache 或 audio stream 前停止；流程不 clone source、不下載模型、不更改 Windows default device。
 
+要在不讀真實模型或安裝套件的情況下回歸 setup 對空檔與缺項的阻擋行為，可執行 `pwsh -NoProfile -File .\tools\seed-vc-setup-preflight-regression.ps1`；這是 preflight contract 測試，不代表新機 bootstrap runtime `PASS`。
+
 GUI 開啟後，使用者先目視核對 reference、input/output endpoint、Host API 與 CUDA device，再由使用者按 `Start VC`。結束時按 `Stop VC` 並關閉視窗。若改用其他 output endpoint，需據實更新下游路由記錄。日常 launcher 不注入 WAV；`seed-vc-gui-userflow-test.py` 仍是隔離的 deterministic callback 測試 harness。
 
 ### 真實麥克風驗收步驟（目前 `WAITING`）
@@ -96,9 +98,10 @@ GUI 開啟後，使用者先目視核對 reference、input/output endpoint、Hos
 | `& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-gui-settings-regression.py` | exit `0`; 2 tests `PASS` | GUI setting/callback semantics，不是真實 mic。 |
 | `& .\.venv\Scripts\python.exe .\tools\audio-output-validation-regression.py` | exit `0`; `PASS` | WAV 結構/訊號 gate，不是聲學或主觀驗收。 |
 | Python AST + 2 JSON Schema Draft 2020-12 | exit `0`; `PASS` | 對 live/rack validators、regressions、GUI bootstrap 做 AST parse；檢查兩個 schema 並驗證 live/rack fixture；不代表硬體 E2E。 |
-| PowerShell 7 AST parser：GUI launcher/device-selection helper+regression/overlay helper+regression、offline runner/preflight regression | exit `0`; 七檔 `PARSE_PASS` | 語法檢查，不是 GUI/device/runtime E2E。setup script 未於本輪變更。 |
+| PowerShell 7 AST parser：GUI launcher/device-selection helper+regression/overlay helper+regression、offline runner/preflight regression、setup/preflight regression | exit `0`; 九檔 `PARSE_PASS` | 語法檢查，不是 GUI/device/runtime E2E；setup parser PASS 不等於新機安裝或 Tcl/Tk runtime PASS。 |
 | `pwsh -NoProfile -File .\tools\seed-vc-gui-device-selection-regression.ps1` | exit `0`; `PASS` | 四種 Host API 有同名 input；首次 CLI 選 MME 後，第二次省略 CLI 仍採 saved MME；CLI DirectSound 可覆蓋；失效 saved API=`BLOCKED` 並提示 `-HostApi`；另核對 unique/default inference。僅隔離 inventory/settings fixture，不啟動 GUI 或 audio stream。 |
 | `pwsh -NoProfile -File .\tools\seed-vc-gui-overlay-regression.ps1` | exit `0`; `PASS` | 在 `$env:TEMP` 唯一 fixture 上連續執行兩次：第一次建立且實際 ResolveLinkTarget；第二次辨識正確既有 junction；錯誤 target 被拒絕，fixture marker 存在且無任何資料刪除。 |
+| `pwsh -NoProfile -File .\tools\seed-vc-setup-preflight-regression.ps1` | exit `0`; `PASS` | 一般 setup invocation 使用本機 Python/Tcl/Tk shim、不帶 `-PreflightOnly`，唯一缺項為空 Hifi-GAN config、零位元 offline checkpoint、目錄型 realtime checkpoint，三者都 `BLOCKED`；另一次 invocation 驗證缺少 Python。兩個案例都未建立 venv／進入 pip mutation，不讀模型／不下載資產。 |
 | `pwsh -NoProfile -File .\tools\seed-vc-run-preflight-regression.ps1` | exit `0`; `PASS` | 6 種 source/target/repo/checkpoint/config/Python 缺項均將預置舊 PASS manifest 覆寫成新 run_id、`BLOCKED`。腳本另檢查 offline output validator 使用 `$resolvedPython`（Seed-VC venv），非根 `.venv`；未執行模型推論。 |
 | Seed-VC venv PortAudio inventory 唯一性 probe | exit `0`; input/output 各 `1` 筆 | `Windows DirectSound` + `麥克風 (HyperX QuadCast S)` input，及 `Windows DirectSound` + `CABLE Input (VB-Audio Virtual Cable)` output；這不是 MME 字串（MME 列舉會截斷名稱），因此範例明確指定 DirectSound。 |
 | `tools/seed-vc-run.ps1` stale-output guard | PowerShell AST + preflight regression `PASS`; 不重跑模型 | 新 run manifest 在任何輸入／checkpoint precondition 前落為非 PASS；成功推論後比較 WAV path/hash snapshot；只驗本次新增或改變的 WAV。模型 inference 未重跑，不宣稱本輪 offline runtime PASS。 |
