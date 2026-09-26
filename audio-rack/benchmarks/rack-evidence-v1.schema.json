@@ -1,64 +1,146 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://aethertune.local/schema/audio-rack/evidence-v1",
-  "title": "AetherTune Audio Rack Evidence v1",
+  "title": "AetherTune Paired Audio Rack Evidence v1",
   "type": "object",
   "required": [
-    "schema_version",
-    "run_id",
-    "backend_id",
-    "route_profile",
-    "rack_mode",
-    "timing_ms",
-    "continuity",
-    "output_validation",
-    "artifacts"
+    "schema_version", "pair_id", "backend_id", "route_profile", "source", "model",
+    "hardware", "route", "runs", "delta_latency_ms"
   ],
   "properties": {
     "schema_version": {"const": "aethertune-audio-rack/evidence-v1"},
-    "run_id": {"type": "string", "minLength": 1},
+    "pair_id": {"type": "string", "minLength": 1},
     "backend_id": {"type": "string", "minLength": 1},
     "route_profile": {"type": "string", "minLength": 1},
-    "rack_mode": {"enum": ["bypass", "full-chain"]},
-    "timing_ms": {
+    "source": {
       "type": "object",
-      "required": ["backend_first_packet_ms", "postfx_first_packet_ms", "routing_first_packet_ms", "e2e_first_packet_ms", "e2e_p50_ms", "e2e_p95_ms"],
+      "required": ["wav", "sha256", "source_type", "sample_rate_hz", "channels"],
       "properties": {
-        "backend_first_packet_ms": {"type": "number", "minimum": 0},
-        "postfx_first_packet_ms": {"type": "number", "minimum": 0},
-        "routing_first_packet_ms": {"type": "number", "minimum": 0},
-        "e2e_first_packet_ms": {"type": "number", "minimum": 0},
-        "e2e_p50_ms": {"type": "number", "minimum": 0},
-        "e2e_p95_ms": {"type": "number", "minimum": 0}
+        "wav": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "source_type": {"enum": ["physical_microphone", "synthetic_callback", "file_injection"]},
+        "sample_rate_hz": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1}
       }
     },
-    "continuity": {
+    "model": {
       "type": "object",
-      "required": ["continuous_seconds", "dropouts", "underruns"],
+      "required": ["model_id", "revision", "checkpoint_sha256"],
       "properties": {
-        "continuous_seconds": {"type": "number", "minimum": 0},
-        "dropouts": {"type": "integer", "minimum": 0},
-        "underruns": {"type": "integer", "minimum": 0}
+        "model_id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
       }
     },
-    "output_validation": {
+    "hardware": {
       "type": "object",
-      "required": ["status", "finite", "non_zero"],
+      "required": ["gpu", "gpu_id", "driver_version", "audio_interface", "audio_driver"],
       "properties": {
-        "status": {"enum": ["PASS", "WAITING", "FAIL"]},
-        "finite": {"type": "boolean"},
-        "non_zero": {"type": "boolean"}
+        "gpu": {"type": "string", "minLength": 1},
+        "gpu_id": {"type": "string", "minLength": 1},
+        "driver_version": {"type": "string", "minLength": 1},
+        "audio_interface": {"type": "string", "minLength": 1},
+        "audio_driver": {"type": "string", "minLength": 1}
       }
     },
-    "artifacts": {
+    "route": {
       "type": "object",
-      "required": ["output_wav", "metrics_json", "wav_sha256"],
+      "required": ["route_id", "input_endpoint", "output_endpoint", "audio_driver"],
       "properties": {
-        "output_wav": {"type": "string", "minLength": 1},
-        "metrics_json": {"type": "string", "minLength": 1},
-        "wav_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+        "route_id": {"type": "string", "minLength": 1},
+        "input_endpoint": {"type": "string", "minLength": 1},
+        "output_endpoint": {"type": "string", "minLength": 1},
+        "audio_driver": {"type": "string", "minLength": 1}
       }
     },
-    "delta_latency_ms": {"type": ["number", "null"], "minimum": 0}
+    "runs": {
+      "type": "object",
+      "required": ["bypass", "full_chain"],
+      "properties": {
+        "bypass": {"$ref": "#/$defs/run"},
+        "full_chain": {"$ref": "#/$defs/run"}
+      }
+    },
+    "delta_latency_ms": {"type": "number", "minimum": 0}
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "required": ["run_id", "started_at_utc", "rack_mode", "timing_ms", "continuity", "output_validation", "artifacts"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "started_at_utc": {"type": "string", "format": "date-time"},
+        "rack_mode": {"enum": ["bypass", "full_chain"]},
+        "timing_ms": {
+          "type": "object",
+          "required": ["backend_first_packet_ms", "postfx_first_packet_ms", "routing_first_packet_ms", "e2e_first_packet_ms", "e2e_p50_ms", "e2e_p95_ms"],
+          "properties": {
+            "backend_first_packet_ms": {"type": "number", "minimum": 0},
+            "postfx_first_packet_ms": {"type": "number", "minimum": 0},
+            "routing_first_packet_ms": {"type": "number", "minimum": 0},
+            "e2e_first_packet_ms": {"type": "number", "minimum": 0},
+            "e2e_p50_ms": {"type": "number", "minimum": 0},
+            "e2e_p95_ms": {"type": "number", "minimum": 0}
+          }
+        },
+        "continuity": {
+          "type": "object",
+          "required": ["continuous_seconds", "dropouts", "underruns"],
+          "properties": {
+            "continuous_seconds": {"type": "number", "minimum": 0},
+            "dropouts": {"type": "integer", "minimum": 0},
+            "underruns": {"type": "integer", "minimum": 0}
+          }
+        },
+        "output_metadata": {"$ref": "#/$defs/wavMetadata"},
+        "output_validation": {
+          "type": "object",
+          "required": ["status", "finite", "non_zero"],
+          "properties": {
+            "status": {"enum": ["PASS", "WAITING", "FAIL"]},
+            "finite": {"type": "boolean"},
+            "non_zero": {"type": "boolean"}
+          }
+        },
+        "artifacts": {
+          "type": "object",
+          "required": ["output_wav", "wav_sha256", "metrics_json", "metrics_sha256"],
+          "properties": {
+            "output_wav": {"type": "string", "minLength": 1},
+            "wav_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+            "metrics_json": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Hash-bound metrics must include source_type, source_sample_rate_hz, source_channels, source_wav_metadata, output_wav_metadata, and paired_output_wav_metadata consistent with this record and the actual WAV headers."
+            },
+            "metrics_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "output_validation": {
+                "properties": {"status": {"const": "PASS"}},
+                "required": ["status"]
+              }
+            },
+            "required": ["output_validation"]
+          },
+          "then": {"required": ["output_metadata"]}
+        }
+      ]
+    },
+    "wavMetadata": {
+      "type": "object",
+      "required": ["sample_rate_hz", "channels", "frames", "duration_sec"],
+      "properties": {
+        "sample_rate_hz": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1},
+        "frames": {"type": "integer", "minimum": 1},
+        "duration_sec": {"type": "number", "exclusiveMinimum": 0}
+      }
+    }
   }
 }

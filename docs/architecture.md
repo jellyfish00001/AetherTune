@@ -1,6 +1,6 @@
 # AetherTune 系統架構
 
-更新日期：2026-09-22（Asia/Taipei）
+更新日期：2026-09-26（Asia/Taipei）
 
 ## 定義
 
@@ -15,6 +15,19 @@ AetherTune 是本地 AI Voice Transformation Research Workbench，不是四個�
 
 「免費」、「開源」、「open-weight」、「non-commercial」與「commercial-compatible」分開記錄；模型、reference voice 與輸出聲音的授權不是同一個問題。
 
+## 研究需求與驗收條件
+
+| 需求 | 驗收條件 | 證據狀態 |
+|---|---|---|
+| 使用目標 | Windows、本地運算、RTX 5060 Ti 16GB；以 VTuber、OBS、Discord 等互動場景為目標 | 研究目標，不代表所有 backend 已支援 |
+| 品質排序 | 先比較自然度，再比較目標音色相似度與原始表演／情緒保留 | 需用固定 corpus 的盲測結果，不由模型規格推定 |
+| Live 硬門檻 | 實際 capture → backend → audio-rack → virtual route → loopback 的首個有效封包 `<= 5000 ms`；超過即歸 `OFFLINE` | 現有完整 mic E2E 仍 `WAITING` |
+| 後製公平性 | 同一 source/reference 分別跑 `Post-FX bypass` 與 `full-chain`，記錄實測 `delta_latency_ms`；Pitch Correction 為 optional | audio-rack 契約已建立，實體 plugin chain 仍 `WAITING` |
+| 穩定性 | live candidate 至少連續 600 秒，零 dropout／underrun，並保留人工聽測 | 尚無完整 PASS |
+| 比較可重現 | 每次保留 source/reference hash、模型與 upstream revision、license、device/provider、設定、輸出 hash、timing 與 benchmark 結果 | 各 backend 依共用 manifest 契約提交 |
+
+Live 延遲是分類門檻；只有通過門檻的 profile 才能按自然度、音色相似與表演保留比較。離線 WAV、RTF、GUI 開啟成功或 synthetic routing 不可代替這項驗收。
+
 ## 分層架構
 
 ```text
@@ -26,8 +39,8 @@ AetherTune 是本地 AI Voice Transformation Research Workbench，不是四個�
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ Backend Adapter                                               │
-│ RVC baseline │ Seed-VC profiles │ MeanVC2 candidate           │
-│ STT → CosyVoice2/3/Breeze reconstruction profiles             │
+│ Streaming VC: RVC / Seed-VC / MeanVC2 / X-VC                  │
+│ Speech reconstruction: STT → CosyVoice2/3 / Breeze            │
 └──────────────────────────────┬───────────────────────────────┘
                                │ converted/reconstructed PCM
                                ▼
@@ -59,14 +72,19 @@ AetherTune 是本地 AI Voice Transformation Research Workbench，不是四個�
 |---|---|---|---|
 | Streaming VC | RVC + FCPE/RMVPE | 角色模型、內容與部分 acoustic performance | `historical-baseline`；VCClient realtime evidence 仍 `BLOCKED/DEGRADED` |
 | Streaming VC | Seed-VC upstream | zero-shot reference conversion | `established-baseline`；headless GPU evidence `PASS`，mic E2E `WAITING`；upstream archived |
-| Streaming VC | Seed-VC realtime fork | worker/ring-buffer/device/VAD 路徑比較 | `candidate / PLANNED`，不與既有 venv 混用 |
-| Streaming VC | MeanVC2 | 新的 low-latency zero-shot 候選 | `candidate / PLANNED`，未安裝、未驗證 |
-| Research candidates | X-VC、RT-VC | 追蹤 codec／articulatory streaming 方向 | `research-candidate`，不進目前可執行矩陣 |
+| Streaming VC | MeanVC2 | 下一個優先驗收的 low-latency zero-shot streaming 候選 | `priority candidate / PLANNED`，未安裝、未驗證；[上游宣稱 40 ms chunk 與 110 ms first-packet](https://github.com/ASLP-lab/MeanVC2)，不代表本機結果 |
+| Streaming VC | X-VC | 下一階段 codec-space zero-shot streaming 候選 | `research-candidate`；[官方程式碼](https://github.com/Jerrister/X-VC) 已發布，本機來源、權重、license 與 runtime 尚未 intake |
+| Streaming VC | Seed-VC realtime fork | worker/ring-buffer/device/VAD 路徑比較 | `candidate / PLANNED`，先做獨立 source/revision/runtime intake，不與既有 venv 混用 |
+| Research candidates | RT-VC 與後續新方法 | 追蹤 articulatory／streaming VC 方向 | `research-candidate`，沒有固定 revision/runtime 證據前不進可執行矩陣 |
 | Speech Reconstruction | CosyVoice2 | STT + reference TTS baseline | runtime evidence `PASS`；只作 offline baseline |
 | Speech Reconstruction | Fun-CosyVoice3 | 與 CosyVoice2 A/B | `candidate / PLANNED`，未安裝／未驗證 |
 | Speech Reconstruction | Breeze TTS 2 | voice design／reference clone | runtime evidence `PASS`；本機不能分類為 LIVE |
 
 Streaming VC 與 Speech Reconstruction 分開報告。後者重新生成內容、韻律、呼吸與停頓，不宣稱完整保留原始聲學表演。
+
+### Streaming VC 研究順序
+
+Seed-VC upstream 保留為已建立的本機 baseline；下一順位是完成 MeanVC2 的來源、權重／授權、相依性與隔離環境 intake，再以同一 corpus、audio-rack 和 LIVE_GATE 比較。MeanVC2 完成同一組驗收後，再把 X-VC 作為已發布 streaming zero-shot code 的下一候選；後續新方法沿用相同 intake，不因論文或上游 latency 宣稱直接升級主線。Seed-VC realtime fork 是獨立的執行路徑比較，不能替代 model-to-model evidence。
 
 ## 共用資料契約
 
@@ -84,16 +102,28 @@ Streaming VC 與 Speech Reconstruction 分開報告。後者重新生成內容�
 
 ## LIVE_GATE
 
-完整 capture → backend → audio-rack → virtual routing 的 `e2e_first_packet_ms <= 5000` 才分類為 `LIVE`。只有 offline WAV、backend inference、RTF、model loading、UI HTTP 200 或 `available_providers` 不足以分類。
+完整 capture → backend → audio-rack → virtual routing 的 `e2e_first_packet_ms <= 5000` 是即時候選硬門檻。`LIVE` 還要求本次 physical mic input/final output artifacts 與 hash/identity、至少 600 秒連續零 dropout/underrun，以及人工聽評；未達這些條件時分類 `LIVE_CANDIDATE` 或 `WAITING`。只有 offline WAV、backend inference、RTF、model loading、UI HTTP 200 或 `available_providers` 不足以分類。
 
 使用 [`docs/live-gate.md`](live-gate.md) 與 `tools/live-gate-validate.py`：
 
-- `LIVE`：在 5 秒內且 evidence 欄位完整；仍需 stability 與人工聽測才能成為 live candidate。
+- `LIVE`：真實麥克風完整鏈路在 5 秒內，並具備 artifacts/identity、600 秒穩定性及人工聽評。
+- `LIVE_CANDIDATE`：完整 artifacts/identity 與首包延遲符合門檻，但仍缺長時穩定性或人工聽評。
 - `OFFLINE`：可產生有效輸出，但超過 5 秒或沒有完整即時鏈路。
 - `WAITING`：證據尚未補齊。
 - `BLOCKED`：schema、artifact、輸出或 runtime 有明確錯誤。
 
-目前 `LIVE` 只是延遲分類，不等同自然度、相似度或直播品質 PASS。正式長時間 gate 暫定至少 600 秒、零 dropout／underrun；這是研究驗收門檻，不是產品保證。
+即使完整 `LIVE` PASS，也不等同自然度、相似度或其他硬體／聲線的品質 PASS。600 秒、零 dropout／underrun 是目前研究驗收門檻，不是產品保證。
+
+## UI 設定流程驗收
+
+Seed-VC 官方 GUI 的設定操作只有在以下條件全數通過時，才可標成可直接使用：
+
+1. `--preflight` 確認 source、checkpoint、reference、GUI dependency 與輸入／輸出裝置方向。
+2. user-flow 將 reference、host API、裝置及即時參數送入官方 `start_vc` event；所有 widget 更新都成功，測試不得吞掉設定錯誤。
+3. PortAudio duplex stream 可啟停；四組 reference 的 callback 輸出均為 finite、non-zero，且與注入 source 不相同。
+4. 啟用 loopback 時，VB-CABLE recording endpoint 收到 finite、non-zero 的同案輸出。
+
+這個 GUI user-flow 只驗證設定、backend 與 VB-CABLE 的部分路徑，不等同實體麥克風、full-chain audio-rack、600 秒穩定性或 LIVE PASS。2026-09-26 官方修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四個 GUI settings／backend／loopback case 已 PASS；完整範圍與限制見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
 
 ## Windows routing 語意
 
@@ -133,6 +163,6 @@ Voicemeeter UI 上的 `B` 是 strip bus button；`Voicemeeter Out B1` 是 Window
 ## 目前實作邊界
 
 - 既有 RVC、Seed-VC、CosyVoice2、Breeze artifacts 與 verifier 保留；這次重構只改架構定位與共用契約，不刪除已存在的 runtime evidence。
-- MeanVC2、Seed-VC realtime fork、CosyVoice3 目前只有 candidate intake 文件，沒有本機安裝或模型 PASS。
+- MeanVC2、X-VC、Seed-VC realtime fork、CosyVoice3 目前只有 candidate intake 文件，沒有本機安裝或模型 PASS。
 - audio-rack 已建立 profile、routing、preset 與 `rack-evidence-v1` schema；VB-CABLE／Voicemeeter synthetic route smoke `PASS`，但實體 VST chain、完整 mic E2E、blind listening 仍 `PLANNED/WAITING`。
 - 任何與 RVC packaged VCClient、CUDA provider、模型 ready gate 有關的判定仍以各自最新 verifier 為準；不能被新的架構文件覆蓋。

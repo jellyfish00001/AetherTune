@@ -6,6 +6,8 @@
 
 決定：將 AetherTune 的核心定義改為「本地 Streaming VC 與 Speech Reconstruction 比較工作台」，以完整端到端 `<= 5 秒` 作為 `LIVE` 分類門檻；`> 5 秒` 只列為 `OFFLINE`，不與 Live 混排。
 
+2026-09-26 gate implementation clarification：`<= 5 秒` 僅通過延遲門檻並進入 `LIVE_CANDIDATE`；分類為 `LIVE` 還須 physical-microphone artifacts/identity、至少 600 秒零 dropout／underrun 與人工聽評。詳見 [`live-gate.md`](live-gate.md)。
+
 理由：現有 RVC packaged realtime 有 invalid／全零 chunk，Seed-VC headless evidence 比較接近即時主線，而 CosyVoice／Breeze 的 runtime／RTF 證據不能代替完整 mic E2E。把 Post-FX、routing、benchmark 從 RVC 抽成共用層，才能公平比較模型與後製鏈。
 
 採納內容：

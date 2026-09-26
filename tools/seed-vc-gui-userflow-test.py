@@ -95,6 +95,7 @@ sf = None
 _ORIGINAL_WINDOW = None
 _ORIGINAL_STREAM = None
 _CAPTURES: dict[str, dict[str, object]] = {}
+_SETTINGS_APPLICATION_RESULTS: dict[str, dict[str, object]] = {}
 _CURRENT_LABEL = ""
 _SOURCE_PATH = DEFAULT_SOURCE
 _OUTPUT_ROOT = DEFAULT_OUT
@@ -328,13 +329,11 @@ class _UserFlowWindowMixin:
         if event == "start_vc" and self._pending_values is not None:
             desired = self._pending_values
             self._pending_values = None
-            # 由主 GUI 執行緒更新 widget，再把同一份值交給官方 event_handler。
-            for key, value in desired.items():
-                try:
-                    self[key].update(value=value)
-                except Exception:
-                    pass
-                values[key] = value
+            # 由主 GUI 執行緒更新 widget，再把同一份值交給官方 event_handler；
+            # widget 失敗必須保留在報告中，不能讓 event value 掩蓋設定沒套用。
+            _SETTINGS_APPLICATION_RESULTS[_CURRENT_LABEL] = _apply_gui_settings(
+                self, values, desired
+            )
         return event, values
 
     def _drive_user_flow(self) -> None:
@@ -420,6 +419,46 @@ def _load_runtime_dependencies() -> None:
         pass
 
     sg.Window = _RuntimeUserFlowWindow
+
+
+def _apply_gui_settings(
+    window, values: dict[str, object], desired: dict[str, object]
+) -> dict[str, object]:
+    """套用 GUI 欄位並記錄 widget 或官方 event values 的任何差異。"""
+
+    widget_applied: list[str] = []
+    widget_update_errors: dict[str, str] = {}
+    event_value_errors: dict[str, str] = {}
+    for key, value in desired.items():
+        try:
+            window[key].update(value=value)
+            widget_applied.append(key)
+        except Exception as error:
+            widget_update_errors[key] = f"{type(error).__name__}: {error}"
+        try:
+            values[key] = value
+        except Exception as error:
+            event_value_errors[key] = f"{type(error).__name__}: {error}"
+
+    event_value_mismatches = {
+        key: {"expected": value, "actual": values.get(key)}
+        for key, value in desired.items()
+        if key not in values or values.get(key) != value
+    }
+    passed = (
+        len(widget_applied) == len(desired)
+        and not widget_update_errors
+        and not event_value_errors
+        and not event_value_mismatches
+    )
+    return {
+        "status": "PASS" if passed else "WAITING",
+        "requested": desired,
+        "widget_applied": widget_applied,
+        "widget_update_errors": widget_update_errors,
+        "event_value_errors": event_value_errors,
+        "event_value_mismatches": event_value_mismatches,
+    }
 
 
 def _preflight(source: Path) -> int:
@@ -693,10 +732,24 @@ def main() -> int:
                 and float(loopback_metrics.get("seconds", 0.0)) > 0.5
             )
         )
-        output_pass = backend_output_pass and loopback_pass
+        settings_application = _SETTINGS_APPLICATION_RESULTS.get(
+            label,
+            {
+                "status": "WAITING",
+                "requested": {},
+                "widget_applied": [],
+                "widget_update_errors": {},
+                "event_value_errors": {},
+                "event_value_mismatches": {},
+            },
+        )
+        settings_pass = settings_application.get("status") == "PASS"
+        output_pass = backend_output_pass and loopback_pass and settings_pass
         cases[label] = {
             "status": "PASS" if output_pass else "WAITING",
             "reference": str(REFERENCE_CASES[label]),
+            "settings_application_status": "PASS" if settings_pass else "WAITING",
+            "settings_application": settings_application,
             "input": input_metrics,
             "output": output_metrics,
             "comparison": comparison,
@@ -718,6 +771,13 @@ def main() -> int:
         "test": "official-seed-vc-gui-userflow",
         "source": str(_SOURCE_PATH),
         "settings": USERFLOW_SETTINGS,
+        "settings_application_status": (
+            "PASS"
+            if len(_SETTINGS_APPLICATION_RESULTS) == len(REFERENCE_CASES)
+            and all(item.get("status") == "PASS" for item in _SETTINGS_APPLICATION_RESULTS.values())
+            else "WAITING"
+        ),
+        "settings_application": _SETTINGS_APPLICATION_RESULTS,
         "portaudio_output_device": USERFLOW_SETTINGS["sg_output_device"],
         "input_injection": "callback-injected deterministic male WAV",
         "first_case_startup_grace_seconds": FIRST_CASE_STARTUP_GRACE_SECONDS,

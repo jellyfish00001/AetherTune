@@ -4,34 +4,59 @@
   "title": "AetherTune LIVE_GATE evidence v1",
   "type": "object",
   "required": [
-    "schema_version",
-    "run_id",
-    "backend_id",
-    "route_profile",
-    "hardware",
-    "capture",
-    "timing_ms",
-    "continuity",
-    "output_validation"
+    "schema_version", "run_id", "run_started_at_utc", "backend_id", "route_profile", "model",
+    "hardware", "capture", "route", "timing_ms", "continuity", "output_validation", "artifacts", "human_review"
   ],
   "properties": {
     "schema_version": {"const": "aethertune-live-gate/v1"},
     "run_id": {"type": "string", "minLength": 1},
+    "run_started_at_utc": {"type": "string", "format": "date-time"},
     "backend_id": {"type": "string", "minLength": 1},
     "route_profile": {"type": "string", "minLength": 1},
-    "hardware": {"type": "object"},
-    "capture": {"type": "object"},
+    "model": {
+      "type": "object",
+      "required": ["model_id", "revision", "checkpoint_sha256"],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "required": ["gpu", "gpu_id", "driver_version", "audio_interface", "audio_driver"],
+      "properties": {
+        "gpu": {"type": "string", "minLength": 1},
+        "gpu_id": {"type": "string", "minLength": 1},
+        "driver_version": {"type": "string", "minLength": 1},
+        "audio_interface": {"type": "string", "minLength": 1},
+        "audio_driver": {"type": "string", "minLength": 1}
+      }
+    },
+    "capture": {
+      "type": "object",
+      "required": ["source_type", "device_name", "device_id", "sample_rate_hz", "channels"],
+      "properties": {
+        "source_type": {"enum": ["physical_microphone", "synthetic_callback", "file_injection"]},
+        "device_name": {"type": "string", "minLength": 1},
+        "device_id": {"type": "string", "minLength": 1},
+        "sample_rate_hz": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1}
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["route_id", "input_endpoint", "output_endpoint", "audio_driver"],
+      "properties": {
+        "route_id": {"type": "string", "minLength": 1},
+        "input_endpoint": {"type": "string", "minLength": 1},
+        "output_endpoint": {"type": "string", "minLength": 1},
+        "audio_driver": {"type": "string", "minLength": 1}
+      }
+    },
     "timing_ms": {
       "type": "object",
-      "required": [
-        "capture_to_backend_first_packet_ms",
-        "backend_first_packet_ms",
-        "postfx_first_packet_ms",
-        "routing_first_packet_ms",
-        "e2e_first_packet_ms",
-        "e2e_p50_ms",
-        "e2e_p95_ms"
-      ],
+      "required": ["capture_to_backend_first_packet_ms", "backend_first_packet_ms", "postfx_first_packet_ms", "routing_first_packet_ms", "e2e_first_packet_ms", "e2e_p50_ms", "e2e_p95_ms"],
       "properties": {
         "capture_to_backend_first_packet_ms": {"type": "number", "minimum": 0},
         "backend_first_packet_ms": {"type": "number", "minimum": 0},
@@ -55,10 +80,70 @@
       "type": "object",
       "required": ["status", "finite", "non_zero"],
       "properties": {
-        "status": {"type": "string"},
+        "status": {"enum": ["PASS", "WAITING", "FAIL"]},
         "finite": {"type": "boolean"},
-        "non_zero": {"type": "boolean"}
+        "non_zero": {"type": "boolean"},
+        "sample_rate_hz": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1},
+        "frames": {"type": "integer", "minimum": 1},
+        "duration_sec": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "PASS"}}, "required": ["status"]},
+          "then": {"required": ["sample_rate_hz", "channels", "frames", "duration_sec"]}
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["input_wav", "input_sha256", "output_wav", "output_sha256", "metrics_json", "metrics_sha256"],
+      "properties": {
+        "input_wav": {"type": "string", "minLength": 1},
+        "input_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "output_wav": {"type": "string", "minLength": 1},
+        "output_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "metrics_json": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Hash-bound metrics object must include capture_sample_rate_hz, capture_channels, input_wav_metadata, and output_wav_metadata matching this record and the WAV headers. Each metadata object contains sample_rate_hz, channels, frames, and duration_sec."
+        },
+        "metrics_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
       }
+    },
+    "human_review": {
+      "type": "object",
+      "required": ["status", "review_id"],
+      "properties": {
+        "status": {"enum": ["PASS", "WAITING"]},
+        "review_id": {"type": "string"},
+        "reviewer_id": {"type": "string"},
+        "reviewed_at_utc": {"type": "string", "format": "date-time"},
+        "input_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "output_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "naturalness": {"type": "number", "minimum": 1, "maximum": 5},
+            "target_similarity": {"type": "number", "minimum": 1, "maximum": 5},
+            "performance_preservation": {"type": "number", "minimum": 1, "maximum": 5},
+            "content_accuracy": {"type": "number", "minimum": 1, "maximum": 5},
+            "noise_artifacts": {"type": "number", "minimum": 1, "maximum": 5},
+            "acceptability": {"type": "number", "minimum": 1, "maximum": 5}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "PASS"}}, "required": ["status"]},
+          "then": {
+            "required": ["reviewer_id", "reviewed_at_utc", "input_sha256", "output_sha256", "ratings"],
+            "properties": {
+              "ratings": {"required": ["naturalness", "target_similarity", "performance_preservation", "content_accuracy", "noise_artifacts", "acceptability"]}
+            }
+          }
+        }
+      ]
     }
   }
 }

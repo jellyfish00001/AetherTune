@@ -4,9 +4,9 @@
 
 研究來源：[ASLP-lab/MeanVC2](https://github.com/ASLP-lab/MeanVC2) 與 [arXiv:2606.09050](https://arxiv.org/abs/2606.09050)。上游將它描述為 streaming zero-shot voice conversion，並主張 40 ms chunk、約 110 ms first-packet latency 與 Apache-2.0；這些數字不能直接套用到 RTX 5060 Ti、Windows、AetherTune audio-rack 或完整 virtual routing。
 
-## 為何列入
+## 研究順位
 
-MeanVC2 的研究方向符合 AetherTune 的主題：zero-shot、streaming、低延遲與來源表演保留。它是主力候選，不是目前主線，也尚未完成來源／模型／環境／GPU／音訊 E2E 驗證。
+MeanVC2 是 Seed-VC established baseline 之後，AetherTune 下一順位要 intake 的 Streaming VC 候選；通過同一 corpus、audio-rack 與 LIVE_GATE 後，才和後續 X-VC／新 streaming zero-shot 候選做 A/B。它不是目前主線，也尚未完成來源／模型／環境／GPU／音訊 E2E 驗證。
 
 ## 不可提前宣稱
 

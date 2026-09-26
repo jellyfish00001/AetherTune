@@ -4,17 +4,6 @@
 
 ## 1. 先選路線
 
-### RVC + FCPE/RMVPE
-
-選 RVC 的情況：
-
-- 需要即時麥克風變聲。
-- 要用於 Discord、遊戲或 OBS。
-- 願意準備乾聲資料並訓練角色模型。
-- 願意花時間測試 pitch、index、chunk 與音訊路由。
-
-RVC 會保留較多原始說話內容與聲學表演，但需要角色模型、VCClient、虛擬音訊與延遲驗收。這是最適合長時間即時使用的路線。
-
 ### Seed-VC／Zero-Shot VC
 
 選 Seed-VC 的情況：
@@ -24,6 +13,12 @@ RVC 會保留較多原始說話內容與聲學表演，但需要角色模型、V
 - 可以接受先產生 WAV，而不是直接接入即時通話。
 
 Seed-VC 會由 source 保留內容與表現，reference 提供目標聲線。它不是把 `.pth/.index` 放入 RVC，也不需要建立訓練資料集。
+
+目前 Streaming VC 的日常手動比較基線是 Seed-VC；一般 GUI 啟動、真實 mic 到最終 route 的完整驗收仍有 `WAITING` gate。MeanVC2 是下一個 priority candidate，尚未安裝或在本機驗證。
+
+### RVC + FCPE/RMVPE（historical/degraded）
+
+只有在需要保留既有訓練角色模型、做離線對照或維護舊 VCClient 路徑時才選 RVC。它需要乾聲資料與角色訓練；目前 VCClient 即時鏈路被標為 `historical-baseline / degraded`，不得當成已驗收或推薦的日常 LIVE 路線。新即時比較先以 Seed-VC baseline 建立基準，再按計畫 intake MeanVC2。
 
 ### STT → TTS
 
@@ -49,8 +44,11 @@ Set-Location D:\AetherTune
 若尚未建立獨立環境，先執行一次：
 
 ```powershell
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
 & .\tools\seed-vc-setup.ps1
 ```
+
+Preflight 會一次列出 Python 3.10、固定 upstream revision、Tcl/Tk、checkpoint、HF snapshot 檔案與 ModelScope VAD 的缺項，通過前不會執行 pip。此流程不會 clone repo 或下載權重；找不到 Python 時以 `-Python310 <python.exe>` 明確指定。模型資產需先按專案 source/license 流程取得。
 
 ### 輸入規則
 
@@ -85,7 +83,30 @@ Set-Location D:\AetherTune
 - `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
 - `backends/seed-vc/README.md` 與 `docs/agent-implementation-status-latest.md`：Seed-VC 輸入契約與目前實際驗證摘要。
 
-目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及官方 GUI callback user-flow 的四組 reference 輸出；但 virtual route loopback、人工聽測與長時間 realtime 穩定性仍待補。
+目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及官方 GUI callback user-flow 的四組 reference 輸出；但實體 mic E2E、audio-rack paired bypass/full-chain、人工聽測與 600 秒 realtime 穩定性仍待補。
+
+### 一般使用者：手動即時 GUI
+
+`tools/seed-vc-gui-run.ps1` 啟動官方 realtime-tiny GUI，使用本機 Hifi-GAN profile、FP32 與 CUDA device 0。先唯讀檢查，再啟動：
+
+```powershell
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
+  -InputDeviceName '麥克風 (HyperX QuadCast S)' `
+  -OutputDeviceName 'CABLE Input (VB-Audio Virtual Cable)' `
+  -HostApi 'Windows DirectSound' `
+  -ReferenceWav .\dataset\reference-voices\voice-female-f1.wav
+```
+
+上述裝置名稱是目前這台主機 PortAudio inventory 的完整字串；在其他電腦請替換成 launcher preflight 顯示的完整名稱與對應 Host API。此 Host API 下該 CABLE output 唯一匹配 1 個 endpoint；launcher 會在啟動前重新驗證。
+
+GUI launcher 要由 PowerShell 7.0 以上（`pwsh`）執行。預設會使用 setup 建立且含 Seed-VC GUI dependencies 的 `tools\venvs\seed-vc\Scripts\python.exe`；若改用自訂 venv，傳入 `-Python <venv\Scripts\python.exe>`。`-Python310 <base python.exe>` 僅供 `seed-vc-setup.ps1` 建立 venv 時選 Python 3.10，不能傳給 GUI launcher，也不能拿未安裝 Seed-VC dependencies 的 base Python 取代 venv。
+
+`-InputDeviceName`、`-OutputDeviceName`、`-HostApi` 與 `-ReferenceWav` 都可省略；省略時沿用 launcher 的 isolated session 設定或唯一的 Windows default endpoint。名稱以 preflight 列出的 PortAudio 裝置為準，必須能唯一解析；裝置缺失、重名、方向不符或 input/output Host API 不一致時會停止。Launcher 不更改 Windows default endpoint、不注入測試 WAV、不開啟 stream，也不下載模型。
+
+設定副本、隔離的 HF cache lock 和 ModelScope cache root 位於 ignored `artifacts/seed-vc/gui-session/`；HF 模型目錄只連結到已驗證的本機 snapshot，VAD 以程序內 local-path mapping 讀取已驗證的本機 snapshot。官方 GUI 儲存的裝置／reference 偏好因此落在隔離資料夾，不寫入 third-party repo、使用者 profile 或原 cache。啟動後再次核對畫面上的 reference、input、output、Host API 和 CUDA device 0，再按 `Start VC`；通話結束按 `Stop VC`，關閉視窗。若輸出到 `CABLE Input`，仍要另驗證 `CABLE Output → audio-rack → Voicemeeter B1 → Discord/OBS`。
+
+### 工具測試：deterministic callback harness
 
 正式啟動 GUI user-flow 前，先做不改裝置、不開 stream 的唯讀 preflight：
 
@@ -102,7 +123,7 @@ preflight 通過後執行官方 GUI callback user-flow：
   --output .\artifacts\seed-vc\gui-userflow\<run-id>
 ```
 
-目前最新實測報告在 `artifacts/seed-vc/gui-userflow/phase-20260922-final/gui-userflow-report.json`；它使用 deterministic WAV 注入 callback，輸出只到 VB-CABLE，通過的是 GUI／CUDA／PortAudio callback 與訊號差異 gate，不是人工聽測或完整 `LIVE <= 5s` gate。
+Harness 以 deterministic WAV 注入 callback，輸出可同步錄到 VB-CABLE；輸入不是實體麥克風內容。既有 2026-09-26 report `artifacts/seed-vc/gui-userflow/20260926-after-tcl-repair/gui-userflow-report.json` 的 synthetic route/settings PASS 不能證明實體 mic、full-chain 或 `LIVE <= 5s`。每次 harness 測試要使用新的 `<run-id>` 目錄，避免 artifact 混淆。
 
 ## 4. 使用 RVC
 
@@ -111,10 +132,9 @@ preflight 通過後執行官方 GUI callback user-flow：
 ```text
 乾聲資料 → audit → 切片／保留測試集 → RVC 訓練
 → .pth + .index → model-register.csv → 離線聽測
-→ VCClient → VST → VB-CABLE／Voicemeeter → Discord／OBS
 ```
 
-先讀 [`model-training-guide.md`](model-training-guide.md) 準備資料與模型，再讀 [`operation-guide.md`](operation-guide.md) 接即時路由。
+先讀 [`model-training-guide.md`](model-training-guide.md) 準備資料與模型。舊 VCClient → VST → virtual route 僅供 historical/degraded 對照，REST probe 與 GPU 推論仍未驗收；日常 Streaming VC 路線以 Seed-VC baseline 為先，MeanVC2 保持 `PLANNED`。
 
 ### 目前模型為什麼不能直接視為 ready
 

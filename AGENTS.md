@@ -4,18 +4,19 @@
 
 ## 1. 專案目的
 
-AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（保留來源表演）與 Speech Reconstruction（重新生成聲學表演）。`audio-rack/` 與 `benchmarks/` 是跨 backend 的共用基礎設施，不是第五個模型 backend：
+AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（保留來源表演）與 Speech Reconstruction（重新生成聲學表演）。研究目標是 Windows、本地 RTX 5060 Ti 16GB；品質比較順序是自然度 → 目標音色相似度 → 原始表演保留。完整鏈路首包 `<= 5 秒` 是即時候選硬門檻；physical mic artifact、identity、600 秒連續穩定與人工聽評全數完成才歸為 `LIVE`。`audio-rack/` 與 `benchmarks/` 是跨 backend 的共用基礎設施，不是第五個模型 backend：
 
 | backend/profile | 輸入→輸出 | 是否訓練 | 主要入口／定位 |
 |---|---|---:|---|
 | RVC + FCPE/RMVPE | source／麥克風 → 即時變聲 → VCClient／虛擬音訊 | 要訓練角色模型 | `docs/model-training-guide.md`；`historical-baseline` |
 | Seed-VC upstream | source WAV + reference WAV → output WAV/stream | 不要 | `tools/seed-vc-setup.ps1`、`tools/seed-vc-run.ps1`；`established-baseline` |
-| Seed-VC realtime fork | mic → realtime VC → output route | 不要 | `backends/seed-vc-realtime/README.md`；`candidate / PLANNED` |
-| MeanVC2 | streaming source + reference → output stream | 不要 | `backends/meanvc2/README.md`；`candidate / PLANNED` |
+| MeanVC2 | streaming source + reference → output stream | 不要 | `backends/meanvc2/README.md`；Seed-VC 後的 `priority candidate / PLANNED` |
+| X-VC／新 streaming zero-shot | streaming source + reference → output stream | 不要 | `docs/source-audit.md`；`research-candidate`，尚未 intake |
+| Seed-VC realtime fork | mic → realtime VC → output route | 不要 | `backends/seed-vc-realtime/README.md`；獨立執行路徑 `candidate / PLANNED` |
 | CosyVoice2 / CosyVoice3 | text + reference → output WAV | 不要一般角色訓練 | `tools/cosyvoice-infer.py`；2 baseline、3 candidate |
 | Breeze TTS 2 | text／reference → Voice Design 或 clone → output WAV | 不要一般角色訓練 | `tools/breeze-tts2-run.ps1`；offline candidate |
 
-不要把 Seed-VC、MeanVC2 或 TTS checkpoint 放進 RVC `.pth/.index` 流程，也不要把 STT → TTS 的重建輸出描述成保留原始聲學表演。所有路線都要接到共用 [`audio-rack/`](audio-rack/) 與 benchmark 契約，但不能因此把尚未實測的 rack 寫成 PASS。
+不要把 Seed-VC、MeanVC2、X-VC 或 TTS checkpoint 放進 RVC `.pth/.index` 流程，也不要把 STT → TTS 的重建輸出描述成保留原始聲學表演。所有路線都要接到共用 [`audio-rack/`](audio-rack/) 與 benchmark 契約，但不能因此把尚未實測的 rack 寫成 PASS。
 
 ## 2. 讀取順序與 source of truth
 
@@ -24,21 +25,22 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 3. `docs/model-training-guide.md`：RVC 資料與訓練。
 4. `docs/operation-guide.md`：Windows audio-rack、VCClient/VST/虛擬路由操作。
 5. `docs/live-gate.md`：`LIVE`／`OFFLINE`／`WAITING`／`BLOCKED` 分類。
-6. `backends/<name>/README.md`：後端輸入契約、命令與限制。
-7. `audio-rack/`、`benchmarks/`：共用 Post-FX、routing 與三層 benchmark 契約。
-8. `docs/*verification-latest.md`：實際驗證證據與剩餘風險。
-9. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
-10. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
+6. `docs/architecture.md`、`docs/voice-conversion-architecture.md`：研究需求、backend 分層與候選順序。
+7. `backends/<name>/README.md`：後端輸入契約、命令與限制。
+8. `audio-rack/`、`benchmarks/`：共用 Post-FX、routing 與三層 benchmark 契約。
+9. `docs/*verification-latest.md`：實際驗證證據與剩餘風險。
+10. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
+11. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
 
 若文件與 runtime 證據衝突，以最新可重跑 artifact、實際命令輸出與 verifier 為準，並修正文檔；不要用「模型檔存在」覆蓋 runtime WAITING。
 
 ## 3. 目前已知狀態
 
 - RVC：四組角色模型已透過專案 RVC WebUI pipeline 完成 `FCPE + cuda:0` 離線推論並產生非零 WAV；模型 hash／配對 audit `PASS`，但仍是 `candidate`，來源、授權、訓練 metadata、dataset audit 與 VCClient 即時鏈路尚未完成。模型 audit 見 `docs/rvc-model-audit-latest.md`。
-- Seed-VC：`offline-v1` 男→女／女→男、60 秒長音檔、`realtime-tiny` 3 block smoke 與 200 block／60 秒 headless GPU benchmark 已 PASS；官方 GUI、PortAudio 麥克風端到端、人工聽測與 10 分鐘以上 realtime 仍 WAITING。
+- Seed-VC：`offline-v1` 男→女／女→男、60 秒長音檔與 200 block／60 秒 headless GPU benchmark 已 PASS；2026-09-26 官方修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四組 GUI settings／backend／VB-CABLE loopback user-flow 均 PASS（每案 17/17 欄位成功套用）；實體麥克風 E2E、人工聽測與 10 分鐘以上 realtime 仍 WAITING。
 - CosyVoice2：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 與 CUDA TTS 輸出已完成；主模型 CUDA PASS，隔離 cuDNN 8 probe 證明 speech tokenizer Node 可用 CUDA，但 CampPlus 上游固定 CPU，因此 frontend 仍是 partial CUDA。
 - Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot、Voice Design／男女 reference clone、`fast-all` CUDA graph 與 project-local SoX runner 已 PASS；flash-attn、system SoX、人工音質評估仍 WAITING。`fast-all` 本機 RTF 約 `11.4196`，不能套用 H100 benchmark。
-- MeanVC2、Seed-VC realtime fork、CosyVoice3：目前只有 candidate intake；沒有本機模型、runtime 或 LIVE evidence。
+- Streaming VC 順序為 Seed-VC established baseline → MeanVC2 priority candidate → X-VC／後續新 streaming zero-shot intake；Seed-VC realtime fork 是獨立執行路徑比較。這些候選目前沒有本機模型、runtime 或 LIVE evidence；CosyVoice3 也仍是 candidate。
 - `LIVE_GATE` validator 已建立，但尚未有完整 mic → backend → audio-rack → virtual route 的本機 PASS。
 
 狀態必須使用 `PASS`、`WAITING`、`PLANNED` 或更明確的 `candidate / unregistered`；不得把未驗證項目改成 `ready`。

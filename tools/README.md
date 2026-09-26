@@ -11,12 +11,17 @@
 - `onnx_runtime_probe.py`：用固定合成特徵實際執行 sample RVC ONNX 一次，記錄真正使用的 provider 與輸出摘要。
 - `virtual_cable_loopback.py`：用 440 Hz 合成音測試指定 WASAPI 虛擬播放／錄音端點，不使用實體麥克風；同時產生 metrics JSON 與 WAV hash。找不到端點或 stream 失敗時也會覆寫當次 `FAIL` JSON/WAV，避免沿用舊 PASS 證據。
 - `voicemeeter-route-check.py`：唯讀連線 Voicemeeter Remote API，記錄 B1／Mute／Gain 設定與內部 level meter，同時以合成音驗證 `Voicemeeter Input → B1 → Voicemeeter Out B1`；不呼叫任何設定寫入 API。
-- `audio-rack-evidence-validate.py`：分類 `audio-rack/evidence-v1` 的 PASS／OFFLINE／WAITING／BLOCKED；只檢查契約，不建立假 artifact。
-- `audio-rack-evidence-regression.py`：回歸測試 rack evidence 分類、hash gate、Δ latency 缺失與超過 5 秒情況。
+- `audio-rack-evidence-validate.py`：讀取 rack A/B 的 source、bypass/full-chain WAV 與 metrics JSON，驗檔案、SHA-256、run/model/hardware/route identity 及實測 delta；rack PASS 不等於 LIVE。
+- `audio-rack-evidence-regression.py`：涵蓋未配對、缺檔、hash/identity/timing/continuity/paired-run/output/delta mismatch、靜音與超過 5 秒；確認 rack fixture 送入 LIVE gate 仍是 WAITING。
+- `live-gate-validate.py`／`live-gate-regression.py`：驗證本次 mic input/output artifact、metrics hash 綁定完整 timing/continuity/source type/human review identity+audio hashes+ratings、run 時間與 600 秒穩定性；synthetic source 不能通過 LIVE，不完整的 PASS human review 會 BLOCKED。
 - `voice-backend-check.ps1`：唯讀檢查 RVC venv、Seed-VC source／isolated environment／checkpoint、男／女 reference voice 與 CosyVoice/Breeze TTS 2 模型狀態；不代表端到端品質通過。
-- `seed-vc-run.ps1`：檢查輸入、checkpoint、config 與 SHA-256 後呼叫官方 Seed-VC offline inference，並寫出可追溯的 `seed-vc-run.json`；輸出仍須人工聽測與另行登錄。
-- `seed-vc-gui-userflow-test.py`：以官方 GUI event path 驗證 Seed-VC callback；加上 `--capture-loopback` 時同步錄取 WASAPI `CABLE Output`，並保存 `callback_first_input_ms`、`callback_first_nonzero_output_ms` 與 `cable_output_first_nonzero_after_backend_ms` 的 partial timing；這確認 backend output 穿過 VB-CABLE，但不代表 Light Host full-chain 或 LIVE。
-- `seed-vc-setup.ps1`：建立獨立 Python 3.10 Seed-VC environment，使用 Torch `2.7.1+cu128` 對齊目前 GPU runtime，再安裝 Seed-VC 其餘依賴。
+- `seed-vc-run.ps1`：先以新 run_id 覆寫非 PASS preflight manifest，再檢查輸入、checkpoint、config 與 Seed-VC Python，之後呼叫官方 Seed-VC offline inference；只接受新 WAV 或內容 hash 有變化的本次輸出，stale WAV 不會沿用成 PASS，輸出驗證也使用同一個 Seed-VC venv Python。`seed-vc-run-preflight-regression.ps1` 覆蓋六種缺項並確認舊 PASS 被新 BLOCKED manifest 取代。
+- `seed-vc-gui-userflow-test.py`：以官方 GUI event path 驗證 Seed-VC callback；加上 `--capture-loopback` 時同步錄取 WASAPI `CABLE Output`，並保存 `callback_first_input_ms`、`callback_first_nonzero_output_ms` 與 `cable_output_first_nonzero_after_backend_ms` 的 partial timing。每個 case 會記錄 widget update／event value 狀態；任何設定錯誤都會將該 case 降為 `WAITING`。這不代表 Light Host full-chain 或 LIVE。
+- `seed-vc-gui-settings-regression.py`：用 fake widget 回歸設定套用成功及缺少控制項時必須回報 `WAITING`；不啟動 Tcl/Tk、GUI 或 audio stream。
+- `seed-vc-setup.ps1`：先唯讀檢查 Python 3.10/Tcl-Tk、固定 repo revision、offline/realtime checkpoint、HF cache 必要 snapshots 與 ModelScope VAD，再建立獨立 environment；缺項先完整列出，不 clone source 或下載 weights。`-PreflightOnly` 只讀檢查。
+- `seed-vc-gui-run.ps1`／`seed-vc-gui-bootstrap.py`：需以 PowerShell 7.0+ 的 `pwsh` 啟動；預設採 setup 建立的 Seed-VC venv，只有使用自訂 venv 才傳 `-Python`。手動啟動官方 realtime-tiny GUI；固定 FP32/CUDA 0，精確核對 device/reference、離線檢查本機 HF/ModelScope assets，並將 GUI 設定與 cache lock 放在 ignored `artifacts/seed-vc/gui-session/`。模型本體只讀現有 local snapshots，不隱性下載、不改 upstream repo/user profile/Windows default devices；啟動不注入音訊且不自動 start stream。
+- `seed-vc-gui-overlay.ps1`／`seed-vc-gui-overlay-regression.ps1`：只建立或驗證 session overlay cache junction；同一路徑第二次啟動會實際解析 link target，非 junction／錯誤 target 一律拒絕且不刪除既有內容。Regression 在 `$env:TEMP` 保留唯一 fixture。
+- `seed-vc-readiness-latest.md`：目前開箱 readiness、架構候選、操作步驟、PASS/WAITING/PLANNED 邊界及真實 mic／600 秒／人工驗收說明。
 - `cosyvoice-setup.ps1`：在 WSL2 Ubuntu 建立 CosyVoice Python 3.10 environment、安裝官方依賴與下載 CosyVoice2-0.5B；搭配 `cosyvoice-infer.py` 做 zero-shot／reference clone。
 - `breeze-tts2-setup.ps1`：在 WSL2 Ubuntu 建立 Breeze TTS 2 Python 3.10 environment 與下載官方 checkpoint；模型受 research/non-commercial license 限制。
 - `breeze-tts2-run.ps1`／`breeze-tts2-infer.py`：使用 UTF-8 text file、reference audio／transcript 或 voice design 產生 24 kHz WAV 與 JSON manifest。

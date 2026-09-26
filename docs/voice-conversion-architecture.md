@@ -1,6 +1,6 @@
 # AetherTune 多後端語音架構與比較契約
 
-更新日期：2026-09-22（Asia/Taipei）
+更新日期：2026-09-26（Asia/Taipei）
 
 ## 研究分組
 
@@ -12,7 +12,7 @@
        Streaming VC                   Speech Reconstruction
        保留來源表演                    重新生成聲學表演
               │                             │
-   RVC / Seed-VC / MeanVC2       CosyVoice2 / CosyVoice3 / Breeze
+   RVC / Seed-VC / MeanVC2 / X-VC       CosyVoice2 / CosyVoice3 / Breeze
               │                             │
               └──────────────┬──────────────┘
                              ▼
@@ -43,7 +43,8 @@ Streaming VC 優先比較內容、韻律、情緒、呼吸、笑聲與目標音�
 |---|---|---|---|---|
 | RVC | mic/source + trained role model | `.pth/.index` + f0 | 內容與部分 acoustic performance | 訓練／離線輸出不等於 VCClient realtime |
 | Seed-VC | source + 1–30 秒 reference | zero-shot reference | 來源內容與較多原始表演線索 | upstream benchmark 不等於本機 LIVE |
-| MeanVC2 | streaming source + reference | zero-shot streaming candidate | 研究目標是低延遲與表演保留 | 上游 latency 不等於 RTX 5060 Ti E2E |
+| MeanVC2 | streaming source + reference | 下一順位 zero-shot streaming candidate | 研究目標是低延遲與表演保留 | 上游 [40 ms chunk／110 ms 宣稱](https://github.com/ASLP-lab/MeanVC2) 不等於 RTX 5060 Ti E2E |
+| X-VC | streaming source + reference | codec-space zero-shot streaming research candidate | 由同一 source/reference 契約比較內容與聲線轉換 | [官方程式碼](https://github.com/Jerrister/X-VC) 尚未在本機完成來源、weights、license 或 runtime intake |
 | CosyVoice2/3 | text + prompt/reference | TTS／clone | 文字內容與重建聲線 | 不保證原始笑聲、呼吸、停頓與情緒 |
 | Breeze TTS 2 | text + reference 或 instruction | clone／voice design | 文字內容與重建聲線 | 本機 runtime／RTF 不等於 LIVE |
 
@@ -79,7 +80,7 @@ capture input
   → loopback／terminal capture
 ```
 
-`e2e_first_packet_ms <= 5000` 才是 `LIVE`。正式 live candidate 還需至少 600 秒連續 evidence、zero dropout／underrun 與人工聽測。schema 與分類見 [`docs/live-gate.md`](live-gate.md)。
+`e2e_first_packet_ms <= 5000` 是進入 `LIVE_CANDIDATE` 的延遲硬門檻。`LIVE` 還需要本次 physical-mic input/final-output artifact、hash/identity、至少 600 秒連續 evidence、zero dropout／underrun 與人工聽測。schema 與分類見 [`docs/live-gate.md`](live-gate.md)。
 
 ### 2. Acoustic Objective
 
@@ -110,6 +111,7 @@ physical microphone
 ## 目前 scope
 
 - RVC 既有 verifier、模型 audit 與 VCClient failure evidence 保留，重新定位為 baseline。
-- Seed-VC upstream 的本機 headless evidence 保留；Seed-VC realtime fork 先做 candidate intake。
-- MeanVC2、CosyVoice3 只建立候選位置與驗收契約，不在本輪下載模型或宣稱 runtime PASS。
+- Seed-VC upstream 的本機 headless evidence 保留；2026-09-26 官方 Python 3.10.11 Tcl/Tk Support 修復後，Seed-VC venv preflight 與四個 GUI 設定／backend／VB-CABLE loopback case 均 `PASS`；實體麥克風、Light Host full-chain 與 600 秒穩定性仍待驗收。
+- Streaming VC 順序為 Seed-VC established baseline → MeanVC2 priority candidate → X-VC／新 streaming zero-shot candidate intake；Seed-VC realtime fork 另作執行路徑比較。
+- MeanVC2、X-VC、Seed-VC realtime fork、CosyVoice3 只建立候選位置與驗收契約，不在本輪下載模型或宣稱 runtime PASS。
 - Audio Rack、固定 corpus、LIVE_GATE validator 與三層 benchmark 文件先落地；實際 mic E2E、VST chain、blind listening 是後續工作。

@@ -2,19 +2,21 @@
 
 AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。核心目標是在 RTX 5060 Ti 16GB 與 Windows 本地環境，以 `5 秒` 端到端延遲為硬上限，比較 Streaming Voice Conversion 與 Speech Reconstruction，並用共用的 Capture、Post-FX、Routing 與 Benchmark Pipeline 評估自然度、目標音色相似度、原始表演保留、穩定性與直播可用性。
 
-`<= 5 秒` 才分類為 `LIVE`；`> 5 秒` 分類為 `OFFLINE`，不再和 Live 混合排名。完整分類與 evidence 契約見 [`docs/live-gate.md`](docs/live-gate.md)。
+完整鏈路首包 `<= 5 秒` 是即時候選的硬門檻；`> 5 秒` 分類為 `OFFLINE`。只有 physical mic artifact、run/model/route/hardware identity、600 秒零 dropout/underrun 與人工聽評都齊全才分類為 `LIVE`。完整契約見 [`docs/live-gate.md`](docs/live-gate.md)。
+
+本機 Seed-VC 操作與整體開箱狀態見 [`docs/seed-vc-readiness-latest.md`](docs/seed-vc-readiness-latest.md)；該報告會明列 synthetic PASS、真實 mic／600 秒／人工聽評 WAITING，以及每次驗證的實際 exit/classification。
 
 ## 先看這張選擇表
 
 | 研究路線／結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
-| 即時通話、遊戲、Discord、OBS | **Streaming VC**：Seed-VC realtime → MeanVC2 → 候選 | 通常不要 | mic/source + reference | Seed-VC headless GPU `PASS`；真實 mic E2E、共用 rack、virtual route 仍 `WAITING`；MeanVC2 `PLANNED / candidate` |
+| 即時通話、遊戲、Discord、OBS | **Streaming VC**：Seed-VC baseline → MeanVC2 priority candidate → X-VC／新候選 | 通常不要 | mic/source + reference | Seed-VC headless GPU `PASS`；完整 mic E2E、共用 rack、virtual route 仍 `WAITING`；MeanVC2、X-VC 尚未 intake |
 | 既有低延遲對照 | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | `historical-baseline`；四組離線 GPU 證據 `PASS`，VCClient 即時鏈路 `BLOCKED/DEGRADED` |
 | 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／CosyVoice3／Breeze | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice2／Breeze runtime 證據保留；CosyVoice3 `candidate`；目前不能列為 LIVE |
 
 最簡單的判斷：
 
-- 要「現在講、現在變」：先測 Seed-VC realtime；MeanVC2 intake 完成後再加入同一矩陣。RVC 只作 legacy baseline。
+- 要「現在講、現在變」：Seed-VC 作已建立 baseline；下一個優先 intake 是 MeanVC2，再依同一矩陣加入 X-VC／新 streaming zero-shot 候選。RVC 只作 legacy baseline。
 - 要「不用訓練，先快速試聲線」：選 Seed-VC offline／realtime profile。
 - 要「先辨識文字，再重新說一遍」：選 STT → TTS。它重新生成聲學表演，不會完整保留原始笑聲、呼吸、停頓與語氣。
 - 所有路線都要通過同一個 audio-rack 與 benchmark 契約；不要把 Post-FX 掛在 RVC 專屬流程中。
@@ -33,8 +35,11 @@ Set-Location D:\AetherTune
 如果 `tools/venvs/seed-vc/` 尚未存在，先執行一次：
 
 ```powershell
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
 & .\tools\seed-vc-setup.ps1
 ```
+
+安裝前會檢查 Python 3.10 64-bit、固定的 Seed-VC revision、Tcl/Tk、設定檔、模型 checkpoint 與本機模型快取；如果有缺項，會先一次列完，不會開始 pip 安裝或下載模型權重。若自動發現不到 Python 3.10，明確傳入安裝路徑：`-Python310 <python.exe>`。
 
 然後執行：
 
@@ -47,6 +52,28 @@ Set-Location D:\AetherTune
 ```
 
 交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。這只證明 offline/headless runtime，不是 mic → backend → audio-rack → virtual route 的 LIVE PASS。完整輸入契約與驗證結果見 [`backends/seed-vc/README.md`](backends/seed-vc/README.md) 及 [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)。Seed-VC upstream 已 archived；fork 候選見 [`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)。
+
+### Seed-VC：日常手動即時 GUI
+
+需要 real-time GUI 時，先唯讀檢查，再啟動官方 `real-time-gui.py`：
+
+```powershell
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
+  -InputDeviceName '麥克風裝置完整名稱' `
+  -OutputDeviceName 'CABLE Input (VB-Audio Virtual Cable)' `
+  -HostApi 'Windows DirectSound'
+```
+
+本機此 output 名稱搭配 `Windows DirectSound` 在 PortAudio inventory 唯一匹配 1 個 endpoint；其他主機請換成該機 preflight 顯示的完整 endpoint 名稱與 Host API。
+
+GUI launcher 需要 PowerShell 7.0 以上（`pwsh`）。預設使用 setup 建立的 `tools\venvs\seed-vc\Scripts\python.exe`；自訂 Seed-VC venv 時用 `-Python <venv\Scripts\python.exe>`。setup 的 `-Python310` 只指定建立 venv 用的 Python 3.10 base interpreter，不能代替 GUI venv。
+
+裝置名稱必須逐字符合本機 PortAudio 列舉值；沒有帶參數時使用已保存的隔離設定或 Windows 目前預設端點。若同名裝置出現在多個 Host API，請同時傳 `-HostApi`；不唯一、方向不符、缺失或 input/output 不共用 Host API 時會安全停止。目標參考音可用 `-ReferenceWav <path>` 指定；GUI 啟動後也可在官方介面選擇。清除隔離設定中的舊 reference 用 `-ClearReference`。
+
+Launcher 固定使用 Seed-VC realtime-tiny、Hifi-GAN、FP32、CUDA device 0 與離線本機模型 cache；設定副本與 cache lock 放在 ignored 的 `artifacts/seed-vc/gui-session/`，不改 upstream repo 設定、Windows 預設音訊裝置或使用者 profile，也不下載模型。啟動 GUI 不會自動開音訊 stream；確認畫面上的 input/output 和 reference 後才按 `Start VC`。通話後按 `Stop VC` 再關閉 GUI。若輸出選 `CABLE Input`，要另行驗證 CABLE Output 到 audio-rack／Voicemeeter／Discord 或 OBS 的完整路由。
+
+此一般使用 launcher 不注入 WAV。`seed-vc-gui-userflow-test.py` 是 callback 注入 deterministic WAV 的測試 harness；它的 PASS 只代表設定、backend callback 和 synthetic loopback 範圍，不能當真實麥克風、600 秒或 LIVE 證據。最新狀態見 [`docs/seed-vc-verification-latest.md`](docs/seed-vc-verification-latest.md)。
 
 ### RVC：先用專案 FCPE + GPU，VCClient packaged 另行驗收
 
@@ -101,8 +128,9 @@ Capture / Preprocess
         │
         ▼
   Backend Adapter ──┬─ RVC / FCPE（legacy baseline）
-                    ├─ Seed-VC realtime（established baseline）
+                    ├─ Seed-VC profiles（established baseline）
                     ├─ MeanVC2（candidate）
+                    ├─ X-VC／新 streaming zero-shot（research candidate）
                     └─ STT → CosyVoice2/3/Breeze（reconstruction）
         │
         ▼
@@ -115,7 +143,7 @@ Capture / Preprocess
   Live Technical + Acoustic Objective + Human Listening Benchmarks
 ```
 
-RVC／Seed-VC／MeanVC2 屬於 Streaming VC，目標是保留來源內容與表演；CosyVoice／Breeze 屬於 Speech Reconstruction，目標是以文字重新生成聲音。兩組必須分開報告，但都應共享 capture、audio-rack、routing、artifact 與 benchmark 契約。
+RVC／Seed-VC／MeanVC2／X-VC 屬於 Streaming VC，目標是保留來源內容與表演；CosyVoice／Breeze 屬於 Speech Reconstruction，目標是以文字重新生成聲音。兩組必須分開報告，但都應共享 capture、audio-rack、routing、artifact 與 benchmark 契約。
 
 ## 文件地圖
 
@@ -126,12 +154,13 @@ RVC／Seed-VC／MeanVC2 屬於 Streaming VC，目標是保留來源內容與表�
 3. [`docs/model-training-guide.md`](docs/model-training-guide.md)：RVC 訓練與模型管理；Seed-VC、CosyVoice、Breeze 不需要一般角色訓練。
 4. [`docs/operation-guide.md`](docs/operation-guide.md)：Windows 即時路由與驗收。
 5. [`docs/live-gate.md`](docs/live-gate.md)：`LIVE`／`OFFLINE`／`WAITING`／`BLOCKED` 分類與 evidence 契約。
-6. [`docs/voice-conversion-architecture.md`](docs/voice-conversion-architecture.md)：backend adapter、audio-rack 與 benchmark 架構。
-7. 各後端 README：[`backends/rvc/README.md`](backends/rvc/README.md)、[`backends/seed-vc/README.md`](backends/seed-vc/README.md)、[`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)、[`backends/meanvc2/README.md`](backends/meanvc2/README.md)、[`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md)。
-8. `audio-rack/` 與 `benchmarks/`：共用後製、路由與三層 benchmark 契約。
-9. `docs/*-verification-latest.md`：只看最新實際驗證，不把計畫當成通過。
-10. [`docs/audio-quality-comparison-latest.md`](docs/audio-quality-comparison-latest.md)：目前 WAV 訊號層批次比較；它不是 MOS 或人工音質結論。
-11. [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)：Agent 實作／測試總表與剩餘阻塞。
+6. [`docs/architecture.md`](docs/architecture.md)：研究需求、架構分層、Streaming VC 候選順序與驗收條件。
+7. [`docs/voice-conversion-architecture.md`](docs/voice-conversion-architecture.md)：backend adapter、audio-rack 與 benchmark 架構。
+8. 各後端 README：[`backends/rvc/README.md`](backends/rvc/README.md)、[`backends/seed-vc/README.md`](backends/seed-vc/README.md)、[`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)、[`backends/meanvc2/README.md`](backends/meanvc2/README.md)、[`backends/speech-reconstruction/README.md`](backends/speech-reconstruction/README.md)。
+9. `audio-rack/` 與 `benchmarks/`：共用後製、路由與三層 benchmark 契約。
+10. `docs/*-verification-latest.md`：只看最新實際驗證，不把計畫當成通過。
+11. [`docs/audio-quality-comparison-latest.md`](docs/audio-quality-comparison-latest.md)：目前 WAV 訊號層批次比較；它不是 MOS 或人工音質結論。
+12. [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)：Agent 實作／測試總表與剩餘阻塞。
 
 給 Agent 使用時，先讀根目錄 [`AGENTS.md`](AGENTS.md)，再依任務讀指定文件。根目錄 AGENTS 是專案規則與導航，不取代本 README。
 
@@ -156,7 +185,8 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 - RVC 即時 latency、長時間穩定性、Light Host chain、Discord／OBS loopback 仍未驗收；VB-CABLE 與 Voicemeeter B1 synthetic loopback 已通過，現仍定位為 historical baseline。
 - 共用 audio-rack 的 bypass/full-chain、plugin Δ latency 與 backend 實際 loopback 仍需建立；現有 Light Host + Graillon 記錄不再代表所有 backend 的架構。
 - Seed-VC 已完成雙向離線、60 秒長音檔、realtime-tiny headless latency 與 synthetic virtual route；仍缺人工聽測、多說話者、PortAudio 實體麥克風 E2E、共用 rack 與 10 分鐘穩定性。
-- Seed-VC realtime fork 與 MeanVC2 尚未安裝；CosyVoice3 尚未建立本機 candidate evidence。
+- Seed-VC 官方 GUI：2026-09-26 修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四組 settings／backend／VB-CABLE loopback user-flow 均 `PASS`，每案 17/17 個 GUI 欄位成功套用；實體麥克風、Light Host full-chain、人工聽測與 10 分鐘穩定性仍 `WAITING`，詳見 [`Seed-VC 最新驗證`](docs/seed-vc-verification-latest.md)。
+- MeanVC2、X-VC、Seed-VC realtime fork 尚未安裝或驗證；依序做來源／權重／授權／依賴 intake，再比較同一 corpus。CosyVoice3 尚未建立本機 candidate evidence。
 - `LIVE_GATE` validator 已建立，但沒有真實 mic／virtual route evidence 就不能產生 LIVE PASS。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。
 - Breeze TTS 2 已完成 WSL2、CUDA、Voice Design 男女、reference clone 男女、`fast-all` CUDA graph 與 project-local SoX runner；flash-attn 仍 WAITING，system SoX 未安裝，人工音質評估仍待補。`fast-all` 本機 RTF 約 `11.4196`，不能套用 H100 benchmark。
