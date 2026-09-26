@@ -53,7 +53,7 @@ Launcher 固定 FP32、CUDA device 0、realtime-tiny checkpoint 和官方 XLS-R/
 
 ## 1. 先看結論
 
-目前 Streaming VC baseline 是 Seed-VC。先前官方 Tcl/Tk repair 與 per-user junction 後的一般 Windows session setup/GUI preflight `PASS`，是尚未加入本輪 manifest gate 的舊版 launcher host evidence；本輪加入 realtime-only manifest 後的 setup/GUI 重驗在受限 sandbox 為 `WAITING`，詳見 [`seed-vc-readiness-latest.md`](seed-vc-readiness-latest.md)。兩者都只證實啟動前檢查；手動 GUI `Start VC`/`Stop VC`、真實 mic E2E、audio-rack paired run 與最終收音仍為 `WAITING`。`offline-v1` 的先前推論紀錄不等於本輪 realtime setup 對 Whisper/BigVGAN 或 offline helper completeness 的保證；該範圍仍 `WAITING / out-of-scope`。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
+目前 Streaming VC baseline 是 Seed-VC。2026-09-27 manifest-enabled setup 與 GUI preflight 已在一般 Windows user session 通過；官方 GUI 亦已開啟並目視核對 reference、音訊裝置與參數，未按 `Start VC`、未執行音訊串流。受限 sandbox 的 Tcl `init.tcl` lookup failure 維持 sandbox-only `WAITING`；乾淨新機 bootstrap、真實 mic E2E、audio-rack paired run 與最終收音仍為 `WAITING`，詳見 [`seed-vc-readiness-latest.md`](seed-vc-readiness-latest.md)。舊有四案例 GUI settings／callback loopback 使用 `offline-v1`，只證實該 user-flow，不代表 realtime-tiny 推論或 LIVE。`offline-v1` 的先前推論紀錄也不等於本輪 realtime setup 對 Whisper/BigVGAN 或 offline helper completeness 的保證；該範圍仍 `WAITING / out-of-scope`。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
 
 1. 具授權的乾聲資料與切片。
 2. 訓練輸出的角色 `.pth` 與 `.index`。

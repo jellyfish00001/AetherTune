@@ -6,6 +6,8 @@ AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。�
 
 本機 Seed-VC 操作與整體開箱狀態見 [`docs/seed-vc-readiness-latest.md`](docs/seed-vc-readiness-latest.md)；該報告會明列 synthetic PASS、真實 mic／600 秒／人工聽評 WAITING，以及每次驗證的實際 exit/classification。
 
+專案分層、目前證據、缺口與審查問題見 [`docs/project-architecture-review-report-2026-09-27.md`](docs/project-architecture-review-report-2026-09-27.md)。
+
 ## 先看這張選擇表
 
 | 研究路線／結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
@@ -185,7 +187,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 - RVC 即時 latency、長時間穩定性、Light Host chain、Discord／OBS loopback 仍未驗收；VB-CABLE 與 Voicemeeter B1 synthetic loopback 已通過，現仍定位為 historical baseline。
 - 共用 audio-rack 的 bypass/full-chain、plugin Δ latency 與 backend 實際 loopback 仍需建立；現有 Light Host + Graillon 記錄不再代表所有 backend 的架構。
 - Seed-VC 已完成雙向離線、60 秒長音檔、realtime-tiny headless latency 與 synthetic virtual route；仍缺人工聽測、多說話者、PortAudio 實體麥克風 E2E、共用 rack 與 10 分鐘穩定性。
-- Seed-VC 官方 GUI：2026-09-26 修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四組 settings／backend／VB-CABLE loopback user-flow 均 `PASS`，每案 17/17 個 GUI 欄位成功套用；實體麥克風、Light Host full-chain、人工聽測與 10 分鐘穩定性仍 `WAITING`，詳見 [`Seed-VC 最新驗證`](docs/seed-vc-verification-latest.md)。
+- Seed-VC 官方 GUI：2026-09-27 manifest-enabled setup／GUI preflight 與 GUI 設定目視核對均 `PASS`；既有四組 17/17 settings／backend／VB-CABLE loopback user-flow 使用 `offline-v1`，不代表 `realtime-tiny` inference。實體麥克風、Light Host full-chain、人工聽測與 10 分鐘穩定性仍 `WAITING`，詳見 [`Seed-VC 最新驗證`](docs/seed-vc-readiness-latest.md)。
 - MeanVC2、X-VC、Seed-VC realtime fork 尚未安裝或驗證；依序做來源／權重／授權／依賴 intake，再比較同一 corpus。CosyVoice3 尚未建立本機 candidate evidence。
 - `LIVE_GATE` validator 已建立，但沒有真實 mic／virtual route evidence 就不能產生 LIVE PASS。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。
