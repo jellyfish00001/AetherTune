@@ -1,3 +1,5 @@
+#Requires -Version 7.2
+
 function Get-SeedVcCanonicalDirectoryPath {
     param([Parameter(Mandatory = $true)] [string]$Path)
 

@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string]$Python = '.\tools\venvs\seed-vc\Scripts\python.exe',
@@ -7,6 +7,7 @@ param(
     [string]$Config = '.\tools\external\seed-vc\configs\presets\config_dit_mel_seed_uvit_xlsr_tiny.yml',
     [string]$SessionRoot = '.\artifacts\seed-vc\gui-session',
     [string]$ModelScopeVadCache,
+    [string]$AssetManifest = '.\tools\seed-vc-assets.json',
     [string]$InputDeviceName,
     [string]$OutputDeviceName,
     [string]$HostApi,
@@ -20,22 +21,21 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-gui-overlay.ps1')
 . (Join-Path $PSScriptRoot 'seed-vc-gui-device-selection.ps1')
-$expectedRevision = '51383efd921027683c89e5348211d93ff12ac2a8'
-$expectedCheckpointSha256 = 'C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88'
+. (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
 $resolvedPython = [IO.Path]::GetFullPath($Python)
 $resolvedRepo = [IO.Path]::GetFullPath($Repo)
 $resolvedCheckpoint = [IO.Path]::GetFullPath($Checkpoint)
 $resolvedConfig = [IO.Path]::GetFullPath($Config)
 $resolvedSession = [IO.Path]::GetFullPath($SessionRoot)
+$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
 $guiPath = Join-Path $resolvedRepo 'real-time-gui.py'
 $hifiganConfig = Join-Path $resolvedRepo 'configs\hifigan.yml'
-$cacheRoot = Join-Path $resolvedRepo 'checkpoints'
-$hfAssetMap = @{
-    'models--facebook--wav2vec2-xls-r-300m' = @('pytorch_model.bin', 'config.json', 'preprocessor_config.json')
-    'models--funasr--campplus' = @('campplus_cn_common.bin')
-    'models--FunAudioLLM--CosyVoice-300M' = @('hift.pt')
-}
 $missing = [System.Collections.Generic.List[string]]::new()
+$manifest = $null
+try { $manifest = Read-SeedVcAssetManifest -Path $manifestPath }
+catch { $missing.Add($_.Exception.Message) }
+$expectedRevision = if ($manifest) { [string]$manifest.seed_vc_source.revision } else { $null }
+$cacheNames = if ($manifest) { @($manifest.huggingface_repositories | ForEach-Object { [string]$_.cache_directory }) } else { @() }
 
 if (-not (Test-Path -LiteralPath $resolvedPython -PathType Leaf)) { $missing.Add("Seed-VC Python missing: $resolvedPython") }
 if (-not (Test-Path -LiteralPath $resolvedRepo -PathType Container)) { $missing.Add("Seed-VC source missing: $resolvedRepo") }
@@ -46,10 +46,6 @@ else {
     }
 }
 if (-not (Test-Path -LiteralPath $guiPath -PathType Leaf)) { $missing.Add("Official GUI missing: $guiPath") }
-if (-not (Test-Path -LiteralPath $resolvedCheckpoint -PathType Leaf)) { $missing.Add("realtime-tiny checkpoint missing: $resolvedCheckpoint") }
-elseif ((Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash -ne $expectedCheckpointSha256) {
-    $missing.Add("realtime-tiny checkpoint hash does not match registered local asset $expectedCheckpointSha256")
-}
 if (-not (Test-Path -LiteralPath $resolvedConfig -PathType Leaf)) { $missing.Add("realtime-tiny config missing: $resolvedConfig") }
 else {
     $configText = Get-Content -LiteralPath $resolvedConfig -Raw -Encoding UTF8
@@ -61,33 +57,12 @@ else {
     }
 }
 if (-not (Test-Path -LiteralPath $hifiganConfig -PathType Leaf)) { $missing.Add("Hifi-GAN config missing: $hifiganConfig") }
-$cacheNames = @($hfAssetMap.Keys)
-foreach ($cacheName in $cacheNames) {
-    $cachePath = Join-Path $cacheRoot $cacheName
-    $refPath = Join-Path $cachePath 'refs\main'
-    if (-not (Test-Path -LiteralPath $refPath -PathType Leaf)) {
-        $missing.Add("Required local model cache reference missing (offline only): $cacheName\refs\main")
-        continue
-    }
-    $snapshotId = (Get-Content -LiteralPath $refPath -Raw -Encoding UTF8).Trim()
-    if (-not $snapshotId -or $snapshotId -notmatch '^[0-9a-fA-F]{7,64}$') {
-        $missing.Add("Invalid local model snapshot reference: $cacheName\refs\main")
-        continue
-    }
-    foreach ($assetName in $hfAssetMap[$cacheName]) {
-        $assetPath = Join-Path (Join-Path (Join-Path $cachePath 'snapshots') $snapshotId) $assetName
-        if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf) -or (Get-Item -LiteralPath $assetPath -ErrorAction SilentlyContinue).Length -le 0) {
-            $missing.Add("Required local model asset missing/empty (offline only): $cacheName\snapshots\$snapshotId\$assetName")
-        }
-    }
-}
 if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
 elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
-foreach ($vadAsset in @('model.pt', 'config.yaml', 'configuration.json', 'am.mvn')) {
-    $vadFile = Join-Path $vadModelPath $vadAsset
-    if (-not (Test-Path -LiteralPath $vadFile -PathType Leaf) -or (Get-Item -LiteralPath $vadFile -ErrorAction SilentlyContinue).Length -le 0) {
-        $missing.Add("Required local ModelScope VAD asset missing/empty (downloads disabled): $vadFile")
+if ($manifest) {
+    foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $resolvedRepo -ModelScopeVadPath $vadModelPath -RealtimeCheckpointOverride $resolvedCheckpoint) {
+        $missing.Add($finding)
     }
 }
 
@@ -142,7 +117,11 @@ if ($ReferenceWav -and $ClearReference) { $missing.Add('Use either -ReferenceWav
 
 $preflight = [ordered]@{
     status = if ($missing.Count -eq 0) { 'PASS' } else { 'BLOCKED' }
+    profile_scope = if ($manifest) { $manifest.supported_profile_scope } else { $null }
+    offline_v1_helper_completeness = if ($manifest) { $manifest.offline_v1_helper_completeness } else { $null }
     revision = $expectedRevision
+    asset_manifest = $manifestPath
+    clean_machine_bootstrap_status = if ($manifest) { $manifest.clean_machine_bootstrap_status }
     python = $resolvedPython
     runtime = $runtime
     checkpoint = $resolvedCheckpoint
@@ -167,6 +146,7 @@ $baseConfigPath = Join-Path $sessionConfigDir 'config.json'
 $sessionHifiganPath = Join-Path $sessionConfigDir 'hifigan.yml'
 $sessionCheckpoints = Join-Path $resolvedSession 'checkpoints'
 $sessionModelScope = Join-Path $resolvedSession 'modelscope'
+$cacheRoot = Join-Path $resolvedRepo 'checkpoints'
 $null = New-Item -ItemType Directory -Force -Path $inUseConfigDir, $sessionCheckpoints, (Join-Path $resolvedSession 'hf-home'), $sessionModelScope
 
 Copy-Item -LiteralPath $hifiganConfig -Destination $sessionHifiganPath -Force

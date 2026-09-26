@@ -1,20 +1,26 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Python310,
     [string]$Environment = '.\tools\venvs\seed-vc',
     [string]$Repo = '.\tools\external\seed-vc',
     [string]$ModelScopeVadCache,
+    [string]$AssetManifest = '.\tools\seed-vc-assets.json',
     [switch]$PreflightOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
-$expectedRevision = '51383efd921027683c89e5348211d93ff12ac2a8'
+. (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
 $repoPath = [IO.Path]::GetFullPath($Repo)
 $envRoot = [IO.Path]::GetFullPath($Environment)
+$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
 $envPython = Join-Path $envRoot 'Scripts\python.exe'
 $missing = [System.Collections.Generic.List[string]]::new()
+$manifest = $null
+try { $manifest = Read-SeedVcAssetManifest -Path $manifestPath }
+catch { $missing.Add($_.Exception.Message) }
+$expectedRevision = if ($manifest) { [string]$manifest.seed_vc_source.revision } else { $null }
 
 function Resolve-Python310Path {
     param([string]$RequestedPath)
@@ -58,64 +64,12 @@ if (-not $resolvedPython) {
     $missing.Add('Python 3.10 x64 executable (install it or pass -Python310 <python.exe>)')
 }
 
-$repoFiles = @(
-    'inference.py',
-    'real-time-gui.py',
-    'requirements.txt',
-    'configs\presets\config_dit_mel_seed_uvit_whisper_small_wavenet.yml',
-    'configs\presets\config_dit_mel_seed_uvit_xlsr_tiny.yml',
-    'configs\hifigan.yml'
-)
-foreach ($relativePath in $repoFiles) {
-    $requiredPath = Join-Path $repoPath $relativePath
-    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf) -or
-        (Get-Item -LiteralPath $requiredPath -ErrorAction SilentlyContinue).Length -le 0) {
-        $missing.Add("Seed-VC required file/cache is missing, not a regular file, or empty: $relativePath")
-    }
-}
-foreach ($projectAsset in @(
-    'models\seed-vc\checkpoints\offline-v1\DiT_seed_v2_uvit_whisper_small_wavenet_bigvgan_pruned.pth',
-    'models\seed-vc\checkpoints\realtime-tiny\DiT_uvit_tat_xlsr_ema.pth'
-)) {
-    $checkpointPath = Join-Path $projectRoot $projectAsset
-    if (-not (Test-Path -LiteralPath $checkpointPath -PathType Leaf) -or
-        (Get-Item -LiteralPath $checkpointPath -ErrorAction SilentlyContinue).Length -le 0) {
-        $missing.Add("Project-local Seed-VC checkpoint is missing, not a regular file, or empty: $projectAsset; setup will not download it")
-    }
-}
-
-$hfAssetMap = @{
-    'models--facebook--wav2vec2-xls-r-300m' = @('pytorch_model.bin', 'config.json', 'preprocessor_config.json')
-    'models--funasr--campplus' = @('campplus_cn_common.bin')
-    'models--FunAudioLLM--CosyVoice-300M' = @('hift.pt')
-}
-foreach ($repoName in $hfAssetMap.Keys) {
-    $cachePath = Join-Path (Join-Path $repoPath 'checkpoints') $repoName
-    $refPath = Join-Path $cachePath 'refs\main'
-    if (-not (Test-Path -LiteralPath $refPath -PathType Leaf)) {
-        $missing.Add("Pinned local Hugging Face cache reference is missing: $repoName\refs\main")
-        continue
-    }
-    $snapshotId = (Get-Content -LiteralPath $refPath -Raw -Encoding UTF8).Trim()
-    if (-not $snapshotId -or $snapshotId -notmatch '^[0-9a-fA-F]{7,64}$') {
-        $missing.Add("Invalid Hugging Face snapshot reference in $repoName\refs\main")
-        continue
-    }
-    foreach ($assetName in $hfAssetMap[$repoName]) {
-        $assetPath = Join-Path (Join-Path (Join-Path $cachePath 'snapshots') $snapshotId) $assetName
-        if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf) -or (Get-Item -LiteralPath $assetPath -ErrorAction SilentlyContinue).Length -le 0) {
-            $missing.Add("Required cached model file is missing/empty: $repoName\snapshots\$snapshotId\$assetName")
-        }
-    }
-}
-
 if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
 elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
-foreach ($vadAsset in @('model.pt', 'config.yaml', 'configuration.json', 'am.mvn')) {
-    $vadFile = Join-Path $vadModelPath $vadAsset
-    if (-not (Test-Path -LiteralPath $vadFile -PathType Leaf) -or (Get-Item -LiteralPath $vadFile -ErrorAction SilentlyContinue).Length -le 0) {
-        $missing.Add("Required local ModelScope VAD asset is missing/empty: $vadFile")
+if ($manifest) {
+    foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $repoPath -ModelScopeVadPath $vadModelPath) {
+        $missing.Add($finding)
     }
 }
 
@@ -131,7 +85,8 @@ else {
 
 $pythonProbe = $null
 if ($resolvedPython) {
-    $pythonProbeText = & $resolvedPython -c "import json,sys; p={'version':list(sys.version_info[:3]),'bits':__import__('struct').calcsize('P')*8}; import tkinter; t=tkinter.Tcl(); p['tcl']=t.eval('info patchlevel'); t.call('package','require','Tk'); p['tk']='available'; print(json.dumps(p))" 2>&1
+    $pythonProbeCode = "import json,sys; p={'version':list(sys.version_info[:3]),'bits':__import__('struct').calcsize('P')*8}; import tkinter; t=tkinter.Tcl(); p['tcl']=t.eval('info patchlevel'); t.call('package','require','Tk'); p['tk']='available'; print(json.dumps(p))"
+    $pythonProbeText = & $resolvedPython -c $pythonProbeCode 2>&1
     $pythonProbeExit = $LASTEXITCODE
     if ($pythonProbeExit -eq 0) {
         try {
@@ -149,10 +104,16 @@ if ($resolvedPython) {
     }
 }
 
+$assetManifestCleanMachineStatus = $null
+if ($manifest) { $assetManifestCleanMachineStatus = $manifest.clean_machine_bootstrap_status }
 $preflight = [ordered]@{
     status = if ($missing.Count -eq 0) { 'PASS' } else { 'BLOCKED' }
+    profile_scope = if ($manifest) { $manifest.supported_profile_scope } else { $null }
+    offline_v1_helper_completeness = if ($manifest) { $manifest.offline_v1_helper_completeness } else { $null }
     source = $repoPath
     expected_revision = $expectedRevision
+    asset_manifest = $manifestPath
+    asset_manifest_clean_machine_status = $assetManifestCleanMachineStatus
     python = $resolvedPython
     python_probe = $pythonProbe
     modelscope_vad_path = $vadModelPath
@@ -191,7 +152,8 @@ Write-Output '安裝 Seed-VC requirements.txt 內的其餘相依套件'
 & $envPython -m pip install @packages
 if ($LASTEXITCODE -ne 0) { throw "安裝 Seed-VC 依賴失敗，exit=$LASTEXITCODE" }
 
-& $envPython -c "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+$importSmokeCode = "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+& $envPython -c $importSmokeCode
 if ($LASTEXITCODE -ne 0) { throw "Seed-VC import/Tcl-Tk smoke test 失敗，exit=$LASTEXITCODE" }
 
 Write-Output "Seed-VC environment ready: $envPython"

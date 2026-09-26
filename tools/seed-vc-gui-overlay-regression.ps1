@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'seed-vc-gui-overlay.ps1')
 

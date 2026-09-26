@@ -39,7 +39,7 @@ Set-Location D:\AetherTune
 & .\tools\seed-vc-setup.ps1
 ```
 
-安裝前會檢查 Python 3.10 64-bit、固定的 Seed-VC revision、Tcl/Tk、設定檔、模型 checkpoint 與本機模型快取；如果有缺項，會先一次列完，不會開始 pip 安裝或下載模型權重。若自動發現不到 Python 3.10，明確傳入安裝路徑：`-Python310 <python.exe>`。
+安裝前會檢查 Python 3.10 64-bit、固定的 Seed-VC revision、Tcl/Tk、`realtime-tiny` GUI 設定/checkpoint 與該路線使用的本機模型快取；如果有缺項，會先一次列完，不會開始 pip 安裝或下載模型權重。若自動發現不到 Python 3.10，明確傳入安裝路徑：`-Python310 <python.exe>`。此 gate 不保證 `offline-v1` helper completeness；offline-v1 的 Whisper/BigVGAN 資產維持 `WAITING / out-of-scope`，先前離線推論 evidence 不代表新機 bootstrap 已完整。
 
 然後執行：
 
@@ -51,7 +51,7 @@ Set-Location D:\AetherTune
   -Fp16
 ```
 
-交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。這只證明 offline/headless runtime，不是 mic → backend → audio-rack → virtual route 的 LIVE PASS。完整輸入契約與驗證結果見 [`backends/seed-vc/README.md`](backends/seed-vc/README.md) 及 [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)。Seed-VC upstream 已 archived；fork 候選見 [`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)。
+交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。離線 runner 需要另行具備其 checkpoint/config/helper assets；realtime-only setup 不會核驗 offline-v1 helper completeness，該範圍目前 `WAITING / out-of-scope`。既有 WAV 證據只代表先前 offline/headless runtime，不是新機 bootstrap，也不是 mic → backend → audio-rack → virtual route 的 LIVE PASS。完整輸入契約與驗證結果見 [`backends/seed-vc/README.md`](backends/seed-vc/README.md) 及 [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)。Seed-VC upstream 已 archived；fork 候選見 [`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)。
 
 ### Seed-VC：日常手動即時 GUI
 
@@ -67,7 +67,7 @@ pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
 
 本機此 output 名稱搭配 `Windows DirectSound` 在 PortAudio inventory 唯一匹配 1 個 endpoint；其他主機請換成該機 preflight 顯示的完整 endpoint 名稱與 Host API。
 
-GUI launcher 需要 PowerShell 7.0 以上（`pwsh`）。預設使用 setup 建立的 `tools\venvs\seed-vc\Scripts\python.exe`；自訂 Seed-VC venv 時用 `-Python <venv\Scripts\python.exe>`。setup 的 `-Python310` 只指定建立 venv 用的 Python 3.10 base interpreter，不能代替 GUI venv。
+GUI launcher 與其 junction overlay 需要 PowerShell 7.2 以上（`pwsh`，提供 .NET 6 `ResolveLinkTarget`）。預設使用 setup 建立的 `tools\venvs\seed-vc\Scripts\python.exe`；自訂 Seed-VC venv 時用 `-Python <venv\Scripts\python.exe>`。setup 的 `-Python310` 只指定建立 venv 用的 Python 3.10 base interpreter，不能代替 GUI venv。
 
 裝置名稱必須逐字符合本機 PortAudio 列舉值；沒有帶參數時使用已保存的隔離設定或 Windows 目前預設端點。若同名裝置出現在多個 Host API，請同時傳 `-HostApi`；不唯一、方向不符、缺失或 input/output 不共用 Host API 時會安全停止。目標參考音可用 `-ReferenceWav <path>` 指定；GUI 啟動後也可在官方介面選擇。清除隔離設定中的舊 reference 用 `-ClearReference`。
 

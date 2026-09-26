@@ -29,9 +29,9 @@ Set-Location D:\AetherTune
 pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
 ```
 
-GUI launcher 要求 PowerShell 7.0 以上（`pwsh`）；預設使用 setup 建立的 Seed-VC venv。`-Python310 <base-python.exe>` 只給 setup；若 GUI 改用自訂 venv，才傳 `-Python <venv\Scripts\python.exe>`。
+GUI launcher 要求 PowerShell 7.2 以上（`pwsh`，其 junction 驗證使用 .NET 6 API）；預設使用 setup 建立的 Seed-VC venv。`-Python310 <base-python.exe>` 只給 setup；若 GUI 改用自訂 venv，才傳 `-Python <venv\Scripts\python.exe>`。
 
-第一個 preflight 檢查 Python 3.10、固定 upstream revision、Tcl/Tk、兩種 profile 的 checkpoint/config、本機 HF snapshot 實際必要檔及 ModelScope FSMN-VAD 快取。第二個 preflight 另查 Python runtime、CUDA device 0、GUI 依賴、可唯一解析的 input/output endpoints、realtime checkpoint hash 與 VAD 必要檔；任何一項缺失都會先列出並停止，不會下載模型或改裝置。
+第一個 preflight 檢查 Python 3.10、固定 upstream revision、Tcl/Tk、`realtime-tiny` GUI 所需 checkpoint/config，以及 [`tools/seed-vc-assets.json`](../tools/seed-vc-assets.json) 登記的 realtime snapshot revision、exact size、SHA-256。第二個 preflight 另查 Python runtime、CUDA device 0、GUI 依賴、可唯一解析的 input/output endpoints，並依同一 manifest 重驗 realtime checkpoint 與 GUI 所需 HF/ModelScope 檔案；ModelScope FSMN-VAD 只有本機 observed hash，官方完整 revision/license 仍 `UNKNOWN/WAITING`。此 manifest/setup/GUI gate 不保證 `offline-v1` helper 完整性；Whisper/BigVGAN 資產與 offline helper completeness 維持 `WAITING / out-of-scope`。任何 realtime 必需檔案或 hash 不符都先列出並停止，不會下載模型或改裝置；asset integrity PASS 不代表 clean-machine bootstrap PASS。
 
 啟動一般 GUI 時可傳入明確裝置名稱與 reference：
 
@@ -53,7 +53,7 @@ Launcher 固定 FP32、CUDA device 0、realtime-tiny checkpoint 和官方 XLS-R/
 
 ## 1. 先看結論
 
-目前 Streaming VC baseline 是 Seed-VC；本機完成官方 Tcl/Tk repair 與 per-user junction 後，一般 Windows session 的 setup/GUI preflight 均為 `PASS`。這只證實啟動前檢查；手動 GUI `Start VC`/`Stop VC`、真實 mic E2E、audio-rack paired run 與最終收音仍為 `WAITING`。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
+目前 Streaming VC baseline 是 Seed-VC。先前官方 Tcl/Tk repair 與 per-user junction 後的一般 Windows session setup/GUI preflight `PASS`，是尚未加入本輪 manifest gate 的舊版 launcher host evidence；本輪加入 realtime-only manifest 後的 setup/GUI 重驗在受限 sandbox 為 `WAITING`，詳見 [`seed-vc-readiness-latest.md`](seed-vc-readiness-latest.md)。兩者都只證實啟動前檢查；手動 GUI `Start VC`/`Stop VC`、真實 mic E2E、audio-rack paired run 與最終收音仍為 `WAITING`。`offline-v1` 的先前推論紀錄不等於本輪 realtime setup 對 Whisper/BigVGAN 或 offline helper completeness 的保證；該範圍仍 `WAITING / out-of-scope`。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
 
 1. 具授權的乾聲資料與切片。
 2. 訓練輸出的角色 `.pth` 與 `.index`。
