@@ -16,9 +16,11 @@ plugin full-chain 或 Discord 收音。所有輸出只寫入 artifacts。
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import os
+import re
 import runpy
 import subprocess
 import sys
@@ -48,6 +50,11 @@ REALTIME_CONFIG_PATH = (
     / "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
 )
 HF_CACHE_PATH = GUI_PATH.parent / "checkpoints" / "hf_cache"
+HF_HOME_PATH = HF_CACHE_PATH
+UPSTREAM_REPO = GUI_PATH.parent
+WORKING_DIRECTORY = GUI_PATH.parent
+PROFILE_NAME = "offline-v1"
+_RUNTIME_DETAILS: dict[str, object] = {}
 
 REFERENCE_CASES = {
     "female-young-f004": PROJECT_ROOT / "dataset" / "reference-voices" / "female-young-f004.wav",
@@ -560,7 +567,19 @@ def _preflight(source: Path) -> int:
     report = {
         "status": status,
         "test": "official-seed-vc-gui-userflow-preflight",
+        "profile": PROFILE_NAME,
         "read_only": True,
+        "upstream_repo": str(UPSTREAM_REPO),
+        "working_directory": str(WORKING_DIRECTORY),
+        "hf_home": str(HF_HOME_PATH),
+        "hf_cache": str(HF_CACHE_PATH),
+        "checkpoint": str(CHECKPOINT_PATH),
+        "checkpoint_sha256": (
+            hashlib.sha256(CHECKPOINT_PATH.read_bytes()).hexdigest().upper()
+            if CHECKPOINT_PATH.is_file()
+            else None
+        ),
+        "config": str(REALTIME_CONFIG_PATH),
         "resources": resource_report,
         "missing_resources": missing_resources,
         "devices": device_report,
@@ -627,9 +646,54 @@ def _audio_difference(input_path: Path, output_path: Path) -> dict[str, object]:
 
 def main() -> int:
     global _SOURCE_PATH, _OUTPUT_ROOT, _LOOPBACK_RECORDER, _LOOPBACK_SETUP_ERROR
+    global GUI_PATH, CHECKPOINT_PATH, REALTIME_CONFIG_PATH, HF_HOME_PATH, HF_CACHE_PATH
+    global UPSTREAM_REPO, WORKING_DIRECTORY, PROFILE_NAME, REFERENCE_CASES
+    global USERFLOW_SETTINGS, _RUNTIME_DETAILS
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--profile",
+        choices=("offline-v1", "realtime-tiny"),
+        default="offline-v1",
+        help="Seed-VC profile used by the selected upstream checkpoint/config.",
+    )
+    parser.add_argument(
+        "--repo",
+        type=Path,
+        default=PROJECT_ROOT / "tools" / "external" / "seed-vc",
+        help="Pinned Seed-VC upstream repository containing real-time-gui.py.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="Override the profile checkpoint path.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Override the profile config path.",
+    )
+    parser.add_argument(
+        "--session-root",
+        type=Path,
+        help="Use an existing isolated GUI session overlay for relative files and settings.",
+    )
+    parser.add_argument(
+        "--hf-cache",
+        type=Path,
+        help="Override the local HF cache path; defaults to the session overlay when provided.",
+    )
+    parser.add_argument(
+        "--reference-case",
+        action="append",
+        metavar="NAME=PATH",
+        help="Reference case to run; may be repeated. Defaults to the four checked-in cases.",
+    )
+    parser.add_argument("--host-api", help="Override the PortAudio Host API.")
+    parser.add_argument("--input-device-name", help="Override the PortAudio input endpoint.")
+    parser.add_argument("--output-device-name", help="Override the PortAudio output endpoint.")
     parser.add_argument(
         "--preflight",
         action="store_true",
@@ -646,6 +710,98 @@ def main() -> int:
         help="loopback 錄音端點名稱片段；只在 --capture-loopback 時使用",
     )
     args = parser.parse_args()
+
+    PROFILE_NAME = args.profile
+    UPSTREAM_REPO = args.repo.resolve()
+    GUI_PATH = UPSTREAM_REPO / "real-time-gui.py"
+
+    if PROFILE_NAME == "realtime-tiny":
+        default_checkpoint = (
+            PROJECT_ROOT
+            / "models"
+            / "seed-vc"
+            / "checkpoints"
+            / "realtime-tiny"
+            / "DiT_uvit_tat_xlsr_ema.pth"
+        )
+        default_config = (
+            UPSTREAM_REPO
+            / "configs"
+            / "presets"
+            / "config_dit_mel_seed_uvit_xlsr_tiny.yml"
+        )
+    else:
+        default_checkpoint = CHECKPOINT_PATH
+        default_config = (
+            UPSTREAM_REPO
+            / "configs"
+            / "presets"
+            / "config_dit_mel_seed_uvit_whisper_small_wavenet.yml"
+        )
+    CHECKPOINT_PATH = (args.checkpoint or default_checkpoint).resolve()
+    REALTIME_CONFIG_PATH = (args.config or default_config).resolve()
+
+    if args.session_root:
+        WORKING_DIRECTORY = args.session_root.resolve()
+        if not WORKING_DIRECTORY.is_dir():
+            parser.error(f"Session root must already exist: {WORKING_DIRECTORY}")
+        required_overlay_paths = (
+            WORKING_DIRECTORY / "configs" / "inuse" / "config.json",
+            WORKING_DIRECTORY / "configs" / "hifigan.yml",
+            WORKING_DIRECTORY / "checkpoints",
+            WORKING_DIRECTORY / "hf-home",
+        )
+        missing_overlay_paths = [
+            str(path) for path in required_overlay_paths if not path.exists()
+        ]
+        if missing_overlay_paths:
+            parser.error(
+                "Session root is not a complete Seed-VC overlay: "
+                + ", ".join(missing_overlay_paths)
+            )
+    else:
+        WORKING_DIRECTORY = GUI_PATH.parent
+
+    if args.hf_cache:
+        HF_CACHE_PATH = args.hf_cache.resolve()
+    elif args.session_root:
+        HF_CACHE_PATH = WORKING_DIRECTORY / "checkpoints"
+    else:
+        HF_CACHE_PATH = GUI_PATH.parent / "checkpoints" / "hf_cache"
+    HF_HOME_PATH = (
+        WORKING_DIRECTORY / "hf-home"
+        if args.session_root
+        else HF_CACHE_PATH
+    )
+
+    if args.reference_case is not None:
+        reference_cases: dict[str, Path] = {}
+        for reference_case in args.reference_case:
+            name, separator, path_text = reference_case.partition("=")
+            if (
+                not separator
+                or re.fullmatch(r"[A-Za-z0-9_-]+", name) is None
+                or not path_text
+            ):
+                parser.error(
+                    "--reference-case must use a safe NAME=PATH value, "
+                    f"for example female=D:\\\\voices\\\\female.wav: {reference_case}"
+                )
+            if name in reference_cases:
+                parser.error(f"Duplicate reference case name: {name}")
+            reference_cases[name] = Path(path_text).resolve()
+        if not reference_cases:
+            parser.error("At least one --reference-case is required when overriding cases.")
+        REFERENCE_CASES = reference_cases
+
+    USERFLOW_SETTINGS = dict(USERFLOW_SETTINGS)
+    if args.host_api:
+        USERFLOW_SETTINGS["sg_hostapi"] = args.host_api
+    if args.input_device_name:
+        USERFLOW_SETTINGS["sg_input_device"] = args.input_device_name
+    if args.output_device_name:
+        USERFLOW_SETTINGS["sg_output_device"] = args.output_device_name
+
     _SOURCE_PATH = args.source.resolve()
     if args.preflight:
         return _preflight(_SOURCE_PATH)
@@ -666,7 +822,9 @@ def main() -> int:
             print(f"LOOPBACK setup failed: {_LOOPBACK_SETUP_ERROR}", flush=True)
             _LOOPBACK_RECORDER = None
 
-    sys.path.insert(0, str(GUI_PATH.parent))
+    # Session mode stores configs and relative paths in the isolated overlay,
+    # while imports still come from the pinned upstream repository.
+    sys.path.insert(0, str(UPSTREAM_REPO))
     # runpy 會沿用目前程序的 argv；先將測試工具自己的參數隔離，避免官方
     # argparse 把 --output 誤當成 real-time-gui.py 的參數。
     sys.argv = [
@@ -685,13 +843,15 @@ def main() -> int:
     ]
     original_cwd = Path.cwd()
     try:
-        # 官方 hf_utils 使用相對的 ./checkpoints；保持與手動啟動官方 GUI 相同的 cwd。
-        os.chdir(GUI_PATH.parent)
+        # 官方 GUI 將設定與相對 cache 路徑寫在 CWD；session mode 必須留在隔離 overlay。
+        os.chdir(WORKING_DIRECTORY)
         # 所需模型已在專案的 checkpoints cache；避免每個 GUI cycle 都做遠端 HEAD。
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        os.environ["HF_HOME"] = str(HF_CACHE_PATH)
+        os.environ["HF_HOME"] = str(HF_HOME_PATH)
         os.environ["HF_HUB_CACHE"] = str(HF_CACHE_PATH)
+        os.environ["HUGGINGFACE_HUB_CACHE"] = str(HF_CACHE_PATH)
+        os.environ["TRANSFORMERS_CACHE"] = str(HF_CACHE_PATH)
         import huggingface_hub.constants as hf_constants
 
         # huggingface_hub 已在 FunASR import 時載入 constants，需同步更新記憶體中的
@@ -766,9 +926,52 @@ def main() -> int:
             },
         }
 
+    try:
+        torch_runtime = importlib.import_module("torch")
+        cuda_available = bool(torch_runtime.cuda.is_available())
+        cuda_device_name = (
+            torch_runtime.cuda.get_device_name(0)
+            if cuda_available and torch_runtime.cuda.device_count() > 0
+            else None
+        )
+        _RUNTIME_DETAILS = {
+            "python": sys.version.split()[0],
+            "cuda_available": cuda_available,
+            "cuda_device_count": int(torch_runtime.cuda.device_count()),
+            "gpu0": cuda_device_name,
+        }
+    except Exception as error:
+        _RUNTIME_DETAILS = {
+            "python": sys.version.split()[0],
+            "status": "WAITING",
+            "error": f"{type(error).__name__}: {error}",
+        }
+
     report = {
         "status": "PASS" if all(v["status"] == "PASS" for v in cases.values()) else "WAITING",
         "test": "official-seed-vc-gui-userflow",
+        "profile": PROFILE_NAME,
+        "upstream_repo": str(UPSTREAM_REPO),
+        "working_directory": str(WORKING_DIRECTORY),
+        "hf_home": str(HF_HOME_PATH),
+        "hf_cache": str(HF_CACHE_PATH),
+        "checkpoint": {
+            "path": str(CHECKPOINT_PATH),
+            "sha256": (
+                hashlib.sha256(CHECKPOINT_PATH.read_bytes()).hexdigest().upper()
+                if CHECKPOINT_PATH.is_file()
+                else None
+            ),
+        },
+        "config": {
+            "path": str(REALTIME_CONFIG_PATH),
+            "sha256": (
+                hashlib.sha256(REALTIME_CONFIG_PATH.read_bytes()).hexdigest().upper()
+                if REALTIME_CONFIG_PATH.is_file()
+                else None
+            ),
+        },
+        "runtime": _RUNTIME_DETAILS,
         "source": str(_SOURCE_PATH),
         "settings": USERFLOW_SETTINGS,
         "settings_application_status": (
