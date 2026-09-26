@@ -1,5 +1,7 @@
 # AetherTune／Seed-VC 開箱與 LIVE readiness
 
+2026-09-27 後續修復：realtime-tiny GUI 四組 reference 的設定、有效 callback 輸出與 VB-CABLE loopback 已全數 `PASS`，以 [`backend-install-test-latest.md`](backend-install-test-latest.md) 為本輪證據。下方較早的未啟動串流、offline-v1 四案與候選安裝狀態屬前一階段紀錄；完整 LIVE 仍待另外驗收。
+
 更新日期：2026-09-27（Asia/Taipei）
 
 ## 結論

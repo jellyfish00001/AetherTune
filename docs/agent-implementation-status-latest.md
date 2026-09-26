@@ -1,5 +1,7 @@
 # Agent 實作與測試總表
 
+本輪 2026-09-27 更新：realtime-tiny GUI 四組 reference／設定／有效變聲 callback／VB-CABLE loopback 全數 `PASS`，不再是基本 GUI 全零待修復。最新安裝與測試集中於 [`backend-install-test-latest.md`](backend-install-test-latest.md)；人工聽評在 Agent 完成基本安裝測試後進行，Python 統一不是本輪優先項。
+
 更新日期：2026-09-27（Asia/Taipei）
 
 這份文件回答「目前哪些可以直接使用、哪些仍需要補條件」。`PASS` 只代表指定 gate 有可重跑證據；不代表音質一定符合個人偏好。`WAITING` 是尚未完成或需要人工／系統條件；`BLOCKED` 是目前有明確錯誤，不能當作可用。Seed-VC 開箱操作及本輪 readiness 見 [`seed-vc-readiness-latest.md`](seed-vc-readiness-latest.md)。

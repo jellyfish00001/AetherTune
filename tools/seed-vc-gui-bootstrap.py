@@ -28,6 +28,10 @@ def main() -> None:
             raise SystemExit(f"BLOCKED: {label} does not exist: {path}")
         resolved[key] = path
 
+    # 單機 GUI 限制 CPU worker，避免首次 XLS-R／VAD 與音訊 callback 搶執行緒。
+    import torch
+    torch.set_num_threads(4)
+
     vad_path = resolved["AETHERTUNE_SEED_VC_VAD_PATH"]
     vad_files = ("model.pt", "config.yaml", "configuration.json", "am.mvn")
     missing_vad = [name for name in vad_files if not (vad_path / name).is_file() or (vad_path / name).stat().st_size <= 0]

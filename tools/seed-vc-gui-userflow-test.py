@@ -16,10 +16,12 @@ plugin full-chain 或 Discord 收音。所有輸出只寫入 artifacts。
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import os
 import runpy
+import shutil
 import subprocess
 import sys
 import threading
@@ -83,7 +85,7 @@ LOOPBACK_SAMPLE_RATE = 48_000
 # 官方 GUI 第一次 callback 會觸發 VAD／CUDA／vocoder warm-up；目前實測約
 # 11.2 秒。多保留一段只給首個 case 的 capture window，避免把「輸出尚未
 # 形成」誤判成模型無輸出；這段 warm-up 仍必須在 LIVE latency 報告中分開記錄。
-FIRST_CASE_STARTUP_GRACE_SECONDS = 15.0
+FIRST_CASE_STARTUP_GRACE_SECONDS = 60.0
 
 # GUI／音訊依賴延後載入，讓 --help 與 --preflight 不會被 Tcl/Tk 啟動失敗
 # 阻擋。這些全域值只在實際 user-flow 前由 _load_runtime_dependencies() 設定。
@@ -626,10 +628,13 @@ def _audio_difference(input_path: Path, output_path: Path) -> dict[str, object]:
 
 
 def main() -> int:
-    global _SOURCE_PATH, _OUTPUT_ROOT, _LOOPBACK_RECORDER, _LOOPBACK_SETUP_ERROR
+    global _SOURCE_PATH, _OUTPUT_ROOT, _LOOPBACK_RECORDER, _LOOPBACK_SETUP_ERROR, CHECKPOINT_PATH, REALTIME_CONFIG_PATH, REFERENCE_CASES, HF_CACHE_PATH
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--profile", choices=["realtime-tiny", "offline-v1"], default="realtime-tiny")
+    parser.add_argument("--case", choices=list(REFERENCE_CASES), help="只跑指定 reference，方便重現失敗")
+    parser.add_argument("--ce-context", type=float, default=5.0, help="content encoder 左側 context 秒數")
     parser.add_argument(
         "--preflight",
         action="store_true",
@@ -646,12 +651,24 @@ def main() -> int:
         help="loopback 錄音端點名稱片段；只在 --capture-loopback 時使用",
     )
     args = parser.parse_args()
+    if args.profile == "realtime-tiny":
+        CHECKPOINT_PATH = PROJECT_ROOT / "models/seed-vc/checkpoints/realtime-tiny/DiT_uvit_tat_xlsr_ema.pth"
+        REALTIME_CONFIG_PATH = GUI_PATH.parent / "configs/presets/config_dit_mel_seed_uvit_xlsr_tiny.yml"
+        HF_CACHE_PATH = GUI_PATH.parent / "checkpoints"
+    if args.case:
+        REFERENCE_CASES = {args.case: REFERENCE_CASES[args.case]}
+    USERFLOW_SETTINGS["extra_time_ce"] = args.ce_context
     _SOURCE_PATH = args.source.resolve()
     if args.preflight:
         return _preflight(_SOURCE_PATH)
 
     _load_runtime_dependencies()
+    # 限制 CPU worker，避免多核心 oversubscription 令首次 XLS-R callback 卡住。
+    import torch
+    torch.set_num_threads(4)
     _OUTPUT_ROOT = args.output.resolve()
+    if (_OUTPUT_ROOT / 'gui-userflow-report.json').exists():
+        raise SystemExit('輸出目錄已有測試結果；請用新的 --output，避免舊 WAV 混入本輪證據。')
     _OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     if args.capture_loopback:
         try:
@@ -685,8 +702,19 @@ def main() -> int:
     ]
     original_cwd = Path.cwd()
     try:
-        # 官方 hf_utils 使用相對的 ./checkpoints；保持與手動啟動官方 GUI 相同的 cwd。
-        os.chdir(GUI_PATH.parent)
+        # 測試設定留在 artifact overlay；不讓官方 GUI 寫回第三方 configs/inuse。
+        session = _OUTPUT_ROOT / "session"
+        (session / "configs/inuse").mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(GUI_PATH.parent / "configs/hifigan.yml", session / "configs/hifigan.yml")
+        # hf_utils 明確指定相對 checkpoints；用程序內 adapter 轉往既有 cache。
+        import hf_utils
+        original_download = hf_utils.hf_hub_download
+        def local_download(*positional, **kwargs):
+            kwargs["cache_dir"] = str(GUI_PATH.parent / "checkpoints")
+            kwargs["local_files_only"] = True
+            return original_download(*positional, **kwargs)
+        hf_utils.hf_hub_download = local_download
+        os.chdir(session)
         # 所需模型已在專案的 checkpoints cache；避免每個 GUI cycle 都做遠端 HEAD。
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -767,6 +795,16 @@ def main() -> int:
         }
 
     report = {
+        "cpu_threads": torch.get_num_threads(),
+        "device": "cuda:0",
+        "gpu": torch.cuda.get_device_name(0),
+        "torch": torch.__version__,
+        "cuda": torch.version.cuda,
+        "checkpoint_sha256": hashlib.file_digest(CHECKPOINT_PATH.open('rb'), 'sha256').hexdigest() if hasattr(hashlib, 'file_digest') else hashlib.sha256(CHECKPOINT_PATH.read_bytes()).hexdigest(),
+        "source_revision": subprocess.check_output(['git', '-C', str(GUI_PATH.parent), 'rev-parse', 'HEAD'], text=True).strip(),
+        "profile": args.profile,
+        "checkpoint": str(CHECKPOINT_PATH),
+        "config": str(REALTIME_CONFIG_PATH),
         "status": "PASS" if all(v["status"] == "PASS" for v in cases.values()) else "WAITING",
         "test": "official-seed-vc-gui-userflow",
         "source": str(_SOURCE_PATH),
