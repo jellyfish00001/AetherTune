@@ -32,6 +32,8 @@
 
 ## 本輪工具契約修正與可重跑檢查
 
+- Seed-VC MME endpoint 診斷（2026-09-27）：MME + HyperX QuadCast S 可開啟 `CABLE Output` loopback，但官方 GUI 找不到指定的 MME `CABLE Input` output，於 stream start 前 `BLOCKED`，沒有 callback/backend/loopback metrics。證據 `artifacts/seed-vc/gui-userflow/20260927-phase2-0ad07c8e/realtime-tiny-callback-mme-hyperx/diagnostic.json`，SHA-256 `64780A547D89F232F1617F0FD3DA4D2428E00B0D52C7888469B569C82A7265DB`。
+
 - `tools/rvc-ready-gate-regression.ps1`：PASS；register 與 audit 都拒絕 ready 的 unknown metadata、缺失、malformed、FAIL／DEGRADED artifact、錯誤 model／index path／hash 與 input／output hash。
 - `tools/vcclient-rvc-chunk-validation-regression.ps1`：PASS；逐 chunk 拒絕 empty、short、unaligned、全零、NaN 與 Infinity，只接受 finite non-zero float32 response。
 - `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。

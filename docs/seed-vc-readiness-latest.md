@@ -12,6 +12,8 @@ Seed-VC setup、一般使用者 GUI launcher 與 evidence validator 已有可重
 
 ## 分類摘要
 
+2026-09-27 MME + HyperX 有界診斷在 stream start 前 `BLOCKED`：MME output 清單找不到指定 CABLE endpoint，因此沒有 callback、backend WAV 或 loopback metrics。紀錄與 SHA-256 見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
+
 | 狀態 | 項目 | 證據與限制 |
 |---|---|---|
 | `PASS` | 2026-09-27 Phase 1 import isolation／reference preflight regression（approved Windows host） | `pwsh -NoProfile -File .\tools\seed-vc-assets-regression.ps1 -PythonRuntime D:\AetherTune\tools\venvs\seed-vc\Scripts\python.exe`：exit `0`。實際 CPython 3.10.11 foreign-CWD fixture 重現 `tkinter.py`／`torch.py` shadow；無隔離時 sentinel 被載入，`-I -B` 使用正式 Tcl/Tk／Torch。setup 真 Python preflight 與 synthetic GUI bootstrap 從 foreign CWD 通過；bootstrap 只從明確加入的 fixture upstream repo 匯入。Saved reference 缺檔、相對路徑、CLI override、clear、CLI 與 clear 同時指定、drive-relative、錯誤型別、malformed JSON 均按規則 PASS/BLOCKED；preflight 未建立 overlay，fake normal bootstrap 將相對 saved reference 保存為絕對路徑。沒有載入 checkpoint、啟動 GUI 或 audio stream。 |

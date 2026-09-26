@@ -16,6 +16,8 @@ GUI harness 已調整為逐案保存 widget 更新、官方 event values、設�
 
 ### 2026-09-27 realtime-tiny GUI lifecycle 與 callback
 
+補充 MME device-selection 診斷：使用 MME + HyperX QuadCast S 時，loopback `CABLE Output` endpoint 以 48 kHz 開啟，但官方 GUI 在 `set_devices` 找不到指定的 MME output `CABLE Input (VB-Audio Virtual C`，在 stream start 前丟出 `ValueError`。沒有 callback、backend WAV 或 loopback metrics，harness 也未產生 report。阻塞紀錄 `artifacts/seed-vc/gui-userflow/20260927-phase2-0ad07c8e/realtime-tiny-callback-mme-hyperx/diagnostic.json` SHA-256 為 `64780A547D89F232F1617F0FD3DA4D2428E00B0D52C7888469B569C82A7265DB`。此嘗試屬 endpoint-selection `BLOCKED`，不判定 MME 推論輸出，且不改變 DirectSound callback 的 `WAITING`。
+
 一般 Windows session 使用 Seed-VC CPython 3.10.11、CUDA RTX 5060 Ti、固定 realtime-tiny checkpoint（SHA-256 `C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88`）、DirectSound `CABLE Output` → `CABLE Input` 與 worktree 內隔離 SessionRoot。GUI 手動完成 Start → Stop → Start → Stop；兩輪均有 CUDA `target_lengths`／VC 時間輸出，Stop 後 log 停止增長，關閉視窗後 runner 結束。以同一 SessionRoot 不帶 `-ReferenceWav` 重啟 preflight，`status=PASS`、`missing=[]`、`reference_source=saved`，effective reference 為 `voice-male-m1.wav`。launcher stdout SHA-256：首輪 `B770F4EF2AC1B3E661131099F66BDB5B43BF4CAE774BFE803FCA695A182F23A6`；重啟 `4EC50FB849DFE649E46C2AE44EC81B499F50E12971D01593481FD5E6910D4917`。artifact 位於 `artifacts/seed-vc/gui-userflow/20260927-phase2-0ad07c8e/`，GUI cache/config 僅在對應 `gui-session/` overlay。
 
 同日以官方 GUI event path 跑 deterministic callback harness：GUI 設定套用 `17/17`、Python `3.10.11`、CUDA `true`、GPU `NVIDIA GeForce RTX 5060 Ti`，但第一次來源輸入 21.3 秒／RMS `0.01594` 時，backend output RMS 僅 `0.00002162`、peak `0.00085449`，該次 loopback RMS 為 `0`；把來源增益到 peak `0.65` 後，backend output 與 loopback RMS 仍為 `0`。兩案都應維持 `WAITING`，不能由 CUDA inference log 推論音訊輸出成功。報告 SHA-256 分別為 `0E8B6CD51C304C5D26F8D2D7DD4414DB3E41B37CDCDCD9220D1F0568E198A964` 與 `628FB08C0C9391CF34DA0DE487EFAEBDE21CFEDD9E94BFBC88C02189041EBD04`。獨立 WASAPI `CABLE Input` → `CABLE Output` 3 秒 smoke 則為 `PASS`：144000/144000 frames、RMS `0.082621`、peak `0.16`，report SHA-256 `5E875CE172ABDA11EFCB7E93B47D6F2681AE71347EABE8C1C31557073B73E1A9`。這只證明 cable 路徑本身可傳音，GUI backend→cable 的新測試仍未通過。
@@ -128,6 +130,8 @@ Voicemeeter 參數）：
 ```
 
 ## 已知警告與未完成項目
+
+- MME + HyperX endpoint-selection 診斷因指定 CABLE output 不在 MME output 清單，在 stream start 前 `BLOCKED`；沒有 callback、backend WAV 或 loopback metrics。見上述 `diagnostic.json`。
 
 - 上游推論流程提示應明確傳入 `sampling_rate`；目前仍能產生結果，但應在後續 wrapper 修補或向上游確認。
 - checkpoint 載入時略過 `estimator.input_pos` 與 `estimator.f0_embedder.weight` 兩個 shape mismatch keys；本次沒有因此中止，但尚未完成品質回歸。
