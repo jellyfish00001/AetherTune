@@ -10,8 +10,8 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 |---|---|---:|---|
 | RVC + FCPE/RMVPE | source／麥克風 → 即時變聲 → VCClient／虛擬音訊 | 要訓練角色模型 | `docs/model-training-guide.md`；`historical-baseline` |
 | Seed-VC upstream | source WAV + reference WAV → output WAV/stream | 不要 | `tools/seed-vc-setup.ps1`、`tools/seed-vc-run.ps1`；`established-baseline` |
-| MeanVC2 | streaming source + reference → output stream | 不要 | `backends/meanvc2/README.md`；Seed-VC 後的 `priority candidate / PLANNED` |
-| X-VC／新 streaming zero-shot | streaming source + reference → output stream | 不要 | `docs/source-audit.md`；`research-candidate`，尚未 intake |
+| MeanVC2 | streaming source + reference → output stream | 不要 | `backends/meanvc2/README.md`；已安裝，雙向 CUDA file-driven streaming `PASS` |
+| X-VC | streaming source + reference → output stream | 不要 | `backends/xvc/README.md`；已安裝，雙向 CUDA file-driven streaming `PASS` |
 | Seed-VC realtime fork | mic → realtime VC → output route | 不要 | `backends/seed-vc-realtime/README.md`；獨立執行路徑 `candidate / PLANNED` |
 | CosyVoice2 / CosyVoice3 | text + reference → output WAV | 不要一般角色訓練 | `tools/cosyvoice-infer.py`；2 baseline、3 candidate |
 | Breeze TTS 2 | text／reference → Voice Design 或 clone → output WAV | 不要一般角色訓練 | `tools/breeze-tts2-run.ps1`；offline candidate |
@@ -40,7 +40,7 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 - Seed-VC：`offline-v1` 男→女／女→男、60 秒長音檔與 200 block／60 秒 headless GPU benchmark 已 PASS；2026-09-26 官方修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四組 GUI settings／backend／VB-CABLE loopback user-flow 均 PASS（每案 17/17 欄位成功套用）；實體麥克風 E2E、人工聽測與 10 分鐘以上 realtime 仍 WAITING。
 - CosyVoice2：WSL2 Ubuntu 24.04.4 LTS、Python 3.10、模型 snapshot 與 CUDA TTS 輸出已完成；主模型 CUDA PASS，隔離 cuDNN 8 probe 證明 speech tokenizer Node 可用 CUDA，但 CampPlus 上游固定 CPU，因此 frontend 仍是 partial CUDA。
 - Breeze TTS 2：WSL2 Python 3.10、Torch 2.9.1+cu128、模型 snapshot、Voice Design／男女 reference clone、`fast-all` CUDA graph 與 project-local SoX runner 已 PASS；flash-attn、system SoX、人工音質評估仍 WAITING。`fast-all` 本機 RTF 約 `11.4196`，不能套用 H100 benchmark。
-- Streaming VC 順序為 Seed-VC established baseline → MeanVC2 priority candidate → X-VC／後續新 streaming zero-shot intake；Seed-VC realtime fork 是獨立執行路徑比較。這些候選目前沒有本機模型、runtime 或 LIVE evidence；CosyVoice3 也仍是 candidate。
+- Streaming VC 順序為 Seed-VC established baseline → MeanVC2 → X-VC／後續新 streaming zero-shot。2026-09-27 MeanVC2／X-VC 已下載安裝，雙向 file-driven CUDA WAV 與必要權重 hash `PASS`；完整 mic／rack／600 秒／人工聽評仍 `WAITING`。Seed-VC realtime fork、CosyVoice3 保持 `PLANNED`。最新命令見 `docs/backend-install-test-latest.md`。
 - `LIVE_GATE` validator 已建立，但尚未有完整 mic → backend → audio-rack → virtual route 的本機 PASS。
 
 狀態必須使用 `PASS`、`WAITING`、`PLANNED` 或更明確的 `candidate / unregistered`；不得把未驗證項目改成 `ready`。

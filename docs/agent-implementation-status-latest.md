@@ -27,8 +27,8 @@
 | Common `audio-rack/` | 契約／route smoke `PASS`；runtime `WAITING` | 已登記 `seed-vc-neutral` preset、Graillon 3.2 profile、Seed-VC virtual route 與 `rack-evidence-v1` schema；VB-CABLE 與 Voicemeeter virtual route smoke 可重跑 | Light Host 實體 bypass/full-chain、plugin Δ latency、完整 backend → rack → route loopback 尚未完成 |
 | `LIVE_GATE <= 5s` | validator contract regression `PASS`；真實 evidence `WAITING` | `docs/live-gate.md` 與 `tools/live-gate-validate.py` 可分類 `LIVE/LIVE_CANDIDATE/OFFLINE/WAITING/BLOCKED`；核對本 run WAV/metrics hashes 與 run/model/GPU/device/route identity | 尚無完整 mic → backend → rack → virtual route 的本機 evidence；synthetic source 只可 WAITING |
 | Seed-VC realtime fork | `PLANNED`／`candidate` | 完成 source／scope intake 文件 | 尚未固定本機 revision、建立獨立 environment 或驗證 |
-| MeanVC2 | `priority candidate / PLANNED` | 完成官方來源交叉檢查與驗收契約文件 | 尚未固定本機 revision、下載 checkpoint、安裝、確認 Windows／RTX 5060 Ti 或 E2E |
-| X-VC／新 streaming VC | `research-candidate` | 官方 X-VC 程式碼與 streaming profile 已登錄來源審核；已定義後續滾動 intake 條件 | 尚未固定 revision、確認 checkpoint 條款／依賴或建立本機 runtime |
+| MeanVC2 | `installed / candidate`，基本音訊 `PASS` | 固定 code/model revision、兩組 checkpoint、隔離 venv、雙向 CUDA file-driven streaming WAV、必要權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING` |
+| X-VC | `installed / candidate`，基本音訊 `PASS` | 主模型、GLM tokenizer、ERes2Net、隔離 venv、雙向 CUDA streaming WAV 與權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING`；新 streaming 方法另行 intake |
 | CosyVoice3 | `PLANNED`／`candidate` | 在 speech-reconstruction backend 登記 A/B 方向 | 尚未安裝、確認 license／model snapshot 或本機 benchmark |
 | 三層 benchmark | `PLANNED` | 建立 `benchmarks/corpus/live/quality/subjective/` 契約 | 固定 corpus、paired output、客觀比較與人工盲測尚未完成 |
 
@@ -85,13 +85,13 @@ Set-Location D:\AetherTune
 - VCClient：可繼續追查上游 packaged binary／版本相容性，或改用另一個已支援 RTX 5060 Ti 的 runtime；在沒有新 binary 或 source 修復前，不能由文件把 `BLOCKED` 改成 `PASS`。
 - RVC realtime：可在 VCClient 修復後重跑矩陣；目前短測 dropout 已足以阻擋 10 分鐘測試，不應反覆把同一份失敗證據重命名成通過。
 - Seed-VC：可補 PortAudio／官方 GUI、實體 loopback 與長時間穩定性；目前 headless 測試不涵蓋麥克風權限與裝置 buffer。
-- Seed-VC GUI：2026-09-27 manifest-enabled setup／GUI preflight 與官方 GUI 設定目視核對 `PASS`；既有四案 GUI settings／backend／CABLE callback loopback `PASS` 使用 `offline-v1`，只證明該測試流程可套用設定，不代表 realtime-tiny 推論。之後仍需使用者操作實體麥克風，接 Light Host audio-rack 做 bypass/full-chain、first-packet timing、10 分鐘穩定性與人工聽測。不得以 deterministic callback 或 synthetic route `PASS` 取代完整 LIVE evidence。
+- Seed-VC GUI：2026-09-27 新增 realtime-tiny 四組 reference 的 17/17 設定、有效 CUDA callback 與 CABLE loopback `PASS`；較早 offline-v1 結果保留為歷史 evidence。首次 warm-up 仍可能超過 5 秒；mic、rack、600 秒與人工聽評另驗。不得以 callback 注入 WAV 取代真實 mic／完整 LIVE evidence。
 - 四方法比較：可加入人工聽測表或固定評分規則，但需要使用者實際聽音與確認評分，不應由 Agent 代填主觀音質結論。
 - 共用 audio-rack：先以 Seed-VC 作第一個 mic／loopback candidate，分別測 `bypass` 與 `full-chain`，再把同一 profile 套到其他 backend。
-- MeanVC2：下一順位 priority candidate；先驗來源、授權、revision、依賴與隔離環境，再用同一 corpus 與 Seed-VC 比較。X-VC／新 streaming zero-shot VC 在 MeanVC2 矩陣後 intake；Seed-VC realtime fork 另作執行路徑比較。未完成 intake 前不下載大型權重或改正式主線。
+- MeanVC2／X-VC 已完成下載安裝、固定 revision、必要權重 hash 與雙向 CUDA WAV；本輪基本測試證據見 [`backend-install-test-latest.md`](backend-install-test-latest.md)。接著才做 mic／rack／穩定與人工聽評；Python 統一延後。Seed-VC realtime fork 保持獨立候選。
 - RVC provenance：可在使用者提供有授權的 raw WAV、來源、license、訓練設定後重新 audit、register 與 ready gate。
 - Breeze／CosyVoice：system SoX、flash-attn、人工音質與預設 runtime 仍有可選優化；CosyVoice 隔離 cuDNN 8 probe 已有可重跑 GPU 證據，但不會覆蓋預設 PyTorch cuDNN 9 runtime。
 
 ## 建議下一步
 
-若目標是「現在先用」，先讀根目錄 [`README.md`](../README.md) 的 Seed-VC offline／已驗證 GUI settings flow 或 STT → TTS 命令；若目標是「建立真正 Live 主線」，延伸 Seed-VC 測試到實體 mic → audio-rack → virtual route 與 `LIVE_GATE`，再做 MeanVC2 priority intake，接著比較 X-VC／新候選。RVC packaged conversion 的 HTTP 500／全零輸出仍保留為 baseline 阻塞，不應被新架構文件掩蓋。
+現在可先使用 README 的 Seed-VC tiny GUI 或 MeanVC2／X-VC 本機 WAV 命令；安裝與有效輸出證據见 [`backend-install-test-latest.md`](backend-install-test-latest.md)。完整 Live 主線的下一階段是 mic／audio-rack／virtual route／600 秒與人工聽評；MeanVC2／X-VC 已無「尚未下載安裝」缺口。RVC packaged HTTP 500／全零仍是獨立 baseline 阻塞。

@@ -21,6 +21,8 @@ dataset/reference-voices/*
 # Model weights and indexes
 models/weights/*
 models/indexes/*
+models/meanvc2/
+models/xvc/
 *.pth
 *.pt
 *.index

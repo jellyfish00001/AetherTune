@@ -783,7 +783,7 @@ def main() -> int:
             "comparison": comparison,
             "backend_output_status": "PASS" if backend_output_pass else "WAITING",
             "loopback": loopback_metrics,
-            "loopback_status": "PASS" if loopback_pass else "WAITING",
+            "loopback_status": ("PASS" if loopback_pass else "WAITING") if args.capture_loopback else "SKIPPED",
             "timing_ms": {
                 **(_CAPTURES.get(label, {}).get("timing_ms", {})),
                 **(

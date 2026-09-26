@@ -30,7 +30,8 @@ Seed-VC setup、一般使用者 GUI launcher 與 evidence validator 已有可重
 | `WAITING` | 真實 mic → Seed-VC → audio-rack → virtual route／B1 | 完整鏈路 `e2e_first_packet_ms <= 5000` 是即時候選的硬門檻，目前尚未實測且沒有有效 timing evidence。LIVE 另需 physical mic artifact、run/model/device/route/hardware identity、600 秒零 dropout／underrun 與人工聽評；synthetic loopback 不能補此缺口。 |
 | `WAITING` | 600 秒穩定性與人工聽評 | 尚未完成真實麥克風 600 秒零 dropout／underrun 測試及使用者人工聽評。 |
 | `WAITING` | Light Host／VST bypass 與 full-chain paired A/B | 已有 preset/profile 與 evidence schema；實體 plugin chain 尚無同 source、同 model、同 route、同硬體的成對音檔與實測 delta latency。 |
-| `PLANNED` | MeanVC2、X-VC、Seed-VC realtime fork、CosyVoice3 | 保持隔離 intake 候選；不下載大型權重、不宣稱已安裝或可執行。 |
+| `PASS` | MeanVC2、X-VC 安裝與基本音訊 | 已下載固定 code/model revision、建立隔離 venv，雙向 CUDA file-driven WAV 與必要權重 hash `PASS`；完整 mic／rack／LIVE 仍 `WAITING`。 |
+| `PLANNED` | Seed-VC realtime fork、CosyVoice3 | 保持隔離 intake 候選；尚未安裝／驗證。 |
 | `PLANNED` | 固定 special-speech corpus、acoustic comparison 與盲聽 | 尚未建立經授權且固定 hash 的 corpus 或人工評分；不得以測試訊號推估 MOS、音色相似或自然度。 |
 
 ## 使用者操作流程
@@ -74,8 +75,8 @@ GUI 開啟後，使用者先目視核對 reference、input/output endpoint、Hos
 | RVC + FCPE/RMVPE | `historical-baseline / degraded` | 已保留舊專案及離線 evidence；VCClient 即時證據仍 `BLOCKED/DEGRADED`。不回寫成一般 ready 路線。 |
 | Seed-VC upstream | `established-baseline` | 固定 revision；既有離線/headless/GUI synthetic 範圍 PASS，完整 mic LIVE WAITING。 |
 | Seed-VC realtime fork | `candidate / PLANNED`，獨立執行路徑 | 需分開核對 fork/source/revision/license/dependencies、worker/device/VAD，再和 baseline 以同 corpus 實測。 |
-| MeanVC2 | `priority candidate / PLANNED` | 下一個 Streaming VC intake；先核對來源、revision、weights/model 條款、license、相依性及 Windows/CUDA，再做同 corpus、同 rack/route 比較。上游延遲宣稱不是本機證據。 |
-| X-VC／新 streaming zero-shot | `research-candidate / PLANNED` | MeanVC2 同矩陣之後再 intake；需要固定 revision、權重來源/授權、可重現環境與實測 profile。 |
+| MeanVC2 | `installed / candidate`，基本音訊 `PASS` | 40ms／120ms 模型、固定 code/HF revision、雙向 CUDA file-driven WAV 已完成；mic／rack／LIVE 仍 `WAITING`。 |
+| X-VC | `installed / candidate`，基本音訊 `PASS` | 主模型、GLM tokenizer、ERes2Net 已下載並核對 hash；雙向 CUDA file-driven streaming WAV `PASS`；mic／rack／LIVE `WAITING`。新 streaming 方法另行 intake。 |
 | RT-VC | `paper candidate / PLANNED` | 保留原研究追蹤；目前未核實可執行上游 source、固定 revision、權重或 Windows intake 條件，不寫成可安裝 backend。 |
 | CosyVoice2 | `offline reconstruction baseline` | TTS/reconstruction 產生新聲學表演；不能描述為保留 source performance。現有 WSL2 runtime evidence 不構成 LIVE。 |
 | CosyVoice3 | `candidate / PLANNED` | 先核對官方 source、model license、依賴與隔離測試；不與 CosyVoice2 資產或結論混用。 |
@@ -131,6 +132,6 @@ Realtime-only 正向 fixture 刻意不提供 offline-v1 checkpoint/preset 與 `i
 1. 新機／新使用者需重做官方 Tcl/Tk runtime、setup 與 GUI preflight；不可假定本機 Python310 junction 隨 repo 安裝或可移植。
 2. 使用者檢查實際 endpoint 與 reference 後，手動啟動 GUI、短時測試、停止並保存完整 run telemetry。
 3. 完成同一 source 的 rack bypass/full-chain pair，再做真實 mic 600 秒測試與 human listening review。
-4. 先補 corpus、source/reference consent/license/register；然後以 Seed-VC 建立比較底線，再按 MeanVC2 → X-VC/新 streaming 候選 intake。RT-VC 先留在 paper/source research；CosyVoice3 只列 reconstruction candidate。
+4. MeanVC2／X-VC 已完成安裝與基本 CUDA WAV 測試，接著用固定 corpus 比較 Seed-VC／MeanVC2／X-VC，補 source/reference consent/license/register。新 streaming 方法另行 intake；RT-VC／CosyVoice3 保持候選。
 
 操作細節見 [`README.md`](../README.md)、[`docs/user-guide.md`](user-guide.md)、[`docs/operation-guide.md`](operation-guide.md)、[`docs/live-gate.md`](live-gate.md) 與 [`backends/seed-vc/README.md`](../backends/seed-vc/README.md)。

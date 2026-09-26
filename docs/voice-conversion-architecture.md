@@ -44,7 +44,7 @@ Streaming VC 優先比較內容、韻律、情緒、呼吸、笑聲與目標音�
 | RVC | mic/source + trained role model | `.pth/.index` + f0 | 內容與部分 acoustic performance | 訓練／離線輸出不等於 VCClient realtime |
 | Seed-VC | source + 1–30 秒 reference | zero-shot reference | 來源內容與較多原始表演線索 | upstream benchmark 不等於本機 LIVE |
 | MeanVC2 | streaming source + reference | 下一順位 zero-shot streaming candidate | 研究目標是低延遲與表演保留 | 上游 [40 ms chunk／110 ms 宣稱](https://github.com/ASLP-lab/MeanVC2) 不等於 RTX 5060 Ti E2E |
-| X-VC | streaming source + reference | codec-space zero-shot streaming research candidate | 由同一 source/reference 契約比較內容與聲線轉換 | [官方程式碼](https://github.com/Jerrister/X-VC) 尚未在本機完成來源、weights、license 或 runtime intake |
+| X-VC | streaming source + reference | 已安裝 codec-space zero-shot streaming candidate | 由同一 source/reference 契約比較內容與聲線轉換 | 固定 revision、權重 hash 與雙向 CUDA WAV `PASS`；完整 LIVE `WAITING` |
 | CosyVoice2/3 | text + prompt/reference | TTS／clone | 文字內容與重建聲線 | 不保證原始笑聲、呼吸、停頓與情緒 |
 | Breeze TTS 2 | text + reference 或 instruction | clone／voice design | 文字內容與重建聲線 | 本機 runtime／RTF 不等於 LIVE |
 
@@ -112,6 +112,6 @@ physical microphone
 
 - RVC 既有 verifier、模型 audit 與 VCClient failure evidence 保留，重新定位為 baseline。
 - Seed-VC upstream 的本機 headless evidence 保留；2026-09-26 官方 Python 3.10.11 Tcl/Tk Support 修復後，Seed-VC venv preflight 與四個 GUI 設定／backend／VB-CABLE loopback case 均 `PASS`；實體麥克風、Light Host full-chain 與 600 秒穩定性仍待驗收。
-- Streaming VC 順序為 Seed-VC established baseline → MeanVC2 priority candidate → X-VC／新 streaming zero-shot candidate intake；Seed-VC realtime fork 另作執行路徑比較。
-- MeanVC2、X-VC、Seed-VC realtime fork、CosyVoice3 只建立候選位置與驗收契約，不在本輪下載模型或宣稱 runtime PASS。
+- Streaming VC 比較順序為 Seed-VC baseline → 已安裝的 MeanVC2 → 已安裝的 X-VC；後續新 streaming 方法與 Seed-VC realtime fork 另作 intake。
+- 2026-09-27 MeanVC2／X-VC 已下載安裝並完成雙向 CUDA file-driven streaming 音訊 `PASS`；mic／rack／600 秒／人工聽評另驗。實作僅沿用既有目錄與 setup/run wrapper，Python 統一延後。Seed-VC realtime fork／CosyVoice3 仍 `PLANNED`。
 - Audio Rack、固定 corpus、LIVE_GATE validator 與三層 benchmark 文件先落地；實際 mic E2E、VST chain、blind listening 是後續工作。

@@ -72,8 +72,8 @@ Live 延遲是分類門檻；只有通過門檻的 profile 才能按自然度、
 |---|---|---|---|
 | Streaming VC | RVC + FCPE/RMVPE | 角色模型、內容與部分 acoustic performance | `historical-baseline`；VCClient realtime evidence 仍 `BLOCKED/DEGRADED` |
 | Streaming VC | Seed-VC upstream | zero-shot reference conversion | `established-baseline`；headless GPU evidence `PASS`，mic E2E `WAITING`；upstream archived |
-| Streaming VC | MeanVC2 | 下一個優先驗收的 low-latency zero-shot streaming 候選 | `priority candidate / PLANNED`，未安裝、未驗證；[上游宣稱 40 ms chunk 與 110 ms first-packet](https://github.com/ASLP-lab/MeanVC2)，不代表本機結果 |
-| Streaming VC | X-VC | 下一階段 codec-space zero-shot streaming 候選 | `research-candidate`；[官方程式碼](https://github.com/Jerrister/X-VC) 已發布，本機來源、權重、license 與 runtime 尚未 intake |
+| Streaming VC | MeanVC2 | 已安裝的 low-latency zero-shot streaming candidate | Windows／RTX 5060 Ti 雙向 CUDA file-driven WAV `PASS`；完整 mic／rack／LIVE `WAITING` |
+| Streaming VC | X-VC | 已安裝的 codec-space zero-shot streaming candidate | 雙向 CUDA streaming WAV `PASS`，主模型、GLM tokenizer、ERes2Net hash 已核對；完整 mic／rack／LIVE `WAITING` |
 | Streaming VC | Seed-VC realtime fork | worker/ring-buffer/device/VAD 路徑比較 | `candidate / PLANNED`，先做獨立 source/revision/runtime intake，不與既有 venv 混用 |
 | Research candidates | RT-VC 與後續新方法 | 追蹤 articulatory／streaming VC 方向 | `research-candidate`，沒有固定 revision/runtime 證據前不進可執行矩陣 |
 | Speech Reconstruction | CosyVoice2 | STT + reference TTS baseline | runtime evidence `PASS`；只作 offline baseline |
@@ -84,7 +84,7 @@ Streaming VC 與 Speech Reconstruction 分開報告。後者重新生成內容�
 
 ### Streaming VC 研究順序
 
-Seed-VC upstream 保留為已建立的本機 baseline；下一順位是完成 MeanVC2 的來源、權重／授權、相依性與隔離環境 intake，再以同一 corpus、audio-rack 和 LIVE_GATE 比較。MeanVC2 完成同一組驗收後，再把 X-VC 作為已發布 streaming zero-shot code 的下一候選；後續新方法沿用相同 intake，不因論文或上游 latency 宣稱直接升級主線。Seed-VC realtime fork 是獨立的執行路徑比較，不能替代 model-to-model evidence。
+Seed-VC upstream 保留為 baseline；MeanVC2／X-VC 已完成固定 code/model revision、隔離安裝與雙向 CUDA WAV，接著比較同 corpus、audio-rack 與 LIVE_GATE。用現有目錄加少量 setup/run wrapper 即可；單人維護不新增常駐服務、資料庫或 registry framework。Python 統一延後。Seed-VC realtime fork 保持獨立候選。
 
 ## 共用資料契約
 
@@ -163,6 +163,6 @@ Voicemeeter UI 上的 `B` 是 strip bus button；`Voicemeeter Out B1` 是 Window
 ## 目前實作邊界
 
 - 既有 RVC、Seed-VC、CosyVoice2、Breeze artifacts 與 verifier 保留；這次重構只改架構定位與共用契約，不刪除已存在的 runtime evidence。
-- MeanVC2、X-VC、Seed-VC realtime fork、CosyVoice3 目前只有 candidate intake 文件，沒有本機安裝或模型 PASS。
+- MeanVC2／X-VC 已安裝且雙向 CUDA 音訊轉換 `PASS`，見 [`backend-install-test-latest.md`](backend-install-test-latest.md)；Seed-VC realtime fork／CosyVoice3 仍 `PLANNED`。
 - audio-rack 已建立 profile、routing、preset 與 `rack-evidence-v1` schema；VB-CABLE／Voicemeeter synthetic route smoke `PASS`，但實體 VST chain、完整 mic E2E、blind listening 仍 `PLANNED/WAITING`。
 - 任何與 RVC packaged VCClient、CUDA provider、模型 ready gate 有關的判定仍以各自最新 verifier 為準；不能被新的架構文件覆蓋。
