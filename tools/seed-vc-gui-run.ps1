@@ -18,16 +18,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-gui-overlay.ps1')
 . (Join-Path $PSScriptRoot 'seed-vc-gui-device-selection.ps1')
 . (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
-$resolvedPython = [IO.Path]::GetFullPath($Python)
-$resolvedRepo = [IO.Path]::GetFullPath($Repo)
-$resolvedCheckpoint = [IO.Path]::GetFullPath($Checkpoint)
-$resolvedConfig = [IO.Path]::GetFullPath($Config)
-$resolvedSession = [IO.Path]::GetFullPath($SessionRoot)
-$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
+$resolvedPython = Resolve-SeedVcProjectPath -Path $Python -ProjectRoot $projectRoot
+$resolvedRepo = Resolve-SeedVcProjectPath -Path $Repo -ProjectRoot $projectRoot
+$resolvedCheckpoint = Resolve-SeedVcProjectPath -Path $Checkpoint -ProjectRoot $projectRoot
+$resolvedConfig = Resolve-SeedVcProjectPath -Path $Config -ProjectRoot $projectRoot
+$resolvedSession = Resolve-SeedVcProjectPath -Path $SessionRoot -ProjectRoot $projectRoot
+$manifestPath = Resolve-SeedVcProjectPath -Path $AssetManifest -ProjectRoot $projectRoot
 $guiPath = Join-Path $resolvedRepo 'real-time-gui.py'
 $hifiganConfig = Join-Path $resolvedRepo 'configs\hifigan.yml'
 $missing = [System.Collections.Generic.List[string]]::new()
@@ -57,8 +56,8 @@ else {
     }
 }
 if (-not (Test-Path -LiteralPath $hifiganConfig -PathType Leaf)) { $missing.Add("Hifi-GAN config missing: $hifiganConfig") }
-if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
-elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
+if ($ModelScopeVadCache) { $vadModelPath = Resolve-SeedVcProjectPath -Path $ModelScopeVadCache -ProjectRoot $projectRoot }
+elseif ($env:MODELSCOPE_CACHE) { $vadCacheRoot = Resolve-SeedVcProjectPath -Path $env:MODELSCOPE_CACHE -ProjectRoot $projectRoot; $vadModelPath = Join-Path $vadCacheRoot 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 if ($manifest) {
     foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $resolvedRepo -ModelScopeVadPath $vadModelPath -RealtimeCheckpointOverride $resolvedCheckpoint) {
@@ -71,8 +70,16 @@ $devices = @()
 $selectedInputPreflight = $null
 $selectedOutputPreflight = $null
 $preflightSettingsPath = Join-Path $resolvedSession 'configs\inuse\config.json'
+$savedSettings = @{}
+$referenceResolution = $null
+try {
+    $savedSettings = Read-SeedVcGuiSettings -Path $preflightSettingsPath
+    $referenceResolution = Resolve-SeedVcReference -SavedSettings $savedSettings -ProjectRoot $projectRoot -SettingsPath $preflightSettingsPath -RequestedPath $ReferenceWav -ClearReference:$ClearReference
+}
+catch { $missing.Add($_.Exception.Message) }
+
 if (Test-Path -LiteralPath $resolvedPython -PathType Leaf) {
-    $runtimeText = & $resolvedPython -c "import json,torch,sounddevice as sd,FreeSimpleGUI; print(json.dumps({'python':__import__('sys').version.split()[0],'cuda_available':torch.cuda.is_available(),'cuda_count':torch.cuda.device_count(),'gpu0':torch.cuda.get_device_name(0) if torch.cuda.is_available() and torch.cuda.device_count() else None,'hostapis':sd.query_hostapis(),'devices':[{ 'index':i,'name':d['name'],'hostapi':int(d['hostapi']),'max_input_channels':int(d['max_input_channels']),'max_output_channels':int(d['max_output_channels'])} for i,d in enumerate(sd.query_devices())],'defaults':list(sd.default.device)}))" 2>&1
+    $runtimeText = & $resolvedPython -I -B -c "import json,torch,sounddevice as sd,FreeSimpleGUI; print(json.dumps({'python':__import__('sys').version.split()[0],'cuda_available':torch.cuda.is_available(),'cuda_count':torch.cuda.device_count(),'gpu0':torch.cuda.get_device_name(0) if torch.cuda.is_available() and torch.cuda.device_count() else None,'hostapis':sd.query_hostapis(),'devices':[{'index':i,'name':d['name'],'hostapi':int(d['hostapi']),'max_input_channels':int(d['max_input_channels']),'max_output_channels':int(d['max_output_channels'])} for i,d in enumerate(sd.query_devices())],'defaults':list(sd.default.device)}))" 2>&1
     $runtimeExit = $LASTEXITCODE
     if ($runtimeExit -ne 0) { $missing.Add("Seed-VC runtime/device preflight failed: $($runtimeText -join ' ')") }
     else {
@@ -81,11 +88,6 @@ if (Test-Path -LiteralPath $resolvedPython -PathType Leaf) {
             $devices = @($runtime.devices)
             if (-not $runtime.cuda_available -or $runtime.cuda_count -lt 1) { $missing.Add('Torch CUDA device 0 is unavailable; the GUI launcher does not fall back to CPU') }
 
-            $savedSettings = @{}
-            if (Test-Path -LiteralPath $preflightSettingsPath -PathType Leaf) {
-                try { $savedSettings = Get-Content -LiteralPath $preflightSettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable }
-                catch { $missing.Add("Isolated Seed-VC settings are invalid JSON: $preflightSettingsPath") }
-            }
             $defaultIds = @($runtime.defaults)
             $defaultInputId = if ($defaultIds.Count -gt 0 -and $null -ne $defaultIds[0]) { [int]$defaultIds[0] } else { -1 }
             $defaultOutputId = if ($defaultIds.Count -gt 1 -and $null -ne $defaultIds[1]) { [int]$defaultIds[1] } else { -1 }
@@ -108,13 +110,6 @@ if (Test-Path -LiteralPath $resolvedPython -PathType Leaf) {
     }
 }
 
-$referencePath = $null
-if ($ReferenceWav) {
-    if (-not (Test-Path -LiteralPath $ReferenceWav -PathType Leaf)) { $missing.Add("Reference WAV not found: $ReferenceWav") }
-    else { $referencePath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $ReferenceWav).Path) }
-}
-if ($ReferenceWav -and $ClearReference) { $missing.Add('Use either -ReferenceWav or -ClearReference, not both') }
-
 $preflight = [ordered]@{
     status = if ($missing.Count -eq 0) { 'PASS' } else { 'BLOCKED' }
     profile_scope = if ($manifest) { $manifest.supported_profile_scope } else { $null }
@@ -124,9 +119,13 @@ $preflight = [ordered]@{
     clean_machine_bootstrap_status = if ($manifest) { $manifest.clean_machine_bootstrap_status }
     python = $resolvedPython
     runtime = $runtime
+    session_root = $resolvedSession
     checkpoint = $resolvedCheckpoint
     checkpoint_sha256 = if (Test-Path -LiteralPath $resolvedCheckpoint -PathType Leaf) { (Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash } else { $null }
     config = $resolvedConfig
+    requested_reference = $ReferenceWav
+    effective_reference = if ($referenceResolution) { $referenceResolution.EffectivePath } else { $null }
+    reference_source = if ($referenceResolution) { $referenceResolution.Source } else { $null }
     vocoder = 'Hifi-GAN'
     model_cache = 'local-only / offline'
     modelscope_vad_path = $vadModelPath
@@ -175,10 +174,7 @@ $configData = @{
     extra_time = 0.5
     extra_time_right = 0.02
 }
-if (Test-Path -LiteralPath $sessionConfigPath -PathType Leaf) {
-    try { $configData = Get-Content -LiteralPath $sessionConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable }
-    catch { throw "Isolated Seed-VC session settings are invalid JSON: $sessionConfigPath" }
-}
+foreach ($key in $savedSettings.Keys) { $configData[$key] = $savedSettings[$key] }
 
 $defaults = @($runtime.defaults)
 $inputIndex = if ($defaults.Count -gt 0 -and $null -ne $defaults[0]) { [int]$defaults[0] } else { -1 }
@@ -204,15 +200,8 @@ elseif (-not $configData.sg_input_device) { $configData.sg_input_device = [strin
 if ($OutputDeviceName) { $configData.sg_output_device = [string]$outputDevice.name }
 elseif (-not $configData.sg_output_device) { $configData.sg_output_device = [string]$outputDevice.name }
 $configData.sg_hostapi = [string]$inputDevice.hostapi_name
-if ($referencePath) { $configData.reference_audio_path = $referencePath }
-if ($ClearReference) { $configData.reference_audio_path = '' }
-if ($configData.reference_audio_path) {
-    if (-not (Test-Path -LiteralPath $configData.reference_audio_path -PathType Leaf)) {
-        throw "Configured reference WAV no longer exists: $($configData.reference_audio_path); pass -ReferenceWav or -ClearReference."
-    }
-    $referenceHash = (Get-FileHash -LiteralPath $configData.reference_audio_path -Algorithm SHA256).Hash
-}
-else { $referenceHash = $null }
+$configData.reference_audio_path = if ($referenceResolution.EffectivePath) { [string]$referenceResolution.EffectivePath } else { '' }
+$referenceHash = $referenceResolution.Sha256
 
 $settingsJson = $configData | ConvertTo-Json -Depth 5
 Set-Content -LiteralPath $baseConfigPath -Value $settingsJson -Encoding UTF8
@@ -227,7 +216,7 @@ Write-Output 'Official GUI opens in FP32 on CUDA device 0. It does not inject au
 Write-Output 'Check the displayed input/output endpoints before pressing Start VC; synthetic GUI harness results are not microphone evidence.'
 
 $previousLocation = Get-Location
-$envNames = @('AETHERTUNE_SEED_VC_REPO','AETHERTUNE_SEED_VC_GUI','AETHERTUNE_SEED_VC_CHECKPOINT','AETHERTUNE_SEED_VC_CONFIG','AETHERTUNE_SEED_VC_VAD_PATH','MODELSCOPE_CACHE','HF_HOME','HF_HUB_CACHE','HUGGINGFACE_HUB_CACHE','TRANSFORMERS_CACHE','HF_HUB_OFFLINE','TRANSFORMERS_OFFLINE','HF_HUB_DISABLE_TELEMETRY','PYTHONPATH')
+$envNames = @('AETHERTUNE_SEED_VC_REPO','AETHERTUNE_SEED_VC_GUI','AETHERTUNE_SEED_VC_CHECKPOINT','AETHERTUNE_SEED_VC_CONFIG','AETHERTUNE_SEED_VC_VAD_PATH','MODELSCOPE_CACHE','HF_HOME','HF_HUB_CACHE','HUGGINGFACE_HUB_CACHE','TRANSFORMERS_CACHE','HF_HUB_OFFLINE','TRANSFORMERS_OFFLINE','HF_HUB_DISABLE_TELEMETRY')
 $oldEnv = @{}
 foreach ($envName in $envNames) { $oldEnv[$envName] = [Environment]::GetEnvironmentVariable($envName, 'Process') }
 try {
@@ -244,9 +233,8 @@ try {
     $env:HF_HUB_OFFLINE = '1'
     $env:TRANSFORMERS_OFFLINE = '1'
     $env:HF_HUB_DISABLE_TELEMETRY = '1'
-    $env:PYTHONPATH = $resolvedRepo
     Set-Location $resolvedSession
-    & $resolvedPython (Join-Path $PSScriptRoot 'seed-vc-gui-bootstrap.py')
+    & $resolvedPython -I -B (Join-Path $PSScriptRoot 'seed-vc-gui-bootstrap.py')
     if ($LASTEXITCODE -ne 0) { throw "Official Seed-VC GUI exited with code $LASTEXITCODE" }
 }
 finally {

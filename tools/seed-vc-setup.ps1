@@ -10,11 +10,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
-$repoPath = [IO.Path]::GetFullPath($Repo)
-$envRoot = [IO.Path]::GetFullPath($Environment)
-$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
+$repoPath = Resolve-SeedVcProjectPath -Path $Repo -ProjectRoot $projectRoot
+$envRoot = Resolve-SeedVcProjectPath -Path $Environment -ProjectRoot $projectRoot
+$manifestPath = Resolve-SeedVcProjectPath -Path $AssetManifest -ProjectRoot $projectRoot
 $envPython = Join-Path $envRoot 'Scripts\python.exe'
 $missing = [System.Collections.Generic.List[string]]::new()
 $manifest = $null
@@ -26,8 +25,9 @@ function Resolve-Python310Path {
     param([string]$RequestedPath)
 
     if ($RequestedPath) {
-        if (Test-Path -LiteralPath $RequestedPath -PathType Leaf) {
-            return [IO.Path]::GetFullPath($RequestedPath)
+        $resolvedRequestedPath = Resolve-SeedVcProjectPath -Path $RequestedPath -ProjectRoot $projectRoot
+        if (Test-Path -LiteralPath $resolvedRequestedPath -PathType Leaf) {
+            return $resolvedRequestedPath
         }
         return $null
     }
@@ -48,7 +48,7 @@ function Resolve-Python310Path {
 
     $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
     if ($launcher) {
-        $candidate = & $launcher.Source -3.10 -c 'import sys; print(sys.executable)' 2>$null
+        $candidate = & $launcher.Source -3.10 -I -B -c 'import sys; print(sys.executable)' 2>$null
         if ($LASTEXITCODE -eq 0 -and $candidate) {
             $candidatePath = [string]($candidate | Select-Object -Last 1)
             if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
@@ -64,8 +64,8 @@ if (-not $resolvedPython) {
     $missing.Add('Python 3.10 x64 executable (install it or pass -Python310 <python.exe>)')
 }
 
-if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
-elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
+if ($ModelScopeVadCache) { $vadModelPath = Resolve-SeedVcProjectPath -Path $ModelScopeVadCache -ProjectRoot $projectRoot }
+elseif ($env:MODELSCOPE_CACHE) { $vadCacheRoot = Resolve-SeedVcProjectPath -Path $env:MODELSCOPE_CACHE -ProjectRoot $projectRoot; $vadModelPath = Join-Path $vadCacheRoot 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 if ($manifest) {
     foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $repoPath -ModelScopeVadPath $vadModelPath) {
@@ -86,7 +86,7 @@ else {
 $pythonProbe = $null
 if ($resolvedPython) {
     $pythonProbeCode = "import json,sys; p={'version':list(sys.version_info[:3]),'bits':__import__('struct').calcsize('P')*8}; import tkinter; t=tkinter.Tcl(); p['tcl']=t.eval('info patchlevel'); t.call('package','require','Tk'); p['tk']='available'; print(json.dumps(p))"
-    $pythonProbeText = & $resolvedPython -c $pythonProbeCode 2>&1
+    $pythonProbeText = & $resolvedPython -I -B -c $pythonProbeCode 2>&1
     $pythonProbeExit = $LASTEXITCODE
     if ($pythonProbeExit -eq 0) {
         try {
@@ -153,7 +153,7 @@ Write-Output '安裝 Seed-VC requirements.txt 內的其餘相依套件'
 if ($LASTEXITCODE -ne 0) { throw "安裝 Seed-VC 依賴失敗，exit=$LASTEXITCODE" }
 
 $importSmokeCode = "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
-& $envPython -c $importSmokeCode
+& $envPython -I -B -c $importSmokeCode
 if ($LASTEXITCODE -ne 0) { throw "Seed-VC import/Tcl-Tk smoke test 失敗，exit=$LASTEXITCODE" }
 
 Write-Output "Seed-VC environment ready: $envPython"

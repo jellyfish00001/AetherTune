@@ -28,6 +28,13 @@ def main() -> None:
             raise SystemExit(f"BLOCKED: {label} does not exist: {path}")
         resolved[key] = path
 
+    repo_path = resolved["AETHERTUNE_SEED_VC_REPO"]
+    if not repo_path.is_dir():
+        raise SystemExit(f"BLOCKED: Seed-VC repository path is not a directory: {repo_path}")
+    # Python is launched with -I, so upstream imports must use this verified path,
+    # never the caller's CWD or inherited PYTHONPATH.
+    sys.path.insert(0, str(repo_path))
+
     vad_path = resolved["AETHERTUNE_SEED_VC_VAD_PATH"]
     vad_files = ("model.pt", "config.yaml", "configuration.json", "am.mvn")
     missing_vad = [name for name in vad_files if not (vad_path / name).is_file() or (vad_path / name).stat().st_size <= 0]
@@ -54,9 +61,7 @@ def main() -> None:
 
     funasr.AutoModel = LocalCacheAutoModel
 
-    # 保留官方檔案不變；只把它放到 import path，設定相對路徑則由
-    # PowerShell launcher 的 artifacts/seed-vc/gui-session 提供。
-    sys.path.insert(0, str(resolved["AETHERTUNE_SEED_VC_REPO"]))
+    # 保留官方檔案不變；上游路徑已在隔離 Python import mode 中明確加入。
     gui_path = resolved["AETHERTUNE_SEED_VC_GUI"]
     sys.argv = [
         str(gui_path),
