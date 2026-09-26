@@ -45,7 +45,7 @@ pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
 
 本範例的完整 endpoint 名稱與 `Windows DirectSound` Host API 已在目前主機 PortAudio inventory 唯一匹配 1 個 output。其他電腦請換成該機 preflight 列出的完整名稱與 Host API；不可照抄截斷或近似名稱。
 
-沒有參數時會讀 `artifacts/seed-vc/gui-session/configs/inuse/config.json`；初次使用則採當下唯一的 Windows 預設 input/output endpoint，但不修改 Windows 預設。可用 `-HostApi` 解決同名端點；若不唯一、缺失、輸入／輸出方向不符或無法在同一 Host API 使用，launcher 會停止並指出原因。`-ReferenceWav` 可省略並於 GUI 選取，`-ClearReference` 清掉隔離設定中的舊 reference。
+沒有參數時會讀 `artifacts/seed-vc/gui-session/configs/inuse/config.json`；初次使用則採當下唯一的 Windows 預設 input/output endpoint，但不修改 Windows 預設。Host API 優先序為 CLI `-HostApi` > 此隔離 session 已保存的 `sg_hostapi` > 首次執行時由唯一／default endpoint 推導；input/output 仍須各自唯一匹配且在同一 Host API。若不唯一、缺失或輸入／輸出方向不符，launcher 會停止並指出原因。`-ReferenceWav` 可省略並於 GUI 選取，`-ClearReference` 清掉隔離設定中的舊 reference。
 
 Launcher 固定 FP32、CUDA device 0、realtime-tiny checkpoint 和官方 XLS-R/Hifi-GAN config。設定在 ignored `artifacts/seed-vc/gui-session/`；模型 cache 以本機 snapshot directory junction 和 cache lock overlay 讀取，ModelScope `fsmn-vad` 由 bootstrap 映射至 preflight 驗過的本機目錄並關閉 update，HF/Transformers 設為 offline。Launcher 不改 upstream repo、user profile 或 cache。若畫面顯示裝置／reference 與預期不同，先在 GUI 修正，確認 meters/route 後再按 `Start VC`；結束按 `Stop VC` 再關閉。
 
@@ -53,7 +53,7 @@ Launcher 固定 FP32、CUDA device 0、realtime-tiny checkpoint 和官方 XLS-R/
 
 ## 1. 先看結論
 
-目前 Streaming VC baseline 是 Seed-VC；一般使用者 GUI launcher 可進入手動流程，但 host-session preflight、真實 mic、rack route 與最終收音仍需驗證。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
+目前 Streaming VC baseline 是 Seed-VC；本機完成官方 Tcl/Tk repair 與 per-user junction 後，一般 Windows session 的 setup/GUI preflight 均為 `PASS`。這只證實啟動前檢查；手動 GUI `Start VC`/`Stop VC`、真實 mic E2E、audio-rack paired run 與最終收音仍為 `WAITING`。MeanVC2 為下一個 priority candidate，尚未 intake。RVC/VCClient 是 historical/degraded 對照，不是目前推薦日常路線。工作區另有 4 組未註冊 RVC 角色模型：
 
 1. 具授權的乾聲資料與切片。
 2. 訓練輸出的角色 `.pth` 與 `.index`。

@@ -182,6 +182,16 @@ def main() -> int:
         )
         expect("metrics-only input WAV metadata mismatch", input_metrics_mismatch, input_metrics_root, "BLOCKED")
 
+        input_bool_metrics_root = root / "input-bool-metadata"
+        input_bool_metrics_root.mkdir()
+        input_bool_metrics = record(input_bool_metrics_root)
+        rebind_metrics(
+            input_bool_metrics_root,
+            input_bool_metrics,
+            lambda metrics: metrics["input_wav_metadata"].__setitem__("channels", True),
+        )
+        expect("metrics bool channel is not integer one", input_bool_metrics, input_bool_metrics_root, "BLOCKED")
+
         output_metrics_root = root / "output-metrics-metadata-mismatch"
         output_metrics_root.mkdir()
         output_metrics_mismatch = record(output_metrics_root)
@@ -245,6 +255,10 @@ def main() -> int:
         continuity_mismatch = json.loads(json.dumps(base))
         continuity_mismatch["continuity"]["dropouts"] += 1
         expect("metrics continuity mismatch", continuity_mismatch, root, "BLOCKED")
+
+        bool_counter = json.loads(json.dumps(base))
+        bool_counter["continuity"]["dropouts"] = False
+        expect("boolean dropouts is not integer zero", bool_counter, root, "BLOCKED")
 
         human_identity_mismatch = json.loads(json.dumps(base))
         human_identity_mismatch["human_review"]["review_id"] = "different-fixture-review"
@@ -320,7 +334,7 @@ def main() -> int:
         offline["artifacts"]["metrics_sha256"] = sha256(offline_metrics_path)
         expect("over budget", offline, offline_root, "OFFLINE")
 
-    print("PASS live-gate regression: synthetic source WAITING; outer-only and metrics identity/timing/continuity/human review/WAV metadata mismatches BLOCKED; rehashed header changes BLOCKED; incomplete PASS review BLOCKED; pending review CANDIDATE; >5s OFFLINE")
+    print("PASS live-gate regression: synthetic source WAITING; outer-only and metrics identity/timing/continuity/human review/WAV metadata mismatches BLOCKED; bool-as-integer counters/metadata rejected; rehashed header changes BLOCKED; incomplete PASS review BLOCKED; pending review CANDIDATE; >5s OFFLINE")
     return 0
 
 

@@ -19,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-gui-overlay.ps1')
+. (Join-Path $PSScriptRoot 'seed-vc-gui-device-selection.ps1')
 $expectedRevision = '51383efd921027683c89e5348211d93ff12ac2a8'
 $expectedCheckpointSha256 = 'C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88'
 $resolvedPython = [IO.Path]::GetFullPath($Python)
@@ -110,43 +111,25 @@ if (Test-Path -LiteralPath $resolvedPython -PathType Leaf) {
                 try { $savedSettings = Get-Content -LiteralPath $preflightSettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable }
                 catch { $missing.Add("Isolated Seed-VC settings are invalid JSON: $preflightSettingsPath") }
             }
-            $inputWanted = if ($InputDeviceName) { $InputDeviceName } else { [string]$savedSettings.sg_input_device }
-            $outputWanted = if ($OutputDeviceName) { $OutputDeviceName } else { [string]$savedSettings.sg_output_device }
             $defaultIds = @($runtime.defaults)
             $defaultInputId = if ($defaultIds.Count -gt 0 -and $null -ne $defaultIds[0]) { [int]$defaultIds[0] } else { -1 }
             $defaultOutputId = if ($defaultIds.Count -gt 1 -and $null -ne $defaultIds[1]) { [int]$defaultIds[1] } else { -1 }
-            $inputCandidates = @($devices | Where-Object {
-                $_.max_input_channels -gt 0 -and
-                ((-not $inputWanted) -or ([string]$_.name -ceq $inputWanted)) -and
-                ((-not $HostApi) -or ([string]$runtime.hostapis[[int]$_.hostapi].name -ceq $HostApi))
-            })
-            if (-not $inputWanted) { $inputCandidates = @($inputCandidates | Where-Object { [int]$_.index -eq $defaultInputId }) }
-            if ($inputCandidates.Count -ne 1) {
-                $missing.Add("Input endpoint selection is not unique (matches=$($inputCandidates.Count)); provide exact -InputDeviceName and -HostApi when needed")
-            }
-            else {
-                $selectedInputPreflight = $inputCandidates[0]
-                $derivedHostApi = [string]$runtime.hostapis[[int]$selectedInputPreflight.hostapi].name
-                if ($HostApi -and $derivedHostApi -cne $HostApi) { $missing.Add("Input endpoint is not in Host API '$HostApi'") }
-            }
-            $effectiveHostApi = if ($HostApi) { $HostApi } elseif ($selectedInputPreflight) { [string]$runtime.hostapis[[int]$selectedInputPreflight.hostapi].name } else { '' }
-            $outputCandidates = @($devices | Where-Object {
-                $_.max_output_channels -gt 0 -and
-                ((-not $outputWanted) -or ([string]$_.name -ceq $outputWanted)) -and
-                ((-not $effectiveHostApi) -or ([string]$runtime.hostapis[[int]$_.hostapi].name -ceq $effectiveHostApi))
-            })
-            if (-not $outputWanted) { $outputCandidates = @($outputCandidates | Where-Object { [int]$_.index -eq $defaultOutputId }) }
-            if ($outputCandidates.Count -ne 1) {
-                $missing.Add("Output endpoint selection is not unique or does not share the input Host API (matches=$($outputCandidates.Count)); provide an exact compatible output endpoint")
-            }
-            else { $selectedOutputPreflight = $outputCandidates[0] }
-            if ($selectedInputPreflight -and $selectedOutputPreflight) {
-                $inputHostName = [string]$runtime.hostapis[[int]$selectedInputPreflight.hostapi].name
-                $outputHostName = [string]$runtime.hostapis[[int]$selectedOutputPreflight.hostapi].name
-                if ($inputHostName -cne $outputHostName) { $missing.Add("Input and output endpoints use different Host APIs: $inputHostName / $outputHostName") }
-            }
+            $hostApiNames = @($runtime.hostapis | ForEach-Object { [string]$_.name })
+            $devicePair = Resolve-SeedVcDevicePair `
+                -DeviceRows $devices `
+                -HostApiNames $hostApiNames `
+                -DefaultInputIndex $defaultInputId `
+                -DefaultOutputIndex $defaultOutputId `
+                -InputDeviceName $InputDeviceName `
+                -SavedInputDeviceName ([string]$savedSettings.sg_input_device) `
+                -OutputDeviceName $OutputDeviceName `
+                -SavedOutputDeviceName ([string]$savedSettings.sg_output_device) `
+                -RequestedHostApi $HostApi `
+                -SavedHostApi ([string]$savedSettings.sg_hostapi)
+            $selectedInputPreflight = $devicePair.Input
+            $selectedOutputPreflight = $devicePair.Output
         }
-        catch { $missing.Add('Seed-VC runtime/device preflight returned unreadable JSON') }
+        catch { $missing.Add("Seed-VC runtime/device preflight failed: $($_.Exception.Message)") }
     }
 }
 
@@ -176,35 +159,6 @@ $preflight = [ordered]@{
 Write-Output ($preflight | ConvertTo-Json -Depth 8)
 if ($missing.Count -gt 0) { throw 'Seed-VC GUI preflight blocked before opening the GUI.' }
 if ($PreflightOnly) { return }
-
-function Resolve-Device {
-    param(
-        [object[]]$DeviceRows,
-        [string]$RequestedName,
-        [string]$Direction,
-        [int]$DefaultIndex,
-        [string]$HostApiFilter
-    )
-
-    $channelField = if ($Direction -eq 'input') { 'max_input_channels' } else { 'max_output_channels' }
-    $matches = @($DeviceRows | Where-Object {
-        $_.$channelField -gt 0 -and
-        ((-not $RequestedName) -or ([string]$_.name -ceq $RequestedName)) -and
-        ((-not $HostApiFilter) -or ([string]$runtime.hostapis[[int]$_.hostapi].name -ceq $HostApiFilter))
-    })
-    if ($RequestedName -and $matches.Count -ne 1) {
-        throw "Device name '$RequestedName' resolves to $($matches.Count) $Direction endpoints; use the exact unique name and -HostApi if needed."
-    }
-    if (-not $RequestedName) {
-        $matches = @($matches | Where-Object { [int]$_.index -eq $DefaultIndex })
-        if ($matches.Count -ne 1) {
-            throw "No unique default $Direction endpoint is available. Pass -${Direction}DeviceName and, when needed, -HostApi."
-        }
-    }
-    $device = $matches[0]
-    $device | Add-Member -NotePropertyName hostapi_name -NotePropertyValue ([string]$runtime.hostapis[[int]$device.hostapi].name) -Force
-    return $device
-}
 
 $sessionConfigDir = Join-Path $resolvedSession 'configs'
 $inUseConfigDir = Join-Path $sessionConfigDir 'inuse'
@@ -247,17 +201,23 @@ if (Test-Path -LiteralPath $sessionConfigPath -PathType Leaf) {
 }
 
 $defaults = @($runtime.defaults)
-$inputRequest = if ($InputDeviceName) { $InputDeviceName } else { [string]$configData.sg_input_device }
-$outputRequest = if ($OutputDeviceName) { $OutputDeviceName } else { [string]$configData.sg_output_device }
 $inputIndex = if ($defaults.Count -gt 0 -and $null -ne $defaults[0]) { [int]$defaults[0] } else { -1 }
 $outputIndex = if ($defaults.Count -gt 1 -and $null -ne $defaults[1]) { [int]$defaults[1] } else { -1 }
-$inputDevice = Resolve-Device -DeviceRows $devices -RequestedName $inputRequest -Direction input -DefaultIndex $inputIndex -HostApiFilter $HostApi
-$resolvedHostApi = if ($HostApi) { $HostApi } else { $inputDevice.hostapi_name }
-$outputDevice = Resolve-Device -DeviceRows $devices -RequestedName $outputRequest -Direction output -DefaultIndex $outputIndex -HostApiFilter $resolvedHostApi
-if ($inputDevice.hostapi_name -cne $outputDevice.hostapi_name) {
-    throw "Seed-VC GUI requires one Host API for both ends. Input=$($inputDevice.hostapi_name), output=$($outputDevice.hostapi_name); specify a compatible pair."
-}
-if ($HostApi -and $inputDevice.hostapi_name -cne $HostApi) { throw "Requested input endpoint is not part of Host API '$HostApi'." }
+$hostApiNames = @($runtime.hostapis | ForEach-Object { [string]$_.name })
+$devicePair = Resolve-SeedVcDevicePair `
+    -DeviceRows $devices `
+    -HostApiNames $hostApiNames `
+    -DefaultInputIndex $inputIndex `
+    -DefaultOutputIndex $outputIndex `
+    -InputDeviceName $InputDeviceName `
+    -SavedInputDeviceName ([string]$configData.sg_input_device) `
+    -OutputDeviceName $OutputDeviceName `
+    -SavedOutputDeviceName ([string]$configData.sg_output_device) `
+    -RequestedHostApi $HostApi `
+    -SavedHostApi ([string]$configData.sg_hostapi)
+$inputDevice = $devicePair.Input
+$outputDevice = $devicePair.Output
+$resolvedHostApi = $devicePair.HostApi
 
 if ($InputDeviceName) { $configData.sg_input_device = [string]$inputDevice.name }
 elseif (-not $configData.sg_input_device) { $configData.sg_input_device = [string]$inputDevice.name }

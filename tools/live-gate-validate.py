@@ -57,6 +57,36 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _strict_json_equal(actual: Any, expected: Any) -> bool:
+    """Compare JSON-shaped values without Python's bool-as-int equality coercion."""
+
+    if isinstance(actual, bool) or isinstance(expected, bool):
+        return isinstance(actual, bool) and isinstance(expected, bool) and actual is expected
+    if isinstance(actual, dict) or isinstance(expected, dict):
+        return (
+            isinstance(actual, dict)
+            and isinstance(expected, dict)
+            and actual.keys() == expected.keys()
+            and all(_strict_json_equal(actual[key], expected[key]) for key in expected)
+        )
+    if isinstance(actual, list) or isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and isinstance(expected, list)
+            and len(actual) == len(expected)
+            and all(_strict_json_equal(left, right) for left, right in zip(actual, expected))
+        )
+    if isinstance(actual, (int, float)) or isinstance(expected, (int, float)):
+        return (
+            isinstance(actual, (int, float))
+            and not isinstance(actual, bool)
+            and isinstance(expected, (int, float))
+            and not isinstance(expected, bool)
+            and actual == expected
+        )
+    return type(actual) is type(expected) and actual == expected
+
+
 def _fail(message: str) -> tuple[str, list[str]]:
     return "BLOCKED", [message]
 
@@ -196,7 +226,10 @@ def classify(record: dict[str, Any], artifact_root: Path | None = None) -> tuple
             return _wait(f"missing continuity field: {key}")
     if not _is_number(continuity["continuous_seconds"]) or continuity["continuous_seconds"] < 0:
         return _fail("continuous_seconds must be a finite non-negative number")
-    if any(not isinstance(continuity[key], int) or continuity[key] < 0 for key in ("dropouts", "underruns")):
+    if any(
+        not isinstance(continuity[key], int) or isinstance(continuity[key], bool) or continuity[key] < 0
+        for key in ("dropouts", "underruns")
+    ):
         return _fail("dropouts and underruns must be non-negative integers")
 
     output = record.get("output_validation")
@@ -264,7 +297,7 @@ def classify(record: dict[str, Any], artifact_root: Path | None = None) -> tuple
             "human_review": record["human_review"],
         }
         for key, expected in expected_metrics.items():
-            if metrics.get(key) != expected:
+            if not _strict_json_equal(metrics.get(key), expected):
                 return _fail(f"metrics JSON identity mismatch for {key}")
     except (OSError, ValueError, json.JSONDecodeError) as error:
         return _fail(str(error))

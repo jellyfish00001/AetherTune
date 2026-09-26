@@ -238,6 +238,17 @@ def main() -> int:
         )
         expect("metrics-only output WAV metadata mismatch", output_metrics_mismatch, output_metrics_root, "BLOCKED")
 
+        output_bool_metrics_root = root / "output-bool-metadata"
+        output_bool_metrics_root.mkdir()
+        output_bool_metrics = record(output_bool_metrics_root)
+        rewrite_metrics(
+            output_bool_metrics,
+            output_bool_metrics_root,
+            "full_chain",
+            lambda metrics: metrics["output_wav_metadata"].__setitem__("channels", True),
+        )
+        expect("metrics bool channel is not integer one", output_bool_metrics, output_bool_metrics_root, "BLOCKED")
+
         source_header_root = root / "source-header-rehashed"
         source_header_root.mkdir()
         source_header_changed = record(source_header_root)
@@ -292,6 +303,12 @@ def main() -> int:
             lambda metrics: metrics["continuity"].__setitem__("dropouts", 1),
         )
         expect("metrics continuity mismatch", continuity_mismatch, continuity_root, "BLOCKED")
+
+        bool_counter_root = root / "boolean-dropouts"
+        bool_counter_root.mkdir()
+        bool_counter = record(bool_counter_root)
+        bool_counter["runs"]["bypass"]["continuity"]["dropouts"] = False
+        expect("boolean dropouts is not integer zero", bool_counter, bool_counter_root, "BLOCKED")
 
         pair_identity_root = root / "pair-identity-mismatch"
         pair_identity_root.mkdir()
@@ -396,7 +413,7 @@ def main() -> int:
         if live_status != "WAITING":
             raise AssertionError(f"rack fixture must not classify as LIVE: got {live_status}")
 
-    print("PASS audio-rack evidence regression: synthetic paired fixture PASS only for rack; source type/header and source/output metrics metadata mismatches BLOCKED; rehashed WAV header changes BLOCKED; timing/continuity/pair/delta mismatches BLOCKED; unpaired WAITING; missing/hash/identity/silent BLOCKED; >5s OFFLINE; LIVE_GATE WAITING")
+    print("PASS audio-rack evidence regression: synthetic paired fixture PASS only for rack; source type/header and source/output metrics metadata mismatches BLOCKED; bool-as-integer counters/metadata rejected; rehashed WAV header changes BLOCKED; timing/continuity/pair/delta mismatches BLOCKED; unpaired WAITING; missing/hash/identity/silent BLOCKED; >5s OFFLINE; LIVE_GATE WAITING")
     return 0
 
 
