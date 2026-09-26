@@ -10,11 +10,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
-$repoPath = [IO.Path]::GetFullPath($Repo)
-$envRoot = [IO.Path]::GetFullPath($Environment)
-$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
+$repoPath = Resolve-SeedVcProjectPath -Path $Repo -ProjectRoot $projectRoot
+$envRoot = Resolve-SeedVcProjectPath -Path $Environment -ProjectRoot $projectRoot
+$manifestPath = Resolve-SeedVcProjectPath -Path $AssetManifest -ProjectRoot $projectRoot
 $envPython = Join-Path $envRoot 'Scripts\python.exe'
 $missing = [System.Collections.Generic.List[string]]::new()
 $manifest = $null
@@ -23,11 +22,12 @@ catch { $missing.Add($_.Exception.Message) }
 $expectedRevision = if ($manifest) { [string]$manifest.seed_vc_source.revision } else { $null }
 
 function Resolve-Python310Path {
-    param([string]$RequestedPath)
+    param([string]$RequestedPath, [string]$ProjectRoot)
 
     if ($RequestedPath) {
-        if (Test-Path -LiteralPath $RequestedPath -PathType Leaf) {
-            return [IO.Path]::GetFullPath($RequestedPath)
+        $resolvedRequestedPath = Resolve-SeedVcProjectPath -Path $RequestedPath -ProjectRoot $ProjectRoot
+        if (Test-Path -LiteralPath $resolvedRequestedPath -PathType Leaf) {
+            return $resolvedRequestedPath
         }
         return $null
     }
@@ -59,13 +59,13 @@ function Resolve-Python310Path {
     return $null
 }
 
-$resolvedPython = Resolve-Python310Path -RequestedPath $Python310
+$resolvedPython = Resolve-Python310Path -RequestedPath $Python310 -ProjectRoot $projectRoot
 if (-not $resolvedPython) {
     $missing.Add('Python 3.10 x64 executable (install it or pass -Python310 <python.exe>)')
 }
 
-if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
-elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
+if ($ModelScopeVadCache) { $vadModelPath = Resolve-SeedVcProjectPath -Path $ModelScopeVadCache -ProjectRoot $projectRoot }
+elseif ($env:MODELSCOPE_CACHE) { $vadCacheRoot = Resolve-SeedVcProjectPath -Path $env:MODELSCOPE_CACHE -ProjectRoot $projectRoot; $vadModelPath = Join-Path $vadCacheRoot 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 if ($manifest) {
     foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $repoPath -ModelScopeVadPath $vadModelPath) {
@@ -128,32 +128,36 @@ if ($missing.Count -gt 0) {
 }
 if ($PreflightOnly) { return }
 
-if (-not (Test-Path -LiteralPath $envPython -PathType Leaf)) {
-    Write-Output "建立獨立 Seed-VC Python environment：$envRoot"
-    & $resolvedPython -m venv $envRoot
-    if ($LASTEXITCODE -ne 0) { throw "建立 venv 失敗，exit=$LASTEXITCODE" }
+Push-Location -LiteralPath $projectRoot
+try {
+    if (-not (Test-Path -LiteralPath $envPython -PathType Leaf)) {
+        Write-Output "建立獨立 Seed-VC Python environment：$envRoot"
+        & $resolvedPython -m venv $envRoot
+        if ($LASTEXITCODE -ne 0) { throw "建立 venv 失敗，exit=$LASTEXITCODE" }
+    }
+
+    Write-Output '更新 packaging tools'
+    & $envPython -m pip install --upgrade pip setuptools wheel
+    if ($LASTEXITCODE -ne 0) { throw "更新 packaging tools 失敗，exit=$LASTEXITCODE" }
+
+    Write-Output '安裝 Torch CUDA 12.8 runtime（不下載 Seed-VC checkpoint）'
+    & $envPython -m pip install --index-url 'https://download.pytorch.org/whl/cu128' `
+        'torch==2.7.1+cu128' 'torchaudio==2.7.1+cu128' 'torchvision==0.22.1+cu128'
+    if ($LASTEXITCODE -ne 0) { throw "安裝 Torch CUDA runtime 失敗，exit=$LASTEXITCODE" }
+
+    $requirementsPath = Join-Path $repoPath 'requirements.txt'
+    $packages = Get-Content -LiteralPath $requirementsPath -Encoding UTF8 |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith('#') -and $_ -notmatch '^--' -and $_ -notmatch '^(torch|torchvision|torchaudio)(\s|=|$)' }
+
+    Write-Output '安裝 Seed-VC requirements.txt 內的其餘相依套件'
+    & $envPython -m pip install @packages
+    if ($LASTEXITCODE -ne 0) { throw "安裝 Seed-VC 依賴失敗，exit=$LASTEXITCODE" }
+
+    $importSmokeCode = "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+    & $envPython -c $importSmokeCode
+    if ($LASTEXITCODE -ne 0) { throw "Seed-VC import/Tcl-Tk smoke test 失敗，exit=$LASTEXITCODE" }
+
+    Write-Output "Seed-VC environment ready: $envPython"
 }
-
-Write-Output '更新 packaging tools'
-& $envPython -m pip install --upgrade pip setuptools wheel
-if ($LASTEXITCODE -ne 0) { throw "更新 packaging tools 失敗，exit=$LASTEXITCODE" }
-
-Write-Output '安裝 Torch CUDA 12.8 runtime（不下載 Seed-VC checkpoint）'
-& $envPython -m pip install --index-url 'https://download.pytorch.org/whl/cu128' `
-    'torch==2.7.1+cu128' 'torchaudio==2.7.1+cu128' 'torchvision==0.22.1+cu128'
-if ($LASTEXITCODE -ne 0) { throw "安裝 Torch CUDA runtime 失敗，exit=$LASTEXITCODE" }
-
-$requirementsPath = Join-Path $repoPath 'requirements.txt'
-$packages = Get-Content -LiteralPath $requirementsPath -Encoding UTF8 |
-    ForEach-Object { $_.Trim() } |
-    Where-Object { $_ -and -not $_.StartsWith('#') -and $_ -notmatch '^--' -and $_ -notmatch '^(torch|torchvision|torchaudio)(\s|=|$)' }
-
-Write-Output '安裝 Seed-VC requirements.txt 內的其餘相依套件'
-& $envPython -m pip install @packages
-if ($LASTEXITCODE -ne 0) { throw "安裝 Seed-VC 依賴失敗，exit=$LASTEXITCODE" }
-
-$importSmokeCode = "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
-& $envPython -c $importSmokeCode
-if ($LASTEXITCODE -ne 0) { throw "Seed-VC import/Tcl-Tk smoke test 失敗，exit=$LASTEXITCODE" }
-
-Write-Output "Seed-VC environment ready: $envPython"
+finally { Pop-Location }
