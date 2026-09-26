@@ -14,7 +14,7 @@
 
 Seed-VC 會由 source 保留內容與表現，reference 提供目標聲線。它不是把 `.pth/.index` 放入 RVC，也不需要建立訓練資料集。
 
-目前 Streaming VC 的日常手動比較基線是 Seed-VC；一般 GUI 啟動、真實 mic 到最終 route 的完整驗收仍有 `WAITING` gate。MeanVC2 是下一個 priority candidate，尚未安裝或在本機驗證。
+目前 Streaming VC 的日常手動比較基線是 Seed-VC；tiny GUI／有效 callback／VB-CABLE loopback 已 PASS。MeanVC2／X-VC 已安裝並完成 CUDA WAV；Python 與操作入口見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。真實 mic 到最終 route、600 秒穩定性與人工聽評仍 `WAITING`。
 
 ### RVC + FCPE/RMVPE（historical/degraded）
 

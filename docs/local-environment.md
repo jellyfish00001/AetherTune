@@ -1,5 +1,7 @@
 # 本機環境盤點
 
+本頁為 2026-09-20 的歷史盤點。2026-09-27 專案管理的七個 runtime 已統一 Python 3.10.x，RVC／MeanVC2 已重新產生 CUDA WAV；目前環境請讀 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。
+
 盤點日期：2026-09-20（Asia/Taipei）
 
 ## Repository

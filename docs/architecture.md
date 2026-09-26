@@ -84,7 +84,7 @@ Streaming VC 與 Speech Reconstruction 分開報告。後者重新生成內容�
 
 ### Streaming VC 研究順序
 
-Seed-VC upstream 保留為 baseline；MeanVC2／X-VC 已完成固定 code/model revision、隔離安裝與雙向 CUDA WAV，接著比較同 corpus、audio-rack 與 LIVE_GATE。用現有目錄加少量 setup/run wrapper 即可；單人維護不新增常駐服務、資料庫或 registry framework。Python 統一延後。Seed-VC realtime fork 保持獨立候選。
+Seed-VC upstream 保留為 baseline；MeanVC2／X-VC 已完成固定 code/model revision、隔離安裝與雙向 CUDA WAV，接著比較同 corpus、audio-rack 與 LIVE_GATE。用現有目錄加少量 setup/run wrapper 即可；單人維護不新增常駐服務、資料庫或 registry framework。專案管理的 Python 統一 3.10.x，依賴仍隔離；見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。Seed-VC realtime fork 保持獨立候選。
 
 ## 共用資料契約
 

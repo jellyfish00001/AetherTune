@@ -18,6 +18,7 @@ function Invoke-Wsl([string]$Command) {
 Write-Output "Breeze TTS 2 WSL distro: $Distro"
 Invoke-Wsl "set -e; test -d '$wslRoot'; cd '$wslRoot/tools/external'; if [ ! -d breeze-tts/.git ]; then git clone https://github.com/breezeblue-ai/breeze-tts.git breeze-tts; fi; test -f breeze-tts/infer.py"
 Invoke-Wsl "set -e; uv python install 3.10; if [ ! -x '$wslPython' ]; then uv venv --python 3.10 '$wslRoot/tools/venvs/breeze-tts-wsl'; fi; cd '$wslRoot/tools/external/breeze-tts'; uv pip install --python '$wslPython' -r requirements.txt --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cu128"
+Invoke-Wsl "set -e; '$wslPython' -m ensurepip --upgrade; '$wslPython' -m pip check"
 
 if ($DownloadModel) {
     Invoke-Wsl "set -e; mkdir -p '$wslRoot/models/speech-reconstruction/breeze-tts-2'; '$wslPython' -c `"from huggingface_hub import snapshot_download; snapshot_download(repo_id='BreezeBlue/Breeze-TTS-2', local_dir='$wslRoot/models/speech-reconstruction/breeze-tts-2')`""

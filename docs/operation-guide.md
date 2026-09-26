@@ -70,7 +70,7 @@ Launcher 固定 FP32、CUDA device 0、realtime-tiny checkpoint 和官方 XLS-R/
 |---|---|---|
 | 作業系統 | Windows | 已確認工作環境 |
 | GPU | NVIDIA GeForce RTX 5060 Ti，約 16 GB VRAM | 已確認 |
-| Python | 專案 `.venv`，Python 3.12.10 | 已完成 |
+| Python | 專案管理的 Windows／WSL 環境統一 Python 3.10.x，套件按 backend 隔離 | 見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md) |
 | GPU framework | Torch `2.7.1+cu128`、TorchAudio `2.7.1+cu128` | 已完成 |
 | RVC | 官方 WebUI，固定 revision `81eed5e8f68b6bed1789f682fe78cdd324495afc` | 已 clone/驗證 |
 | f0 | FCPE（推薦首選）/ RMVPE（備用） | FCPE 與 RMVPE runtime 皆已通過 CUDA smoke test |

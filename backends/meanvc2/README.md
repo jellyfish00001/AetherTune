@@ -6,7 +6,7 @@
 
 ## 研究順位
 
-MeanVC2 已完成下載、隔離 Python 3.11／Torch 2.7.1+cu128、40ms 與 120ms model 的雙向 file-driven CUDA WAV。ASR JIT 在 CPU，VC／speaker／vocoder 在 CUDA；沒有宣稱整條 pipeline 都在 GPU。code revision `13acf84c1bf135ea5edad9c245b345289b06b33e`；HF snapshot `39cdd19522fe896c227da691314d9a0e3b995486`。操作與證據見 [`backend-install-test-latest.md`](../../docs/backend-install-test-latest.md)。
+MeanVC2 已完成下載、隔離 Python 3.10／Torch 2.7.1+cu128、40ms 與 120ms model 的雙向 file-driven CUDA WAV；從 3.11 遷移後的 40ms WAV hash 與原測試一致。ASR JIT 在 CPU，VC／speaker／vocoder 在 CUDA；沒有宣稱整條 pipeline 都在 GPU。code revision `13acf84c1bf135ea5edad9c245b345289b06b33e`；HF snapshot `39cdd19522fe896c227da691314d9a0e3b995486`。安裝證據見 [`backend-install-test-latest.md`](../../docs/backend-install-test-latest.md)，Python 與 UI 見 [`python-ui-verification-latest.md`](../../docs/python-ui-verification-latest.md)。
 
 ```powershell
 & tools/venvs/meanvc2/Scripts/python.exe tools/meanvc2-run.py --source dataset/reference-voices/voice-male-m1.wav --target dataset/reference-voices/voice-female-f1.wav --output artifacts/meanvc2/my-test.wav --model 40ms

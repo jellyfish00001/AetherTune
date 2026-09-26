@@ -20,6 +20,8 @@ Write-Output "CosyVoice WSL distro: $Distro"
 Invoke-Wsl "set -e; test -d '$wslRoot'; cd '$wslRoot/tools/external'; if [ ! -d CosyVoice/.git ]; then git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git CosyVoice; else cd CosyVoice; git submodule update --init --recursive; fi"
 Invoke-Wsl "set -e; uv python install 3.10; if [ ! -x '$wslPython' ]; then uv venv --python 3.10 '$wslRoot/tools/venvs/cosyvoice-wsl'; fi; uv pip install --python '$wslPython' 'setuptools<81' 'numpy==1.26.4' cython"
 Invoke-Wsl "set -e; cd '$wslRoot/tools/external/CosyVoice'; uv pip install --no-build-isolation --index-strategy unsafe-best-match --python '$wslPython' -r requirements.txt -i https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cu128; uv pip install --index-strategy unsafe-best-match --python '$wslPython' --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1+cu128 torchaudio==2.7.1+cu128 torchvision==0.22.1+cu128"
+# 舊 Whisper 的 triton<3 與 Torch 2.7.1 所需 3.3.1 衝突；官方新版已移除 upper bound。
+Invoke-Wsl "set -e; uv pip install --python '$wslPython' --no-deps 'openai-whisper==20250625'; '$wslPython' -m ensurepip --upgrade; '$wslPython' -m pip check"
 
 if (-not $Training) {
     # CosyVoice 官方 requirements 含 DeepSpeed，但本專案的推論路徑不需要它；

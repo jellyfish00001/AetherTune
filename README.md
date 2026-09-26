@@ -1,6 +1,6 @@
 # AetherTune
 
-2026-09-27：**realtime-tiny GUI 有效輸出已通過四組 reference、17/17 設定與 VB-CABLE loopback 測試**。最新安裝測試與可重跑命令見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)。人工聽評與完整 LIVE 驗收在基本安裝測試之後進行；Python 統一延後。
+2026-09-27：**realtime-tiny GUI 有效輸出已通過四組 reference、17/17 設定與 VB-CABLE loopback 測試**。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
 
 AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。核心目標是在 RTX 5060 Ti 16GB 與 Windows 本地環境，以 `5 秒` 端到端延遲為硬上限，比較 Streaming Voice Conversion 與 Speech Reconstruction，並用共用的 Capture、Post-FX、Routing 與 Benchmark Pipeline 評估自然度、目標音色相似度、原始表演保留、穩定性與直播可用性。
 
