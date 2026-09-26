@@ -1,6 +1,6 @@
 # Agent 實作與測試總表
 
-本輪 2026-09-27 更新：realtime-tiny GUI 四組 reference／設定／有效變聲 callback／VB-CABLE loopback 全數 `PASS`，不再是基本 GUI 全零待修復。最新安裝與測試集中於 [`backend-install-test-latest.md`](backend-install-test-latest.md)；人工聽評在 Agent 完成基本安裝測試後進行，Python 統一不是本輪優先項。
+本輪 2026-09-27 更新：realtime-tiny GUI 四組 reference／設定／有效變聲 callback／VB-CABLE loopback 全數 `PASS`。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；操作入口與後續測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
 
 更新日期：2026-09-27（Asia/Taipei）
 
@@ -88,7 +88,7 @@ Set-Location D:\AetherTune
 - Seed-VC GUI：2026-09-27 新增 realtime-tiny 四組 reference 的 17/17 設定、有效 CUDA callback 與 CABLE loopback `PASS`；較早 offline-v1 結果保留為歷史 evidence。首次 warm-up 仍可能超過 5 秒；mic、rack、600 秒與人工聽評另驗。不得以 callback 注入 WAV 取代真實 mic／完整 LIVE evidence。
 - 四方法比較：可加入人工聽測表或固定評分規則，但需要使用者實際聽音與確認評分，不應由 Agent 代填主觀音質結論。
 - 共用 audio-rack：先以 Seed-VC 作第一個 mic／loopback candidate，分別測 `bypass` 與 `full-chain`，再把同一 profile 套到其他 backend。
-- MeanVC2／X-VC 已完成下載安裝、固定 revision、必要權重 hash 與雙向 CUDA WAV；本輪基本測試證據見 [`backend-install-test-latest.md`](backend-install-test-latest.md)。接著才做 mic／rack／穩定與人工聽評；Python 統一延後。Seed-VC realtime fork 保持獨立候選。
+- MeanVC2／X-VC 已完成下載安裝、固定 revision、必要權重 hash 與雙向 CUDA WAV；基本測試見 [`backend-install-test-latest.md`](backend-install-test-latest.md)。Python 已統一 3.10.x；mic／rack／穩定與人工聽評另驗。Seed-VC realtime fork 保持獨立候選。
 - RVC provenance：可在使用者提供有授權的 raw WAV、來源、license、訓練設定後重新 audit、register 與 ready gate。
 - Breeze／CosyVoice：system SoX、flash-attn、人工音質與預設 runtime 仍有可選優化；CosyVoice 隔離 cuDNN 8 probe 已有可重跑 GPU 證據，但不會覆蓋預設 PyTorch cuDNN 9 runtime。
 

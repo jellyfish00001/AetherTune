@@ -12,6 +12,7 @@ param(
     [string]$OutputDeviceName,
     [string]$HostApi,
     [string]$ReferenceWav,
+    [string]$SettingsFile,
     [switch]$ClearReference,
     [switch]$PreflightOnly
 )
@@ -32,6 +33,29 @@ $guiPath = Join-Path $resolvedRepo 'real-time-gui.py'
 $hifiganConfig = Join-Path $resolvedRepo 'configs\hifigan.yml'
 $missing = [System.Collections.Generic.List[string]]::new()
 $manifest = $null
+$requestedSettings = @{}
+if ($SettingsFile) {
+    try {
+        $requestedSettings = Get-Content -LiteralPath $SettingsFile -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+        if ($requestedSettings -isnot [System.Collections.IDictionary]) { throw '參數檔必須是 JSON object' }
+        $bounds = @{
+            diffusion_steps = @(1,30); inference_cfg_rate = @(0,1); max_prompt_length = @(1,20)
+            block_time = @(0.04,3); crossfade_length = @(0.02,0.5); extra_time_ce = @(0.5,10)
+            extra_time = @(0.5,10); extra_time_right = @(0.02,10)
+        }
+        $resolution = @{ diffusion_steps=1; inference_cfg_rate=0.1; max_prompt_length=0.5; block_time=0.02; crossfade_length=0.02; extra_time_ce=0.1; extra_time=0.1; extra_time_right=0.02 }
+        foreach ($key in $requestedSettings.Keys) {
+            if (-not $bounds.ContainsKey($key)) { throw "不支援的 GUI 參數：$key" }
+            $value = $requestedSettings[$key]
+            if ($value -is [bool] -or $value -is [string] -or $null -eq $value) { throw "$key 必須是數字" }
+            $number = [double]$value
+            if (-not [double]::IsFinite($number) -or $number -lt $bounds[$key][0] -or $number -gt $bounds[$key][1]) { throw "$key 超出範圍" }
+            if ($key -eq 'diffusion_steps' -and $number -ne [math]::Floor($number)) { throw 'diffusion_steps 必須是整數' }
+            $steps = ($number - $bounds[$key][0]) / $resolution[$key]
+            if ([math]::Abs($steps - [math]::Round($steps)) -gt 0.000001) { throw "$key 必須符合官方 slider 步進 $($resolution[$key])" }
+        }
+    } catch { $missing.Add("GUI SettingsFile 無效：$($_.Exception.Message)") }
+}
 try { $manifest = Read-SeedVcAssetManifest -Path $manifestPath }
 catch { $missing.Add($_.Exception.Message) }
 $expectedRevision = if ($manifest) { [string]$manifest.seed_vc_source.revision } else { $null }
@@ -115,6 +139,18 @@ if ($ReferenceWav) {
 }
 if ($ReferenceWav -and $ClearReference) { $missing.Add('Use either -ReferenceWav or -ClearReference, not both') }
 
+# 先驗證合併後的組合，再允許 PreflightOnly PASS；不建立 overlay 或修改既有設定。
+$effectiveSettings = @{ diffusion_steps=10.0; inference_cfg_rate=0.7; max_prompt_length=3.0; block_time=0.30; crossfade_length=0.04; extra_time_ce=5.0; extra_time=0.5; extra_time_right=0.02 }
+if (Test-Path -LiteralPath $preflightSettingsPath -PathType Leaf) {
+    try {
+        $saved = Get-Content -LiteralPath $preflightSettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+        foreach ($key in @($effectiveSettings.Keys)) { if ($saved.ContainsKey($key)) { $effectiveSettings[$key] = $saved[$key] } }
+    } catch { $missing.Add("無法讀取既有參數：$($_.Exception.Message)") }
+}
+foreach ($key in $requestedSettings.Keys) { $effectiveSettings[$key] = $requestedSettings[$key] }
+if ([double]$effectiveSettings.crossfade_length -gt [double]$effectiveSettings.block_time) { $missing.Add('crossfade_length 不得大於 block_time') }
+if ([double]$effectiveSettings.extra_time_ce -lt [double]$effectiveSettings.extra_time) { $missing.Add('extra_time_ce 必須大於或等於 extra_time') }
+
 $preflight = [ordered]@{
     status = if ($missing.Count -eq 0) { 'PASS' } else { 'BLOCKED' }
     profile_scope = if ($manifest) { $manifest.supported_profile_scope } else { $null }
@@ -124,6 +160,8 @@ $preflight = [ordered]@{
     clean_machine_bootstrap_status = if ($manifest) { $manifest.clean_machine_bootstrap_status }
     python = $resolvedPython
     runtime = $runtime
+    requested_settings = $requestedSettings
+    effective_settings = $effectiveSettings
     checkpoint = $resolvedCheckpoint
     checkpoint_sha256 = if (Test-Path -LiteralPath $resolvedCheckpoint -PathType Leaf) { (Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash } else { $null }
     config = $resolvedConfig
@@ -179,6 +217,8 @@ if (Test-Path -LiteralPath $sessionConfigPath -PathType Leaf) {
     try { $configData = Get-Content -LiteralPath $sessionConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable }
     catch { throw "Isolated Seed-VC session settings are invalid JSON: $sessionConfigPath" }
 }
+foreach ($key in $requestedSettings.Keys) { $configData[$key] = $requestedSettings[$key] }
+if ([double]$configData.crossfade_length -gt [double]$configData.block_time) { throw 'crossfade_length 不得大於 block_time' }
 
 $defaults = @($runtime.defaults)
 $inputIndex = if ($defaults.Count -gt 0 -and $null -ne $defaults[0]) { [int]$defaults[0] } else { -1 }
@@ -246,7 +286,7 @@ try {
     $env:HF_HUB_DISABLE_TELEMETRY = '1'
     $env:PYTHONPATH = $resolvedRepo
     Set-Location $resolvedSession
-    & $resolvedPython (Join-Path $PSScriptRoot 'seed-vc-gui-bootstrap.py')
+    & $resolvedPython -u (Join-Path $PSScriptRoot 'seed-vc-gui-bootstrap.py')
     if ($LASTEXITCODE -ne 0) { throw "Official Seed-VC GUI exited with code $LASTEXITCODE" }
 }
 finally {

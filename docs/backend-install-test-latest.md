@@ -2,6 +2,8 @@
 
 更新日期：2026-09-27（Asia/Taipei）
 
+後續階段：Python 已統一 3.10.x（七個 runtime），新操作入口與實際測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。本頁階段 1／2 的 Python 版本保留為當時測試紀錄。
+
 ## 階段 1：Seed-VC realtime-tiny GUI — PASS
 
 這次實際測試使用 tiny checkpoint、XLS-R、Hifi-GAN、FP32、CUDA 0，沒有以 offline-v1 替代。日常 GUI bootstrap 將 Torch CPU worker 限制為 4；測試工具新增明確 profile，修正 XLS-R cache 路徑，保留足夠首次 warm-up 時間，並將 GUI 設定寫入 artifact overlay。原本 5 秒 encoder context 可用，不需換模型或增加服務。短的擷取視窗加上未限制的 CPU worker 會在首次 callback 完成前停止，造成零輸出或未擷取到輸出；不能把這種結果解讀為模型本身全零。

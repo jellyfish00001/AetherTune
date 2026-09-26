@@ -31,6 +31,7 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 9. `docs/*verification-latest.md`：實際驗證證據與剩餘風險。
 10. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
 11. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
+12. `docs/python-ui-verification-latest.md`：Python 3.10.x 統一、`AetherTune.cmd`／Tk 控制台與本機啟停測試。
 
 若文件與 runtime 證據衝突，以最新可重跑 artifact、實際命令輸出與 verifier 為準，並修正文檔；不要用「模型檔存在」覆蓋 runtime WAITING。
 
@@ -49,6 +50,11 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 
 ```powershell
 Set-Location D:\AetherTune
+
+# 日常控制台：參數、Seed 官方 GUI、MeanVC2／X-VC WAV、啟停與結果
+& .\AetherTune.cmd
+# 專案管理的七個 runtime 版本／CUDA 可見／pip check（不是音訊 E2E）
+& .\tools\python-runtime-check.ps1
 
 # 唯讀總覽；只表示檔案／環境存在，不是 E2E 品質驗收
 & .\tools\voice-backend-check.ps1

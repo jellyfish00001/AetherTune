@@ -2,6 +2,10 @@
 
 2026-09-27：**realtime-tiny GUI 有效輸出已通過四組 reference、17/17 設定與 VB-CABLE loopback 測試**。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
 
+現在可雙擊根目錄 **`AetherTune.cmd`** 開啟控制台：Seed-VC 可設 Reference／音訊裝置／八項參數再開官方即時 GUI；MeanVC2／X-VC 可選 source、Reference 與參數產生 WAV。控制台提供停止、日誌、開啟 WAV 與結果資料夾。Seed 官方視窗再按 `Start Voice Conversion` 開始，結束按 `Stop Voice Conversion`。
+
+本機已安裝專案內 portable PowerShell，不依賴 Codex 的 PATH。重建時先用 Windows PowerShell 執行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/powershell-setup.ps1`。模型、音訊與 venv 不在 Git；Git clone 不代表另一台新機已安裝。
+
 AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。核心目標是在 RTX 5060 Ti 16GB 與 Windows 本地環境，以 `5 秒` 端到端延遲為硬上限，比較 Streaming Voice Conversion 與 Speech Reconstruction，並用共用的 Capture、Post-FX、Routing 與 Benchmark Pipeline 評估自然度、目標音色相似度、原始表演保留、穩定性與直播可用性。
 
 完整鏈路首包 `<= 5 秒` 是即時候選的硬門檻；`> 5 秒` 分類為 `OFFLINE`。只有 physical mic artifact、run/model/route/hardware identity、600 秒零 dropout/underrun 與人工聽評都齊全才分類為 `LIVE`。完整契約見 [`docs/live-gate.md`](docs/live-gate.md)。

@@ -16,8 +16,21 @@ def main():
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--output-dir', type=Path, required=True)
-    parser.add_argument('--current', type=int, default=160, help='0 為 offline；正數為 streaming chunk 毫秒')
+    parser.add_argument('--current', type=int, default=160, help='0 為 offline；正數為 streaming current 毫秒')
+    parser.add_argument('--chunk', type=int, default=2400, help='streaming chunk 毫秒')
+    parser.add_argument('--future', type=int, default=80, help='streaming future 毫秒')
+    parser.add_argument('--smooth', type=int, default=20, help='streaming smooth 毫秒')
     args = parser.parse_args()
+    if args.current < 0:
+        parser.error('--current 不可小於 0')
+    if args.chunk <= 0:
+        parser.error('--chunk 必須大於 0')
+    if args.future < 0 or args.smooth < 0:
+        parser.error('--future 與 --smooth 不可小於 0')
+    if args.current > 0 and args.smooth > args.current:
+        parser.error('streaming 的 --smooth 不可大於 --current')
+    if args.current > 0 and args.current + args.future + args.smooth > args.chunk:
+        parser.error('streaming 視窗需滿足 current + future + smooth <= chunk')
     repo = ROOT / 'tools/external/X-VC'
     assets = ROOT / 'models/xvc'
     output = args.output_dir.resolve()
@@ -48,13 +61,14 @@ def main():
     sys.argv = ['infer_single', '--config', str(config_path), '--ckpt', str(assets / 'xvc.pt'),
                 '--source_wav_path', str(args.source.resolve()), '--target_wav_path', str(args.target.resolve()),
                 '--save_dir', str(output), '--device', '0', '--current', str(args.current),
-                '--chunk', '2400', '--future', '80', '--smooth', '20']
+                '--chunk', str(args.chunk), '--future', str(args.future), '--smooth', str(args.smooth)]
     started = time.perf_counter()
     runpy.run_module('bins.infer_single', run_name='__main__')
     elapsed = time.perf_counter() - started
     write_evidence('xvc', args.source.resolve(), args.target.resolve(), list(output.glob('*.wav')),
                    [assets / 'xvc.pt', assets / 'glm-tokenizer/model.safetensors', assets / 'eres2net/pretrained_eres2net.ckpt'],
-                   repo, devices, {'current_ms': args.current, 'chunk_ms': 2400, 'future_ms': 80, 'smooth_ms': 20}, elapsed)
+                   repo, devices, {'current_ms': args.current, 'chunk_ms': args.chunk,
+                                   'future_ms': args.future, 'smooth_ms': args.smooth}, elapsed)
 
 if __name__ == '__main__':
     main()

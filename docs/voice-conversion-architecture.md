@@ -113,5 +113,5 @@ physical microphone
 - RVC 既有 verifier、模型 audit 與 VCClient failure evidence 保留，重新定位為 baseline。
 - Seed-VC upstream 的本機 headless evidence 保留；2026-09-26 官方 Python 3.10.11 Tcl/Tk Support 修復後，Seed-VC venv preflight 與四個 GUI 設定／backend／VB-CABLE loopback case 均 `PASS`；實體麥克風、Light Host full-chain 與 600 秒穩定性仍待驗收。
 - Streaming VC 比較順序為 Seed-VC baseline → 已安裝的 MeanVC2 → 已安裝的 X-VC；後續新 streaming 方法與 Seed-VC realtime fork 另作 intake。
-- 2026-09-27 MeanVC2／X-VC 已下載安裝並完成雙向 CUDA file-driven streaming 音訊 `PASS`；mic／rack／600 秒／人工聽評另驗。實作僅沿用既有目錄與 setup/run wrapper，Python 統一延後。Seed-VC realtime fork／CosyVoice3 仍 `PLANNED`。
+- 2026-09-27 MeanVC2／X-VC 已下載安裝並完成雙向 CUDA file-driven streaming 音訊 `PASS`；mic／rack／600 秒／人工聽評另驗。Python 已統一 3.10.x，保留依賴隔離；操作控制台與實測見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。Seed-VC realtime fork／CosyVoice3 仍 `PLANNED`。
 - Audio Rack、固定 corpus、LIVE_GATE validator 與三層 benchmark 文件先落地；實際 mic E2E、VST chain、blind listening 是後續工作。
