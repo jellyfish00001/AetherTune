@@ -204,7 +204,7 @@ AGENTS.md                   # Agent 專用規則、導航、證據邊界
 - RVC 即時 latency、長時間穩定性、Light Host chain、Discord／OBS loopback 仍未驗收；VB-CABLE 與 Voicemeeter B1 synthetic loopback 已通過，現仍定位為 historical baseline。
 - 共用 audio-rack 的 bypass/full-chain、plugin Δ latency 與 backend 實際 loopback 仍需建立；現有 Light Host + Graillon 記錄不再代表所有 backend 的架構。
 - Seed-VC 已完成雙向離線、60 秒長音檔、realtime-tiny headless latency 與 synthetic virtual route；仍缺人工聽測、多說話者、PortAudio 實體麥克風 E2E、共用 rack 與 10 分鐘穩定性。
-- Seed-VC 官方 GUI：realtime-tiny 四組 reference 的 17/17 settings、有效 callback 與 VB-CABLE loopback 均 `PASS`；實體麥克風、Light Host full-chain、人工聽測與 10 分鐘穩定性仍 `WAITING`。
+- Seed-VC 官方 GUI：lifecycle、17/17 設定套用與 saved-reference restart `PASS`；最新 realtime-tiny callback WAV／同期 VB-CABLE loopback `WAITING`。較早四-reference run 曾有非零輸出，屬該次 run 的證據；完整狀態見 [`docs/seed-vc-verification-latest.md`](docs/seed-vc-verification-latest.md)。實體麥克風、Light Host full-chain、人工聽測與 10 分鐘穩定性仍 `WAITING`。
 - MeanVC2、X-VC 已安裝並完成雙向 CUDA WAV `PASS`；mic／rack／長測與品質評估仍 `WAITING`。Seed-VC realtime fork 與 CosyVoice3 保持 `PLANNED`。
 - `LIVE_GATE` validator 已建立，但沒有真實 mic／virtual route evidence 就不能產生 LIVE PASS。
 - CosyVoice2 已完成官方 zero-shot 與男女 reference clone；STT draft 已產生，但 exact transcript 人工聽核仍 `WAITING`。

@@ -1,6 +1,6 @@
 # Seed-VC 最新驗證
 
-2026-09-27 補驗：`realtime-tiny` 官方 GUI 四組 reference 的 17/17 設定、CUDA callback 有效輸出與 CABLE Output loopback 均 `PASS`；已限制 Torch CPU worker 為 4，測試明確指定 tiny profile。實際命令、RMS、hash 與證據見 [`backend-install-test-latest.md`](backend-install-test-latest.md)。下方 2026-09-26 GUI user-flow 保留為 offline-v1 歷史結果。
+2026-09-27 最新狀態：官方 GUI lifecycle、設定套用與 saved-reference restart `PASS`；realtime-tiny GUI callback backend WAV 與該次 CABLE Output loopback `WAITING`。較早的四-reference callback 報告曾在其測試條件下得到有限非零輸出，保留於 [`backend-install-test-latest.md`](backend-install-test-latest.md) 作為該次 run 的證據，不代表後續 callback 重跑已通過。最新缺口與報告 hash 見本頁下方；2026-09-26 offline-v1 GUI user-flow 是另一組歷史結果。
 
 更新日期：2026-09-26
 更新日期：2026-09-27

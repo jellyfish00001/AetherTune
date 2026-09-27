@@ -2,6 +2,8 @@
 
 更新：2026-09-27（Asia/Taipei）；Windows／RTX 5060 Ti 16GB。
 
+Seed-VC callback 狀態補充（2026-09-27）：本頁較早的 `python-ui-final` run 曾得到非零 callback WAV／CABLE loopback；後續官方 GUI callback 重跑的兩份報告未通過 finite/non-zero gate，整體最新狀態維持 `WAITING`。前一結果只代表其特定 run，不覆蓋後續缺口；詳見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
+
 ## Python：PASS
 
 專案管理的七個環境統一 **Python 3.10.x**；Windows 3.10.11、WSL 3.10.20。根目錄 `.python-version` 固定 minor version；各 backend 保留自己的 venv，避免 Gradio、Transformers、x-transformers 套件衝突。不更動其他專案、系統 Python 或 VCClient 內嵌 runtime。
@@ -82,7 +84,7 @@ CosyVoice prompt SHA-256 `C7B31D6DBE7CC6A716DDED00550DB5B50940BF209E424E4AD207B1
 
 檔案轉換只在 exit 0 且 backend、輸出路徑、SHA-256、finite／RMS／duration 和 WAV header 均吻合時才顯示 PASS；沒有用 exit 0 或 GUI 可開啟代替有效音訊。Mean／X code／model／input hash 與 device 在各 `run-evidence.json`；模型與 source/reference 未更換。
 
-最新 tiny GUI callback／CABLE 重跑 exit 0：17/17 設定、CUDA 0、4 CPU worker、非零 finite 音訊且與輸入不同。Callback RMS `0.015999486`／hash `32C3333E14215BB2801D44FEE11DDE5E1B9A0B503B98A4FF022655B5A1E321FA`；CABLE RMS `0.013963485`／hash `A6466E8F77B5F2F9CD73C036DFB40FAEB0CC8920D5CA95E988C8AFB8B00251B3`。checkpoint hash `C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88`，source revision `51383efd921027683c89e5348211d93ff12ac2a8`。輸入為前述 male-m1 注入 callback，reference female-young-f004；來源不是本次使用者實體說話。
+較早的 tiny GUI callback／CABLE run（`python-ui-final`）exit 0：17/17 設定、CUDA 0、4 CPU worker、非零 finite 音訊且與輸入不同。Callback RMS `0.015999486`／hash `32C3333E14215BB2801D44FEE11DDE5E1B9A0B503B98A4FF022655B5A1E321FA`；CABLE RMS `0.013963485`／hash `A6466E8F77B5F2F9CD73C036DFB40FAEB0CC8920D5CA95E988C8AFB8B00251B3`。checkpoint hash `C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88`，source revision `51383efd921027683c89e5348211d93ff12ac2a8`。輸入為前述 male-m1 注入 callback，reference female-young-f004；來源不是本次使用者實體說話。後續 `20260927-phase2-0ad07c8e` 兩次 callback 重跑分別未通過 finite/non-zero gate，故當前有效輸出狀態是 `WAITING`，見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
 
 ```powershell
 & tools/venvs/seed-vc/Scripts/python.exe -u tools/seed-vc-gui-userflow-test.py --profile realtime-tiny --case female-young-f004 --capture-loopback --output artifacts/seed-vc/python-ui-final
