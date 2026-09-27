@@ -1,6 +1,37 @@
 # Shared strict reader/verifier for the Seed-VC asset registry.
 # Values observed from local caches are explicitly not treated as upstream provenance.
 
+function Resolve-SeedVcProjectPath {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$ProjectRoot
+    )
+
+    $resolvedProjectRoot = [IO.Path]::GetFullPath($ProjectRoot)
+
+    # Drive-relative paths (C:folder) still depend on that drive's current directory, so reject them explicitly.
+    if ($Path -match '^[A-Za-z]:(?![\\/])') {
+        throw "Drive-relative paths are unsupported; use a fully qualified drive/UNC path or a project-relative path: $Path"
+    }
+
+    # Only fully qualified drive and UNC paths are independent of the process current directory.
+    $fullyQualifiedDrivePath = $Path -match '^[A-Za-z]:[\\/]'
+    $fullyQualifiedUncPath = $Path -match '^[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$)'
+    if ($fullyQualifiedDrivePath -or $fullyQualifiedUncPath) { return [IO.Path]::GetFullPath($Path) }
+    if ($Path -match '^[\\/]{2}') { throw "UNC paths must include both a server and share: $Path" }
+
+    # A single leading slash is rooted to the project's volume, not to the launching process' current drive.
+    if ([IO.Path]::IsPathRooted($Path)) {
+        $volumeRoot = [IO.Path]::GetPathRoot($resolvedProjectRoot)
+        if ([string]::IsNullOrWhiteSpace($volumeRoot)) { throw "Could not determine project volume root from: $resolvedProjectRoot" }
+        $volumeRelativePath = $Path.TrimStart([char[]]@('\','/'))
+        return [IO.Path]::GetFullPath((Join-Path $volumeRoot $volumeRelativePath))
+    }
+
+    # Relative parameters stay project-relative even when pwsh is launched from another directory.
+    return [IO.Path]::GetFullPath((Join-Path $resolvedProjectRoot $Path))
+}
+
 function Test-SeedVcSafeRelativePath {
     param([object]$Value)
 

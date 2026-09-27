@@ -19,16 +19,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-Set-Location $projectRoot
 . (Join-Path $PSScriptRoot 'seed-vc-gui-overlay.ps1')
 . (Join-Path $PSScriptRoot 'seed-vc-gui-device-selection.ps1')
 . (Join-Path $PSScriptRoot 'seed-vc-assets.ps1')
-$resolvedPython = [IO.Path]::GetFullPath($Python)
-$resolvedRepo = [IO.Path]::GetFullPath($Repo)
-$resolvedCheckpoint = [IO.Path]::GetFullPath($Checkpoint)
-$resolvedConfig = [IO.Path]::GetFullPath($Config)
-$resolvedSession = [IO.Path]::GetFullPath($SessionRoot)
-$manifestPath = [IO.Path]::GetFullPath($AssetManifest)
+$resolvedPython = Resolve-SeedVcProjectPath -Path $Python -ProjectRoot $projectRoot
+$resolvedRepo = Resolve-SeedVcProjectPath -Path $Repo -ProjectRoot $projectRoot
+$resolvedCheckpoint = Resolve-SeedVcProjectPath -Path $Checkpoint -ProjectRoot $projectRoot
+$resolvedConfig = Resolve-SeedVcProjectPath -Path $Config -ProjectRoot $projectRoot
+$resolvedSession = Resolve-SeedVcProjectPath -Path $SessionRoot -ProjectRoot $projectRoot
+$manifestPath = Resolve-SeedVcProjectPath -Path $AssetManifest -ProjectRoot $projectRoot
 $guiPath = Join-Path $resolvedRepo 'real-time-gui.py'
 $hifiganConfig = Join-Path $resolvedRepo 'configs\hifigan.yml'
 $missing = [System.Collections.Generic.List[string]]::new()
@@ -81,8 +80,8 @@ else {
     }
 }
 if (-not (Test-Path -LiteralPath $hifiganConfig -PathType Leaf)) { $missing.Add("Hifi-GAN config missing: $hifiganConfig") }
-if ($ModelScopeVadCache) { $vadModelPath = [IO.Path]::GetFullPath($ModelScopeVadCache) }
-elseif ($env:MODELSCOPE_CACHE) { $vadModelPath = Join-Path ([IO.Path]::GetFullPath($env:MODELSCOPE_CACHE)) 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
+if ($ModelScopeVadCache) { $vadModelPath = Resolve-SeedVcProjectPath -Path $ModelScopeVadCache -ProjectRoot $projectRoot }
+elseif ($env:MODELSCOPE_CACHE) { $vadCacheRoot = Resolve-SeedVcProjectPath -Path $env:MODELSCOPE_CACHE -ProjectRoot $projectRoot; $vadModelPath = Join-Path $vadCacheRoot 'hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 else { $vadModelPath = Join-Path $env:USERPROFILE '.cache\modelscope\hub\iic\speech_fsmn_vad_zh-cn-16k-common-pytorch' }
 if ($manifest) {
     foreach ($finding in Get-SeedVcAssetManifestFindings -Manifest $manifest -ProjectRoot $projectRoot -SeedVcRepo $resolvedRepo -ModelScopeVadPath $vadModelPath -RealtimeCheckpointOverride $resolvedCheckpoint) {
@@ -134,8 +133,9 @@ if (Test-Path -LiteralPath $resolvedPython -PathType Leaf) {
 
 $referencePath = $null
 if ($ReferenceWav) {
-    if (-not (Test-Path -LiteralPath $ReferenceWav -PathType Leaf)) { $missing.Add("Reference WAV not found: $ReferenceWav") }
-    else { $referencePath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $ReferenceWav).Path) }
+    $resolvedReferenceWav = Resolve-SeedVcProjectPath -Path $ReferenceWav -ProjectRoot $projectRoot
+    if (-not (Test-Path -LiteralPath $resolvedReferenceWav -PathType Leaf)) { $missing.Add("Reference WAV not found: $resolvedReferenceWav") }
+    else { $referencePath = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $resolvedReferenceWav).Path) }
 }
 if ($ReferenceWav -and $ClearReference) { $missing.Add('Use either -ReferenceWav or -ClearReference, not both') }
 
@@ -162,9 +162,11 @@ $preflight = [ordered]@{
     runtime = $runtime
     requested_settings = $requestedSettings
     effective_settings = $effectiveSettings
+    session_root = $resolvedSession
     checkpoint = $resolvedCheckpoint
     checkpoint_sha256 = if (Test-Path -LiteralPath $resolvedCheckpoint -PathType Leaf) { (Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash } else { $null }
     config = $resolvedConfig
+    requested_reference_audio_path = $referencePath
     vocoder = 'Hifi-GAN'
     model_cache = 'local-only / offline'
     modelscope_vad_path = $vadModelPath
@@ -245,7 +247,10 @@ if ($OutputDeviceName) { $configData.sg_output_device = [string]$outputDevice.na
 elseif (-not $configData.sg_output_device) { $configData.sg_output_device = [string]$outputDevice.name }
 $configData.sg_hostapi = [string]$inputDevice.hostapi_name
 if ($referencePath) { $configData.reference_audio_path = $referencePath }
-if ($ClearReference) { $configData.reference_audio_path = '' }
+elseif ($ClearReference) { $configData.reference_audio_path = '' }
+elseif ($configData.reference_audio_path) {
+    $configData.reference_audio_path = Resolve-SeedVcProjectPath -Path ([string]$configData.reference_audio_path) -ProjectRoot $projectRoot
+}
 if ($configData.reference_audio_path) {
     if (-not (Test-Path -LiteralPath $configData.reference_audio_path -PathType Leaf)) {
         throw "Configured reference WAV no longer exists: $($configData.reference_audio_path); pass -ReferenceWav or -ClearReference."
