@@ -1,0 +1,46 @@
+{
+  "family": "tts",
+  "capabilities": [
+    "speech_reconstruction",
+    "text_to_speech"
+  ],
+  "referenceVoice": true,
+  "classification": "WAITING",
+  "implementation": "planned",
+  "requiredPaths": [],
+  "id": "breeze",
+  "name": "Breeze TTS 2",
+  "adapter": "planned",
+  "limitations": [
+    "契約描述 Voice Design／Clone；M6 前禁止啟動。"
+  ],
+  "parameters": [
+    {
+      "name": "voice_design",
+      "label": "Voice design",
+      "type": "text",
+      "level": "basic",
+      "default": "",
+      "runtime": false
+    },
+    {
+      "name": "instruction",
+      "label": "Instruction",
+      "type": "text",
+      "level": "basic",
+      "default": "",
+      "runtime": false
+    },
+    {
+      "name": "cfg_scale",
+      "label": "CFG scale",
+      "type": "number",
+      "level": "advanced",
+      "default": 2,
+      "min": 0,
+      "max": 10,
+      "step": 0.1,
+      "runtime": false
+    }
+  ]
+}

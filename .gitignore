@@ -57,6 +57,16 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Desktop orchestration build/cache
+app/node_modules/
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+app/src-tauri/icons/android/
+app/src-tauri/icons/ios/
+app/src-tauri/icons/icon.icns
+output/playwright/
+
 # Keep directory placeholders and documentation
 !.gitkeep
 !README.md

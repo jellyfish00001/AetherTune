@@ -1,0 +1,63 @@
+{
+  "family": "tts",
+  "capabilities": [
+    "speech_reconstruction",
+    "text_to_speech"
+  ],
+  "referenceVoice": true,
+  "classification": "WAITING",
+  "implementation": "planned",
+  "requiredPaths": [],
+  "id": "cosyvoice",
+  "name": "CosyVoice",
+  "adapter": "planned",
+  "profiles": [
+    "CosyVoice2",
+    "CosyVoice3"
+  ],
+  "limitations": [
+    "共用重建／文字發聲 UI；M6 前禁止啟動。"
+  ],
+  "parameters": [
+    {
+      "name": "reference_text",
+      "label": "Reference text",
+      "type": "text",
+      "level": "basic",
+      "default": "",
+      "runtime": false
+    },
+    {
+      "name": "speed",
+      "label": "Speed",
+      "type": "number",
+      "level": "advanced",
+      "default": 1,
+      "min": 0.5,
+      "max": 2,
+      "step": 0.1,
+      "runtime": false
+    },
+    {
+      "name": "language",
+      "label": "Language",
+      "type": "select",
+      "level": "basic",
+      "default": "zh",
+      "options": [
+        "zh",
+        "en",
+        "auto"
+      ],
+      "runtime": false
+    },
+    {
+      "name": "streaming",
+      "label": "Streaming",
+      "type": "toggle",
+      "level": "advanced",
+      "default": true,
+      "runtime": false
+    }
+  ]
+}

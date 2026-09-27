@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BackendState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "engine_id",
+    "value",
+    "reason",
+    "audio_verified"
+  ],
+  "properties": {
+    "type": {
+      "const": "state"
+    },
+    "engine_id": {
+      "type": "string"
+    },
+    "value": {
+      "enum": [
+        "OFFLINE",
+        "VALIDATING",
+        "LOADING",
+        "READY",
+        "RUNNING",
+        "STOPPING",
+        "ERROR"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "audio_verified": {
+      "const": false
+    }
+  }
+}

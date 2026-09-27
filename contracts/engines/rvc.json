@@ -1,0 +1,90 @@
+{
+  "family": "streaming-vc",
+  "capabilities": [
+    "realtime_vc"
+  ],
+  "referenceVoice": true,
+  "classification": "LEGACY",
+  "implementation": "planned",
+  "requiredPaths": [],
+  "id": "rvc",
+  "name": "RVC + FCPE (Legacy)",
+  "adapter": "planned",
+  "limitations": [
+    "描述契約；第一輪不整合。"
+  ],
+  "parameters": [
+    {
+      "name": "model",
+      "label": "Model",
+      "type": "file",
+      "level": "basic",
+      "default": "",
+      "runtime": false
+    },
+    {
+      "name": "index",
+      "label": "Index",
+      "type": "file",
+      "level": "basic",
+      "default": "",
+      "runtime": false
+    },
+    {
+      "name": "f0_method",
+      "label": "F0",
+      "type": "select",
+      "level": "basic",
+      "default": "fcpe",
+      "options": [
+        "fcpe",
+        "rmvpe"
+      ],
+      "runtime": false
+    },
+    {
+      "name": "pitch",
+      "label": "Pitch",
+      "type": "number",
+      "level": "advanced",
+      "default": 0,
+      "min": -24,
+      "max": 24,
+      "step": 1,
+      "runtime": false
+    },
+    {
+      "name": "index_rate",
+      "label": "Index rate",
+      "type": "number",
+      "level": "advanced",
+      "default": 0.75,
+      "min": 0,
+      "max": 1,
+      "step": 0.05,
+      "runtime": false
+    },
+    {
+      "name": "chunk",
+      "label": "Chunk",
+      "type": "number",
+      "level": "advanced",
+      "default": 160,
+      "min": 1,
+      "max": 5000,
+      "step": 1,
+      "runtime": false
+    },
+    {
+      "name": "extra_frame",
+      "label": "Extra frame",
+      "type": "number",
+      "level": "advanced",
+      "default": 0,
+      "min": 0,
+      "max": 5000,
+      "step": 1,
+      "runtime": false
+    }
+  ]
+}

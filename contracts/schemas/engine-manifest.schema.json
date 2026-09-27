@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EngineManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "family",
+    "capabilities",
+    "referenceVoice",
+    "classification",
+    "adapter",
+    "implementation",
+    "limitations",
+    "requiredPaths",
+    "parameters"
+  ],
+  "properties": {
+    "id": {
+      "enum": [
+        "seed-vc",
+        "meanvc2",
+        "xvc",
+        "rvc",
+        "cosyvoice",
+        "breeze"
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "family": {
+      "enum": [
+        "streaming-vc",
+        "tts"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "realtime_vc",
+          "speech_reconstruction",
+          "text_to_speech"
+        ]
+      }
+    },
+    "referenceVoice": {
+      "type": "boolean"
+    },
+    "classification": {
+      "enum": [
+        "LIVE",
+        "CANDIDATE",
+        "OFFLINE",
+        "WAITING",
+        "BLOCKED",
+        "LEGACY"
+      ]
+    },
+    "adapter": {
+      "enum": [
+        "temporary_gui",
+        "file_runner",
+        "planned"
+      ]
+    },
+    "implementation": {
+      "enum": [
+        "skeleton",
+        "planned"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requiredPaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "label",
+          "type",
+          "level",
+          "default",
+          "runtime"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "slider",
+              "select",
+              "toggle",
+              "number",
+              "file",
+              "text"
+            ]
+          },
+          "level": {
+            "enum": [
+              "basic",
+              "advanced",
+              "expert"
+            ]
+          },
+          "default": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "runtime": {
+            "type": "boolean"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "step": {
+            "type": "number"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        }
+      }
+    }
+  }
+}

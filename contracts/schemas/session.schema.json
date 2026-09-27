@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "started_at",
+    "ended_at",
+    "mode",
+    "engine_id",
+    "model",
+    "voice_profile_id",
+    "reference",
+    "parameters",
+    "input_device_id",
+    "output_device_id",
+    "postfx_preset",
+    "stt_settings",
+    "transcript_storage",
+    "export_directory"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "streaming_vc",
+        "speech_reconstruction",
+        "text_to_speech"
+      ]
+    },
+    "engine_id": {
+      "type": "string"
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "voice_profile_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "input_device_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "output_device_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "postfx_preset": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stt_settings": {
+      "type": "object"
+    },
+    "transcript_storage": {
+      "const": "sqlite"
+    },
+    "export_directory": {
+      "type": "string"
+    }
+  }
+}

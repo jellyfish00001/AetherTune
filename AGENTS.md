@@ -32,6 +32,7 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 10. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
 11. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
 12. `docs/python-ui-verification-latest.md`：Python 3.10.x 統一、`AetherTune.cmd`／Tk 控制台與本機啟停測試。
+13. Desktop App 任務讀 `docs/app-requirements.md` → `docs/app-architecture.md` → `docs/app-verification-latest.md`；新增 orchestration 僅在 `app/`、`contracts/`、`services/`。本輪 M0/M1/M2 skeleton 不代表 headless realtime parity，Seed TEMPORARY GUI／Mean、X WAV migration 必須明列限制。
 
 若文件與 runtime 證據衝突，以最新可重跑 artifact、實際命令輸出與 verifier 為準，並修正文檔；不要用「模型檔存在」覆蓋 runtime WAITING。
 

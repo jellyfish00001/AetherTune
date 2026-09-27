@@ -1,0 +1,138 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use aethertune_desktop::engine_manager::{self, EngineManager};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::{fs, sync::{Arc, Mutex}};
+use tauri::{Emitter, Manager, menu::{Menu, MenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, LogicalSize};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct Shell {
+    mode:String, opacity:f64, always_on_top:bool, locked:bool, click_through:bool,
+    visibility_hotkey:String, voice_hotkey:String,
+}
+impl Default for Shell { fn default()->Self { Self { mode:"full".into(),opacity:0.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:"Ctrl+Alt+A".into(),voice_hotkey:"Ctrl+Alt+V".into() } } }
+struct Desktop { engine:Mutex<EngineManager>, shell:Mutex<Shell>, last:Mutex<Option<(String,Value)>> }
+
+fn apply_shell(app:&tauri::AppHandle, shell:&Shell)->Result<(),String> {
+    let (w,h)=match shell.mode.as_str() { "full"=>(1040.,740.), "compact"=>(420.,490.), "mini"=>(420.,74.), _=>return Err("未知視窗模式".into()) };
+    if !(0.45..=1.).contains(&shell.opacity) { return Err("透明度須介於 0.45 與 1".into()); }
+    if shell.click_through && shell.mode=="full" { return Err("Click-through 僅供 Overlay 使用".into()); }
+    let window=app.get_webview_window("main").ok_or("主視窗不存在")?;
+    window.set_size(LogicalSize::new(w,h)).map_err(|e|e.to_string())?;
+    window.set_always_on_top(shell.always_on_top || shell.mode!="full").map_err(|e|e.to_string())?;
+    window.set_resizable(shell.mode=="full").map_err(|e|e.to_string())?;
+    window.set_ignore_cursor_events(shell.click_through).map_err(|e|e.to_string())?;
+    app.emit("shell",shell).map_err(|e|e.to_string())?;
+    Ok(())
+}
+fn reveal(app:&tauri::AppHandle, mode:Option<&str>) {
+    let desktop=app.state::<Desktop>(); let mut shell=desktop.shell.lock().unwrap();
+    if let Some(mode)=mode { shell.mode=mode.into(); }
+    shell.click_through=false;
+    let _=apply_shell(app,&shell);
+    if let Some(w)=app.get_webview_window("main") { let _=w.unminimize(); let _=w.show(); let _=w.set_focus(); }
+}
+fn toggle_voice(app:&tauri::AppHandle) {
+    let d=app.state::<Desktop>();
+    let mut engine=d.engine.lock().unwrap();
+    let result=if engine.status()["service_alive"]==true {engine.stop()} else if let Some((id,request))=d.last.lock().unwrap().clone() {let handle=app.clone();engine.start(&id,request,Arc::new(move|e|{let _=handle.emit("engine-event",e);}))} else {Err("請先在 LIVE 選擇 Engine 與檔案，再 Start".into())};
+    let _=app.emit("engine-action",json!({"result":result.as_ref().ok(),"error":result.err()}));
+}
+#[tauri::command]
+fn discover()->Result<Vec<Value>,String> {engine_manager::discover()}
+#[tauri::command]
+async fn validate(engine:String,request:Value)->Result<Value,String> {tauri::async_runtime::spawn_blocking(move||EngineManager::validate(&engine,request)).await.map_err(|e|e.to_string())?}
+#[tauri::command]
+async fn start(app:tauri::AppHandle,engine:String,request:Value)->Result<Value,String> {
+    tauri::async_runtime::spawn_blocking(move||{
+        let d=app.state::<Desktop>(); *d.last.lock().unwrap()=Some((engine.clone(),request.clone()));
+        let handle=app.clone(); let result=d.engine.lock().unwrap().start(&engine,request,Arc::new(move|e|{let _=handle.emit("engine-event",e);})); result
+    }).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn stop(app:tauri::AppHandle)->Result<Value,String> {tauri::async_runtime::spawn_blocking(move||app.state::<Desktop>().engine.lock().unwrap().stop()).await.map_err(|e|e.to_string())?}
+#[tauri::command]
+fn status(d:tauri::State<Desktop>)->Value {d.engine.lock().unwrap().status()}
+#[tauri::command]
+fn logs(d:tauri::State<Desktop>)->Vec<Value> {d.engine.lock().unwrap().logs()}
+#[tauri::command]
+fn shell_status(d:tauri::State<Desktop>)->Shell {d.shell.lock().unwrap().clone()}
+#[tauri::command]
+fn window_status(app:tauri::AppHandle)->Result<Value,String> {
+    let w=app.get_webview_window("main").ok_or("主視窗不存在")?;
+    #[cfg(windows)]
+    let extended_style=unsafe {windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(w.hwnd().map_err(|e|e.to_string())?.0 as _,windows_sys::Win32::UI::WindowsAndMessaging::GWL_EXSTYLE)};
+    #[cfg(not(windows))]
+    let extended_style=0isize;
+    Ok(json!({"size":w.inner_size().map_err(|e|e.to_string())?,"position":w.outer_position().map_err(|e|e.to_string())?,"scale_factor":w.scale_factor().map_err(|e|e.to_string())?,"visible":w.is_visible().map_err(|e|e.to_string())?,"always_on_top":w.is_always_on_top().map_err(|e|e.to_string())?,"decorated":w.is_decorated().map_err(|e|e.to_string())?,"extended_style":extended_style,"native_click_through":extended_style&0x20!=0,"tray_registered":app.tray_by_id("aethertune").is_some()}))
+}
+#[tauri::command]
+fn set_shell(app:tauri::AppHandle, shell:Shell)->Result<(),String> {
+    let d=app.state::<Desktop>(); let mut current=d.shell.lock().unwrap();
+    // 驗證新的快捷鍵後再替換；失敗恢復舊註冊，保留 click-through 逃生入口。
+    if shell.visibility_hotkey==shell.voice_hotkey { return Err("兩組快捷鍵不可相同".into()); }
+    let _: tauri_plugin_global_shortcut::Shortcut=shell.visibility_hotkey.parse().map_err(|e|format!("{e}"))?;
+    let _: tauri_plugin_global_shortcut::Shortcut=shell.voice_hotkey.parse().map_err(|e|format!("{e}"))?;
+    let changed=shell.visibility_hotkey!=current.visibility_hotkey || shell.voice_hotkey!=current.voice_hotkey;
+    if changed {
+        app.global_shortcut().unregister_all().map_err(|e|e.to_string())?;
+        if let Err(e)=register_hotkeys(&app,&shell) {
+            let _=app.global_shortcut().unregister_all(); let _=register_hotkeys(&app,&current); return Err(e);
+        }
+    }
+    if let Err(e)=apply_shell(&app,&shell) { if changed {let _=app.global_shortcut().unregister_all();let _=register_hotkeys(&app,&current);} let _=apply_shell(&app,&current); return Err(e); }
+    let folder=engine_manager::root().join("artifacts/desktop"); fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
+    // 重啟時永不恢復 click-through，以免視窗失去控制。
+    let mut stored=shell.clone(); stored.click_through=false;
+    fs::write(folder.join("shell.json"),serde_json::to_vec_pretty(&stored).unwrap()).map_err(|e|e.to_string())?;
+    *current=shell; Ok(())
+}
+#[tauri::command]
+fn drag(app:tauri::AppHandle)->Result<(),String> {if !app.state::<Desktop>().shell.lock().unwrap().locked {app.get_webview_window("main").unwrap().start_dragging().map_err(|e|e.to_string())?;} Ok(())}
+#[tauri::command]
+fn move_window(app:tauri::AppHandle,x:i32,y:i32)->Result<(),String> {
+    if !app.state::<Desktop>().shell.lock().unwrap().locked {
+        app.get_webview_window("main").ok_or("主視窗不存在")?.set_position(tauri::PhysicalPosition::new(x,y)).map_err(|e|e.to_string())?;
+    }
+    Ok(())
+}
+#[tauri::command]
+fn hide(app:tauri::AppHandle)->Result<(),String> {app.get_webview_window("main").unwrap().hide().map_err(|e|e.to_string())}
+#[tauri::command]
+fn exit(app:tauri::AppHandle) {app.exit(0);}
+fn register_hotkeys(app:&tauri::AppHandle,shell:&Shell)->Result<(),String> {
+    app.global_shortcut().on_shortcut(shell.visibility_hotkey.as_str(),|app,_,event|if event.state==ShortcutState::Pressed {
+        if let Some(w)=app.get_webview_window("main") {if w.is_visible().unwrap_or(false) && !app.state::<Desktop>().shell.lock().unwrap().click_through {let _=w.hide();} else {reveal(app,None);}}
+    }).map_err(|e|e.to_string())?;
+    app.global_shortcut().on_shortcut(shell.voice_hotkey.as_str(),|app,_,event|if event.state==ShortcutState::Pressed {let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));}).map_err(|e|e.to_string())?;
+    Ok(())
+}
+fn main() {
+    let mut shell:Shell=fs::read(engine_manager::root().join("artifacts/desktop/shell.json")).ok().and_then(|s|serde_json::from_slice(&s).ok()).unwrap_or_default(); shell.click_through=false;
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app,_,_|reveal(app,None)))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(Desktop{engine:Mutex::new(EngineManager::new()),shell:Mutex::new(shell),last:Mutex::new(None)})
+        .invoke_handler(tauri::generate_handler![discover,validate,start,stop,status,logs,shell_status,window_status,set_shell,drag,move_window,hide,exit])
+        .setup(|app| {
+            let handle=app.handle(); let shell=app.state::<Desktop>().shell.lock().unwrap().clone();
+            register_hotkeys(handle,&shell)?; apply_shell(handle,&shell)?;
+            let open=MenuItem::with_id(app,"open","Open AetherTune",true,None::<&str>)?;
+            let overlay=MenuItem::with_id(app,"overlay","Show Overlay",true,None::<&str>)?;
+            let toggle=MenuItem::with_id(app,"toggle","Start / Stop runner (TEMPORARY)",true,None::<&str>)?;
+            let recover=MenuItem::with_id(app,"recover","Disable click-through",true,None::<&str>)?;
+            let quit=MenuItem::with_id(app,"exit","Exit",true,None::<&str>)?;
+            let menu=Menu::with_items(app,&[&open,&overlay,&toggle,&recover,&quit])?;
+            let icon=tauri::image::Image::new_owned([45u8,212,191,255].repeat(32*32),32,32);
+            TrayIconBuilder::with_id("aethertune").icon(icon).tooltip("AetherTune — audio WAITING").menu(&menu).show_menu_on_left_click(false)
+                .on_menu_event(|app,e|match e.id.as_ref(){"open"=>reveal(app,Some("full")),"overlay"=>reveal(app,Some("compact")),"recover"=>reveal(app,None),"toggle"=>{let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));},"exit"=>app.exit(0),_=>{}})
+                .on_tray_icon_event(|tray,event|if matches!(event,TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}) {reveal(tray.app_handle(),None);})
+                .build(app)?;
+            Ok(())
+        })
+        .on_window_event(|w,event|if let tauri::WindowEvent::CloseRequested{api,..}=event {api.prevent_close();let _=w.hide();})
+        .build(tauri::generate_context!()).expect("AetherTune desktop 初始化失敗")
+        .run(|app,event|if matches!(event,tauri::RunEvent::ExitRequested{..}|tauri::RunEvent::Exit) {let _=app.state::<Desktop>().engine.lock().unwrap().stop();});
+}
