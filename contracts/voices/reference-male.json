@@ -1,0 +1,27 @@
+{
+  "$schema": "../schemas/voice-profile.schema.json",
+  "id": "reference-male",
+  "name": "Reference Male",
+  "engines": ["cosyvoice", "breeze"],
+  "status": "WAITING",
+  "metadata": {
+    "review_status": "WAITING",
+    "manual_review_required": true,
+    "source": "dataset/reference-voices/README.md",
+    "notes": "公開測試樣本；reference transcript 尚待人工逐字核對。"
+  },
+  "references": {
+    "cosyvoice": {
+      "audio_path": "dataset/reference-voices/voice-male-m1.wav",
+      "text_path": "tools/fixtures/cosyvoice/reference-male-text.txt",
+      "metadata_status": "WAITING",
+      "notes": "CosyVoice2 zero-shot reference；prompt text 尚待人工核對。"
+    },
+    "breeze": {
+      "audio_path": "dataset/reference-voices/voice-male-m1.wav",
+      "text_path": "tools/fixtures/breeze-reference-male-text.txt",
+      "metadata_status": "DRAFT",
+      "notes": "Breeze reference transcript 是 draft，禁止當作 verified metadata。"
+    }
+  }
+}

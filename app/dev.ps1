@@ -19,6 +19,11 @@ try {
         if ($LASTEXITCODE -ne 0) {throw 'Adapter boundary tests failed'}
         & python (Join-Path $root 'services/engines/test_seed_cache.py')
         if ($LASTEXITCODE -ne 0) {throw 'Cache repair safety tests failed'}
+        Push-Location $root
+        try {
+            & (Join-Path $root 'tools/venvs/seed-vc/Scripts/python.exe') -m unittest services.tts.test_service
+            if ($LASTEXITCODE -ne 0) {throw 'TTS lifecycle tests failed'}
+        } finally {Pop-Location}
         Push-Location src-tauri
         try { & cargo test --lib; if ($LASTEXITCODE -ne 0) {throw 'Rust process tests failed'} } finally {Pop-Location}
     } elseif ($Build) { & npm.cmd run tauri -- build --debug --no-bundle; if ($LASTEXITCODE -ne 0) {throw 'Desktop build failed'} }

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VoiceProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "engines", "status", "metadata", "references"],
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "engines": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": { "enum": ["cosyvoice", "breeze"] }
+    },
+    "status": { "enum": ["PASS", "WAITING", "PLANNED"] },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_status", "manual_review_required", "source"],
+      "properties": {
+        "review_status": { "enum": ["PASS", "WAITING", "PLANNED"] },
+        "manual_review_required": { "const": true },
+        "source": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "references": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cosyvoice"],
+      "properties": {
+        "cosyvoice": { "$ref": "#/$defs/reference" },
+        "breeze": { "$ref": "#/$defs/reference" }
+      }
+    },
+    "official_cosyvoice_sample": { "$ref": "#/$defs/reference" },
+    "profile_path": { "type": "string" }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audio_path", "text_path", "metadata_status"],
+      "properties": {
+        "audio_path": { "type": "string", "minLength": 1 },
+        "text_path": { "type": "string", "minLength": 1 },
+        "metadata_status": { "enum": ["PASS", "WAITING", "PLANNED", "DRAFT"] },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

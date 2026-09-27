@@ -101,8 +101,11 @@ impl Process {
     }
     pub fn alive(&self) -> bool { matches!(self.child.lock().unwrap().try_wait(), Ok(None)) }
     pub fn stop(&mut self) -> Result<(), String> {
+        self.stop_with_grace(Duration::from_secs(3))
+    }
+    pub fn stop_with_grace(&mut self, grace: Duration) -> Result<(), String> {
         let _ = self.send(serde_json::json!({"command":"stop"}));
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + grace;
         while self.alive() && Instant::now() < deadline { thread::sleep(Duration::from_millis(50)); }
         // 即使 service 正常結束，仍 close job 清除 upstream 衍生程序。
         #[cfg(windows)]

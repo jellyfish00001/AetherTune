@@ -2,7 +2,9 @@
 
 本輪 2026-09-27 更新：realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效變聲 callback WAV 與同期 CABLE loopback `WAITING`，獨立 VB-CABLE synthetic smoke `PASS` 不代表 GUI 音訊。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；操作入口與後續測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
 
-更新日期：2026-09-27（Asia/Taipei）
+更新日期：2026-09-28（Asia/Taipei）
+
+Manual TTS 增量：Desktop Composer／Queue／Transcript 與既有 CosyVoice2／Breeze 已接通；指定 CABLE 的真實生成／完成播放／非零擷取／hash／provider／程序清理 PASS。生成及播放取消後下一句完成亦 PASS；CosyVoice2 同一 service 的 20 次真實 request、男女 profile 各 10 次、20 個非零播放時窗及 Transcript／FIFO／退出清理全 PASS，Breeze 為單次鏈路驗證。詳細命令與 evidence 見 [`manual-tts-verification-latest.md`](manual-tts-verification-latest.md)。目前完整 WAV、每句重載模型，屬 offline；實體 Mic 共存、原生 GUI 完整互動、外部 Post-FX、LIVE 與人工聽評仍 WAITING；Agent Reply 僅停用契約。
 
 這份文件回答「目前哪些可以直接使用、哪些仍需要補條件」。`PASS` 只代表指定 gate 有可重跑證據；不代表音質一定符合個人偏好。`WAITING` 是尚未完成或需要人工／系統條件；`BLOCKED` 是目前有明確錯誤，不能當作可用。Seed-VC 開箱操作及本輪 readiness 見 [`seed-vc-readiness-latest.md`](seed-vc-readiness-latest.md)。
 

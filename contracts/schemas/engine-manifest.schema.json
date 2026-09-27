@@ -71,8 +71,12 @@
     "implementation": {
       "enum": [
         "skeleton",
+        "implemented",
         "planned"
       ]
+    },
+    "supports_streaming_tts": {
+      "type": "boolean"
     },
     "limitations": {
       "type": "array",
@@ -87,6 +91,12 @@
       }
     },
     "requiredPaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "modelPaths": {
       "type": "array",
       "items": {
         "type": "string"

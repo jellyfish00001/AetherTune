@@ -1,6 +1,6 @@
 # AetherTune Desktop App — 產品需求與實作規格 v1
 
-日期：2026-09-27。依使用者提供的 v1 規格建立；本輪只交付 M0、M1、M2 skeleton。
+日期：2026-09-27。依使用者提供的 v1 規格建立；首次交付 M0、M1、M2 skeleton。後續 Manual TTS 增量範圍以下節為準。
 
 ## 產品目的與使用流程
 
@@ -120,3 +120,23 @@ Settings：General（Windows startup、start minimized、overlay、opacity、hot
 第一輪不做：模型／音訊算法重寫、Tk UI 刪除、TTS integration、Audio Rack rewrite、Diarization、Installer。其他 non-goals：cloud account／DB、手機／macOS／Linux UI、同時 preload 五個模型、合併 Python venv。舊 `AetherTune.cmd`／`tools/aethertune-ui.py` 保留為 legacy engineering console；只有 Desktop 的 launch／stop／params／devices／results 全 parity 才 deprecated。
 
 第一輪驗收報告見 [app-verification-latest.md](app-verification-latest.md)。
+
+## Manual TTS 與 Agent Reply 增量
+
+使用者增量規格要求 Speech Reconstruction 有 `microphone`、`manual_text`、`agent_reply` 三個 Input Mode。Manual Text 與麥克風狀態解耦；Microphone/STT runtime 尚未交付的部分保持 WAITING，Agent Reply 停用且 PLANNED。Microphone 選項下仍可使用文字 Composer，不能要求先關閉 Mic。Self STT 接入時只接受 physical microphone capture，不得讀取 mixed output／TTS loopback。
+
+所有文字發聲共用 `SpeechRequest → SpeechQueue → TTSOrchestrator → Engine Adapter → Playback → 現有外部 Audio Rack／Output`。沿用 CosyVoice2、Breeze TTS 2 runner 與 reference；CosyVoice3 未安裝不得作為可選 runtime。沿用既有路由 profile 與外部 Post-FX，不新增 VST host。
+
+- Speak 在 idle 立即開始；busy 時套用 Queue（預設）、Interrupt Current、Reject New Request。
+- Add to Queue 永遠排入 FIFO；支援 Remove、Clear、Move Up／Down、Speak Now。
+- Stop Speaking 僅取消 current generation／playback，pending queue 可繼續；Clear Queue 只取消 pending。兩者均不結束 App／STT。
+- Request 保存 engine、voice、route 的提交時快照。切換 Voice 只影響下一次提交。
+- Generation 與 Playback 分離，可取消；目前既有 adapter 產生完整 WAV，因此 `supports_streaming_tts=false`。保留 chunk 介面，不能宣告 streaming 首包成功。
+- 記錄 created／generation started／first audio／playback started／completed，以及 TTFA、generation latency、total response latency。未完成欄位為 null，不能填假數值。
+- 只有完成播放後寫入 ME Transcript：`source_type=self`、`provider=manual_text`、`transcript_provider=manual_text`、`speech_status=completed`。queued／cancelled／failed 保留 request history，不當成已說出的內容。
+- Full Composer、Compact Quick Input、Mini `[T]` popup；Enter 送出、Shift+Enter 換行可在 Settings 修改，IME 選字不得誤送。
+- Recent／Favorites 保存常用文字；Phrase Hotkeys、Agent API／Personality／Auto Reply 本輪 PLANNED。
+
+共用 Session／SQLite／Transcript 不因 Input Mode、Voice、TTS Engine 切換而重建。既有 VC EngineManager 尚維持單一 active runner；VC 執行中應先 Stop runner 再啟動 TTS，不能同時爭用同一 GPU／Output。這項限制不代表要求 Mic STT 關閉。
+
+驗收須分開記錄真實模型／VB-CABLE 音訊與注入 fixture 的 Queue 測試：Mic OFF、Mic ON 共存、三句 FIFO、取消、voice switch、engine error recovery、provider、20-request 程序穩定性。實體 Mic／外部 Rack／人工聽評未完成時保留 WAITING。增量結果見 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)。

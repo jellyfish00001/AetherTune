@@ -104,3 +104,17 @@ M2 下一片完成 headless readiness／start／stop 與 canonical audio devices
 M4 的常駐 STT 不掛在 EngineManager job 下；Mic self 與 Remote loopback 分 source。重建使用 backend_stt provider 避免雙重辨識。SQLite transaction 在 completed utterance 後立即 commit，export 可由 canonical DB 重建；Clear View 不刪 DB。GPU 預設保留 VC，STT CPU。
 
 M5 VoiceProfile 與 M6 TTS 共用 Mode → Engine；M7 只接既有 Audio Rack。M8 才處理 bundle resources、backend detection、installer／portable／auto update／startup／settings migration。任何超出此分層的改動先說明，不自行形成平行架構。
+
+## Manual TTS 增量架構
+
+新增服務留在 `services/tts/`，原生 bridge 留在 `app/src-tauri/src/speech_manager/`。`speech_status` 懶啟動受 Windows Job 管理的 Python JSONL service；`speech_action` 傳入 allowlist 動作，每次 command_id 都要收到 accepted／error ACK，拒絕新 request 不能被 UI 當成送出成功。IPC／WebView 仍不傳 PCM。
+
+`SpeechRequest → SpeechQueue → TTSOrchestrator` 負責串行生命週期；Generation Adapter 沿用 CosyVoice2 WSL Python 與 Breeze wrapper，Playback 在 Windows 對指定 PortAudio output／host API 開啟音訊。現有 `seed-vc-virtual-route` 與 `seed-vc-neutral` 是跨 backend 共用外部 rack／route，Post-FX 仍為 External / Manual，不能將 playback completion 等同完整 rack／LIVE PASS。
+
+SpeechManager 與 VC EngineManager 分開持有程序，Audio control mutex 防止兩邊同時提交佔用 Output 的啟動動作。Stop Speaking 送 TTS command，不關閉 TTS service；App Exit 才送 shutdown 並釋放 Job。WSL generation 的取消另外要清除自己建立的 Linux process group；Windows Job 不能當成 Linux 子程序已消失的證據。
+
+Session、request history、成功 Transcript 與 phrase settings 由 SQLite 保存；每個成功播放事件立即 commit，session exports 由 canonical records 寫出。Voice profiles 將已使用的 reference 音訊／文字包成 catalogue，保留 draft／授權限制，不冒充已有人類採納的 Voice Library。
+
+現有 adapter 的輸出是完整 WAV，`supports_streaming_tts=false`；Generation 與 Playback 保留分層及 chunk extension。AgentReplyProvider／AgentReply 僅契約，agent_reply input 與 agent source 提交均停用。
+
+可重跑檢核與真實音訊結果見 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)。無視窗 probe：`app/src-tauri/target/debug/speech-probe.exe <engine> <voice-profile-id[,voice-profile-id…]> <UTF8-text-file> [count=1..20] [cancel-after-seconds|playing]`。多句文字逐行循環、Voice IDs 依序交替；`playing` 在 PLAYING 持續 1 秒後取消，並記錄取消時間供獨立音訊擷取對照。probe 使用正式 Rust manager／Python service，固定送往既有 CABLE Input，不修改 Windows 預設裝置。

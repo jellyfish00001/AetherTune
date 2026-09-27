@@ -2,6 +2,8 @@
 
 Desktop App 第一輪（M0 + M1 + M2 skeleton）：規格見 [app-requirements](docs/app-requirements.md)，架構／啟動命令見 [app-architecture](docs/app-architecture.md)，分項結果見 [app-verification-latest](docs/app-verification-latest.md)。開發入口 `app/dev.ps1`，本機 build 為 `app/src-tauri/target/debug/aethertune-desktop.exe`；三個 migration Adapter 不代表完整即時音訊 MVP。舊 Tk 控制台繼續保留。
 
+Manual TTS 增量：Speech Reconstruction／Text → Voice 共用文字 Composer、SpeechQueue、取消與成功播放後的 ME Transcript；沿用 CosyVoice2／Breeze 與外部 Audio Rack／VB-CABLE。Mic STT runtime 仍 WAITING，Agent Reply／Phrase Hotkeys PLANNED；實際測試範圍與操作見 [manual-tts-verification-latest](docs/manual-tts-verification-latest.md)。
+
 2026-09-27：**realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效 callback WAV 與同期 CABLE loopback `WAITING`**。獨立 synthetic VB-CABLE smoke 為 `PASS`，但不代表 GUI 有效變聲。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
 
 現在可雙擊根目錄 **`AetherTune.cmd`** 開啟控制台：Seed-VC 可設 Reference／音訊裝置／八項參數再開官方即時 GUI；MeanVC2／X-VC 可選 source、Reference 與參數產生 WAV。控制台提供停止、日誌、開啟 WAV 與結果資料夾。Seed 官方視窗再按 `Start Voice Conversion` 開始，結束按 `Stop Voice Conversion`。

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TTSState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "snapshot"],
+  "properties": {
+    "type": { "const": "speech_snapshot" },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "state",
+        "queue",
+        "transcript",
+        "profiles",
+        "settings",
+        "recent_phrases",
+        "favorites",
+        "mic_enabled",
+        "capabilities"
+      ],
+      "properties": {
+        "session_id": { "type": "string", "format": "uuid" },
+        "state": { "enum": ["IDLE", "QUEUED", "GENERATING", "BUFFERING", "PLAYING", "STOPPING", "ERROR"] },
+        "audio_blocked": { "type": "boolean" },
+        "current_request_id": { "type": ["string", "null"], "format": "uuid" },
+        "queue": { "type": "array", "items": { "$ref": "speech-request.schema.json" } },
+        "transcript": { "type": "array", "items": { "$ref": "transcript-event.schema.json" } },
+        "profiles": { "type": "array", "items": { "$ref": "voice-profile.schema.json" } },
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["interrupt_policy", "enter_to_send"],
+          "properties": {
+            "interrupt_policy": { "enum": ["queue", "interrupt_current", "reject_new"] },
+            "enter_to_send": { "type": "boolean" }
+          }
+        },
+        "recent_phrases": { "type": "array", "items": { "type": "string" } },
+        "favorites": { "type": "array", "items": { "type": "string" } },
+        "mic_enabled": { "const": false },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["microphone", "manual_text", "agent_reply"],
+          "properties": {
+            "microphone": { "enum": ["WAITING", "implemented"] },
+            "manual_text": { "const": "implemented" },
+            "agent_reply": { "const": "PLANNED" }
+          }
+        },
+        "engine_readiness": { "type": "object" }
+      }
+    }
+  }
+}

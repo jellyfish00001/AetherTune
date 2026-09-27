@@ -2,8 +2,9 @@
   "name": "aethertune-desktop", "version": "0.1.0", "private": true, "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1", "build": "tsc --noEmit && vite build", "tauri": "tauri",
-    "test:contracts": "node tests/contracts.mjs",
-    "test:ui": "node tests/ui.mjs"
+    "test:contracts": "node tests/contracts.mjs && node tests/manual-contracts.mjs",
+    "test:ui": "node tests/ui.mjs",
+    "test:manual-tts-ui": "node tests/manual-tts.mjs"
   },
   "dependencies": {"@tauri-apps/api": "^2.8.0", "react": "^19.1.0", "react-dom": "^19.1.0"},
   "devDependencies": {"@tauri-apps/cli": "^2.8.0", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "typescript": "^5.9.0", "vite": "^7.1.0", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "playwright": "^1.55.0"}

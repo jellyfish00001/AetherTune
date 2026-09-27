@@ -80,8 +80,34 @@
       "enum": [
         "parallel_stt",
         "backend_stt",
-        "manual_text"
+        "manual_text",
+        "system"
       ]
+    },
+    "request_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source": {
+      "enum": [
+        "manual",
+        "stt",
+        "system"
+      ]
+    },
+    "speech_status": {
+      "enum": [
+        "completed"
+      ]
+    },
+    "engine_id": {
+      "type": "string"
+    },
+    "voice_profile_id": {
+      "type": "string"
+    },
+    "metrics": {
+      "type": "object"
     }
   }
 }

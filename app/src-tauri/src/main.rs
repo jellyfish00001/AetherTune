@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use aethertune_desktop::engine_manager::{self, EngineManager};
+use aethertune_desktop::speech_manager::SpeechManager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{fs, io::Write, sync::{Arc, Mutex}, time::{Duration,SystemTime,UNIX_EPOCH}};
@@ -11,9 +12,10 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 struct Shell {
     mode:String, opacity:f64, always_on_top:bool, locked:bool, click_through:bool,
     visibility_hotkey:String, voice_hotkey:String,
+    quick_input:bool,
 }
-impl Default for Shell { fn default()->Self { Self { mode:"full".into(),opacity:0.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:"Ctrl+Alt+A".into(),voice_hotkey:"Ctrl+Alt+V".into() } } }
-struct Desktop { engine:Mutex<EngineManager>, shell:Mutex<Shell>, last:Mutex<Option<(String,Value)>> }
+impl Default for Shell { fn default()->Self { Self { mode:"full".into(),opacity:0.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:"Ctrl+Alt+A".into(),voice_hotkey:"Ctrl+Alt+V".into(),quick_input:false } } }
+struct Desktop { engine:Mutex<EngineManager>, speech:Mutex<SpeechManager>, audio_control:Mutex<()>, shell:Mutex<Shell>, last:Mutex<Option<(String,Value)>> }
 
 fn record_action(action:&str) {
     let folder=engine_manager::root().join("artifacts/desktop");
@@ -40,7 +42,7 @@ fn start_diagnostics(app:tauri::AppHandle) {
 }
 
 fn apply_shell(app:&tauri::AppHandle, shell:&Shell)->Result<(),String> {
-    let (w,h)=match shell.mode.as_str() { "full"=>(1040.,740.), "compact"=>(420.,490.), "mini"=>(420.,74.), _=>return Err("未知視窗模式".into()) };
+    let (w,h)=match shell.mode.as_str() { "full"=>(1040.,740.), "compact"=>(420.,490.), "mini"=>(420.,if shell.quick_input {260.}else{74.}), _=>return Err("未知視窗模式".into()) };
     if !(0.45..=1.).contains(&shell.opacity) { return Err("透明度須介於 0.45 與 1".into()); }
     if shell.click_through && shell.mode=="full" { return Err("Click-through 僅供 Overlay 使用".into()); }
     let window=app.get_webview_window("main").ok_or("主視窗不存在")?;
@@ -60,9 +62,19 @@ fn reveal(app:&tauri::AppHandle, mode:Option<&str>) {
 }
 fn toggle_voice(app:&tauri::AppHandle) {
     let d=app.state::<Desktop>();
+    let _control=d.audio_control.lock().unwrap();
     let mut engine=d.engine.lock().unwrap();
+    if engine.status()["service_alive"]!=true && speech_blocks_vc(&d.speech.lock().unwrap().snapshot()) {
+        let _=app.emit("engine-action",json!({"error":"請先完成或停止 TTS Queue，再啟動 VC runner"}));return;
+    }
     let result=if engine.status()["service_alive"]==true {engine.stop()} else if let Some((id,request))=d.last.lock().unwrap().clone() {let handle=app.clone();engine.start(&id,request,Arc::new(move|e|{let _=handle.emit("engine-event",e);}))} else {Err("請先在 LIVE 選擇 Engine 與檔案，再 Start".into())};
     let _=app.emit("engine-action",json!({"result":result.as_ref().ok(),"error":result.err()}));
+}
+fn speech_blocks_vc(snapshot:&Value)->bool {
+    // 取消未能驗證 WSL group 回收時，也不能啟動另一個 GPU／Output runner。
+    ["QUEUED","GENERATING","BUFFERING","PLAYING","STOPPING"].contains(&snapshot["state"].as_str().unwrap_or("IDLE"))
+        || snapshot["audio_blocked"]==true
+        || snapshot["queue"].as_array().is_some_and(|items|items.iter().any(|item|matches!(item["error"]["code"].as_str(),Some("CANCEL_CLEANUP_FAILED"|"PLAYBACK_OPEN_TIMEOUT"))))
 }
 #[tauri::command]
 fn discover()->Result<Vec<Value>,String> {engine_manager::discover()}
@@ -71,7 +83,10 @@ async fn validate(engine:String,request:Value)->Result<Value,String> {tauri::asy
 #[tauri::command]
 async fn start(app:tauri::AppHandle,engine:String,request:Value)->Result<Value,String> {
     tauri::async_runtime::spawn_blocking(move||{
-        let d=app.state::<Desktop>(); *d.last.lock().unwrap()=Some((engine.clone(),request.clone()));
+        let d=app.state::<Desktop>();
+        let _control=d.audio_control.lock().unwrap();
+        if speech_blocks_vc(&d.speech.lock().unwrap().snapshot()) { return Err("請先完成 TTS Queue 並確認取消清理；必要時 Exit 後重新啟動".into()); }
+        *d.last.lock().unwrap()=Some((engine.clone(),request.clone()));
         let handle=app.clone(); let result=d.engine.lock().unwrap().start(&engine,request,Arc::new(move|e|{let _=handle.emit("engine-event",e);})); result
     }).await.map_err(|e|e.to_string())?
 }
@@ -81,6 +96,23 @@ async fn stop(app:tauri::AppHandle)->Result<Value,String> {tauri::async_runtime:
 fn status(d:tauri::State<Desktop>)->Value {d.engine.lock().unwrap().status()}
 #[tauri::command]
 fn logs(d:tauri::State<Desktop>)->Vec<Value> {d.engine.lock().unwrap().logs()}
+#[tauri::command]
+async fn speech_status(app:tauri::AppHandle)->Result<Value,String> {
+    tauri::async_runtime::spawn_blocking(move|| {
+        let handle=app.clone();
+        app.state::<Desktop>().speech.lock().unwrap().status(Arc::new(move|event|{let _=handle.emit("speech-event",event);}))
+    }).await.map_err(|e|e.to_string())?
+}
+#[tauri::command]
+async fn speech_action(app:tauri::AppHandle,action:Value)->Result<Value,String> {
+    tauri::async_runtime::spawn_blocking(move|| {
+        let d=app.state::<Desktop>();
+        let _control=d.audio_control.lock().unwrap();
+        if action["action"]=="submit" && d.engine.lock().unwrap().status()["service_alive"]==true { return Err("請先停止受管制的 VC runner，再發送 TTS；Mic STT 不受此限制".into()); }
+        let handle=app.clone();
+        let result=d.speech.lock().unwrap().action(action,Arc::new(move|event|{let _=handle.emit("speech-event",event);}));result
+    }).await.map_err(|e|e.to_string())?
+}
 #[tauri::command]
 fn shell_status(d:tauri::State<Desktop>)->Shell {d.shell.lock().unwrap().clone()}
 #[tauri::command]
@@ -109,7 +141,7 @@ fn set_shell(app:tauri::AppHandle, shell:Shell)->Result<(),String> {
     if let Err(e)=apply_shell(&app,&shell) { if changed {let _=app.global_shortcut().unregister_all();let _=register_hotkeys(&app,&current);} let _=apply_shell(&app,&current); return Err(e); }
     let folder=engine_manager::root().join("artifacts/desktop"); fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
     // 重啟時永不恢復 click-through，以免視窗失去控制。
-    let mut stored=shell.clone(); stored.click_through=false;
+    let mut stored=shell.clone(); stored.click_through=false; stored.quick_input=false;
     fs::write(folder.join("shell.json"),serde_json::to_vec_pretty(&stored).unwrap()).map_err(|e|e.to_string())?;
     *current=shell;record_action("shell:apply"); Ok(())
 }
@@ -139,8 +171,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app,_,_|reveal(app,None)))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(Desktop{engine:Mutex::new(EngineManager::new()),shell:Mutex::new(shell),last:Mutex::new(None)})
-        .invoke_handler(tauri::generate_handler![discover,validate,start,stop,status,logs,shell_status,window_status,set_shell,drag,move_window,hide,exit])
+        .manage(Desktop{engine:Mutex::new(EngineManager::new()),speech:Mutex::new(SpeechManager::default()),audio_control:Mutex::new(()),shell:Mutex::new(shell),last:Mutex::new(None)})
+        .invoke_handler(tauri::generate_handler![discover,validate,start,stop,status,logs,speech_status,speech_action,shell_status,window_status,set_shell,drag,move_window,hide,exit])
         .setup(|app| {
             let handle=app.handle(); let shell=app.state::<Desktop>().shell.lock().unwrap().clone();
             register_hotkeys(handle,&shell)?; apply_shell(handle,&shell)?;
@@ -160,5 +192,5 @@ fn main() {
         })
         .on_window_event(|w,event|if let tauri::WindowEvent::CloseRequested{api,..}=event {api.prevent_close();let _=w.hide();})
         .build(tauri::generate_context!()).expect("AetherTune desktop 初始化失敗")
-        .run(|app,event|if matches!(event,tauri::RunEvent::ExitRequested{..}|tauri::RunEvent::Exit) {let _=app.state::<Desktop>().engine.lock().unwrap().stop();});
+        .run(|app,event|if matches!(event,tauri::RunEvent::ExitRequested{..}|tauri::RunEvent::Exit) {let _=app.state::<Desktop>().speech.lock().unwrap().shutdown();let _=app.state::<Desktop>().engine.lock().unwrap().stop();});
 }

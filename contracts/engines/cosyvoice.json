@@ -6,17 +6,30 @@
   ],
   "referenceVoice": true,
   "classification": "WAITING",
-  "implementation": "planned",
-  "requiredPaths": [],
+  "implementation": "implemented",
+  "adapter": "file_runner",
+  "supports_streaming_tts": false,
+  "requiredPaths": [
+    "tools/venvs/cosyvoice-wsl/bin/python",
+    "tools/cosyvoice-infer.py",
+    "tools/external/CosyVoice",
+    "tools/external/CosyVoice/third_party/Matcha-TTS",
+    "models/speech-reconstruction/cosyvoice",
+    "tools/external/CosyVoice/asset/zero_shot_prompt.wav",
+    "tools/fixtures/cosyvoice/prompt-text.txt"
+  ],
+  "modelPaths": [
+    "models/speech-reconstruction/cosyvoice"
+  ],
   "id": "cosyvoice",
   "name": "CosyVoice",
-  "adapter": "planned",
   "profiles": [
-    "CosyVoice2",
-    "CosyVoice3"
+    "CosyVoice2"
   ],
   "limitations": [
-    "共用重建／文字發聲 UI；M6 前禁止啟動。"
+    "目前只接 CosyVoice2 non-streaming file runner；supports_streaming_tts=false。",
+    "CosyVoice3 維持 PLANNED，禁止由 Manual TTS request 啟動。",
+    "Audio rack 與 virtual route 為 external/manual，route evidence 維持 WAITING。"
   ],
   "parameters": [
     {
@@ -25,38 +38,6 @@
       "type": "text",
       "level": "basic",
       "default": "",
-      "runtime": false
-    },
-    {
-      "name": "speed",
-      "label": "Speed",
-      "type": "number",
-      "level": "advanced",
-      "default": 1,
-      "min": 0.5,
-      "max": 2,
-      "step": 0.1,
-      "runtime": false
-    },
-    {
-      "name": "language",
-      "label": "Language",
-      "type": "select",
-      "level": "basic",
-      "default": "zh",
-      "options": [
-        "zh",
-        "en",
-        "auto"
-      ],
-      "runtime": false
-    },
-    {
-      "name": "streaming",
-      "label": "Streaming",
-      "type": "toggle",
-      "level": "advanced",
-      "default": true,
       "runtime": false
     }
   ]

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SpeechRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "session_id",
+    "text",
+    "engine_id",
+    "voice_profile_id",
+    "source",
+    "priority",
+    "created_at",
+    "status",
+    "metrics",
+    "error"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "session_id": { "type": "string", "format": "uuid" },
+    "text": { "type": "string", "minLength": 1 },
+    "engine_id": { "enum": ["cosyvoice", "breeze"] },
+    "voice_profile_id": { "type": "string", "minLength": 1 },
+    "source": { "enum": ["manual", "stt", "system", "agent"] },
+    "priority": { "type": "integer" },
+    "interrupt_policy": { "enum": ["queue", "interrupt_current", "reject_new"] },
+    "metadata": { "type": "object" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["queued", "generating", "ready", "playing", "completed", "cancelled", "failed"] },
+    "metrics": { "type": "object" },
+    "error": { "type": ["object", "null"] },
+    "profile_snapshot": { "type": "object" },
+    "route_snapshot": { "type": "object" }
+  }
+}

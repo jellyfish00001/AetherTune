@@ -1,0 +1,226 @@
+// Manual TTS UI regression. The second pass deliberately injects a Tauri IPC mock;
+// it verifies request shape and UI rejection behavior, and is not live audio evidence.
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+const baseUrl = process.env.AETHERTUNE_URL ?? 'http://127.0.0.1:1420/';
+const artifactDir = new URL('../../artifacts/desktop/ui/', import.meta.url);
+await mkdir(artifactDir, { recursive: true });
+
+function wireDiagnostics(page) {
+  const errors = [];
+  const network = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('requestfailed', (request) => network.push({ url: request.url(), failure: request.failure() }));
+  return { errors, network };
+}
+
+async function selectTtsMode(page, expectedProfiles) {
+  const mode = page.getByLabel('Mode', { exact: true });
+  await mode.selectOption('speech_reconstruction');
+  await page.waitForFunction(() => document.querySelector('[data-speech-mode="speech_reconstruction"]') !== null);
+  assert.deepEqual(await page.getByLabel('Engine', { exact: true }).locator('option').allTextContents(), ['CosyVoice', 'Breeze TTS 2']);
+  assert.deepEqual(await page.getByLabel('Input', { exact: true }).locator('option').allTextContents(), ['microphone', 'manual_text', 'agent_reply · PLANNED']);
+  if (expectedProfiles) assert.deepEqual(await page.getByLabel('Voice profile').locator('option').allTextContents(), expectedProfiles);
+}
+
+async function previewPass() {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  const diagnostics = wireDiagnostics(page);
+  await page.goto(baseUrl);
+  await page.waitForSelector('main');
+  assert.equal(await page.locator('main').getAttribute('data-native'), 'false');
+  await selectTtsMode(page, ['Reference Female', 'Reference Male', 'Official CosyVoice Sample']);
+  assert.equal(await page.getByRole('button', { name: 'Speak', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Add to Queue', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByLabel('Input', { exact: true }).locator('option:disabled').textContent(), 'agent_reply · PLANNED');
+  assert.ok(await page.getByText('CosyVoice3 · PLANNED', { exact: true }).isVisible());
+  assert.ok(await page.getByText('Mic WAITING', { exact: false }).first().isVisible());
+
+  const composer = page.getByLabel('Speech composer');
+  await composer.fill('preview line one');
+  await composer.press('Shift+Enter');
+  await composer.type('preview line two');
+  assert.equal(await composer.inputValue(), 'preview line one\npreview line two');
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  assert.equal(await composer.inputValue(), '');
+
+  await page.getByRole('button', { name: 'Compact', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('main')?.classList.contains('compact'));
+  await page.setViewportSize({ width: 420, height: 490 });
+  assert.ok(await page.getByLabel('Speech composer').isVisible());
+  await page.screenshot({ path: new URL('manual-tts-preview-compact.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
+  await page.getByRole('button', { name: 'Mini', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('main')?.classList.contains('mini'));
+  await page.setViewportSize({ width: 420, height: 74 });
+  assert.deepEqual(await page.evaluate(() => ({ width: innerWidth, height: innerHeight })), { width: 420, height: 74 });
+  await page.getByRole('button', { name: '開啟 TTS Quick Input' }).click();
+  await page.setViewportSize({ width: 420, height: 260 });
+  assert.ok(await page.getByTestId('speech-quick-popup').isVisible());
+  assert.equal(await page.getByRole('button', { name: 'Speak', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Add to Queue', exact: true }).count(), 0);
+  const popupBox = await page.getByTestId('speech-quick-popup').boundingBox();
+  const closeBox = await page.getByRole('button', { name: 'Close quick input' }).boundingBox();
+  const speakBox = await page.getByRole('button', { name: 'Speak', exact: true }).boundingBox();
+  assert.ok(popupBox && popupBox.y >= 74 && popupBox.y + popupBox.height <= 260);
+  assert.ok(closeBox && closeBox.y + closeBox.height <= 260);
+  assert.ok(speakBox && speakBox.y + speakBox.height <= 260);
+  await page.screenshot({ path: new URL('manual-tts-preview-mini-quick.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
+  await page.getByRole('button', { name: 'Close quick input' }).click();
+  await page.getByRole('button', { name: '展開 Compact' }).click();
+  await page.getByRole('button', { name: 'Full', exact: true }).click();
+  await page.setViewportSize({ width: 1040, height: 740 });
+  await page.getByRole('button', { name: 'VOICE', exact: true }).click();
+  await page.waitForSelector('.speech-workspace');
+  await page.getByRole('button', { name: 'TRANSCRIPT', exact: true }).click();
+  await page.waitForSelector('.speech-workspace');
+  assert.ok(await page.getByText('completed playback only', { exact: true }).isVisible());
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  assert.equal(await page.getByLabel('Enter to send').isDisabled(), true);
+  await page.getByRole('button', { name: 'LIVE', exact: true }).click();
+  assert.deepEqual(diagnostics.errors, []);
+  assert.deepEqual(diagnostics.network, []);
+  await page.screenshot({ path: new URL('manual-tts-preview-full.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
+  await browser.close();
+  return { status: 'PASS', consoleErrors: diagnostics.errors, networkErrors: diagnostics.network };
+}
+
+async function mockTauri(page) {
+  await page.addInitScript(() => {
+    window.isTauri = true;
+    const callbacks = new Map();
+    let nextCallback = 1;
+    let shell = { mode: 'full', opacity: 0.94, always_on_top: false, locked: false, click_through: false, quick_input: false, visibility_hotkey: 'Ctrl+Alt+A', voice_hotkey: 'Ctrl+Alt+V' };
+    const snapshot = { session_id: 'mock-session', state: 'IDLE', queue: [], transcript: [], profiles: [{ id: 'reference-male', name: 'Reference Male', engines: ['cosyvoice', 'breeze'], status: 'WAITING', metadata: { review_status: 'WAITING', notes: 'mock profile metadata' }, references: { cosyvoice: { audio_path: 'dataset/reference-voices/voice-male-m1.wav', text_path: 'tools/fixtures/cosyvoice/reference-male-text.txt', metadata_status: 'WAITING' }, breeze: { audio_path: 'dataset/reference-voices/voice-male-m1.wav', text_path: 'tools/fixtures/breeze-reference-male-text.txt', metadata_status: 'DRAFT' } } }], settings: { interrupt_policy: 'queue', enter_to_send: true }, recent_phrases: ['mock recent phrase'], favorites: [], mic_enabled: false, capabilities: { microphone: 'WAITING', manual_text: 'implemented', agent_reply: 'PLANNED' } };
+    window.__speechMockActions = [];
+    window.__speechMockReject = false;
+    window.__speechMockBuffering = false;
+    window.__speechMockQueueError = false;
+    const speechStatus = () => {
+      if (window.__speechMockBuffering) return { ...snapshot, state: 'BUFFERING', current_request_id: 'current-ready', queue: [{ id: 'current-ready', session_id: snapshot.session_id, source: 'manual', text: 'buffering current item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'ready', priority: 0 }, { id: 'queued-1', session_id: snapshot.session_id, source: 'manual', text: 'queued pending item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'queued', priority: 0 }] };
+      if (window.__speechMockQueueError) return { ...snapshot, queue: [{ id: 'queued-1', session_id: snapshot.session_id, source: 'manual', text: 'queued pending item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'queued', priority: 0 }, { id: 'failed-1', session_id: snapshot.session_id, source: 'manual', text: 'failed queue item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'failed', priority: 0, error: { code: 'TTS_FAILED', message: 'mock backend failure' } }] };
+      return snapshot;
+    };
+    const manifests = [
+      { id: 'seed-vc', name: 'Seed-VC', capabilities: ['realtime_vc'], classification: 'CANDIDATE', adapter: 'temporary_gui', implementation: 'skeleton', limitations: [], parameters: [] },
+      { id: 'cosyvoice', name: 'CosyVoice', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
+      { id: 'breeze', name: 'Breeze TTS 2', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
+    ];
+    const invoke = async (command, args = {}) => {
+      if (command === 'discover') return manifests;
+      if (command === 'shell_status') return shell;
+      if (command === 'set_shell') { shell = args.shell; return null; }
+      if (command === 'status') return { value: 'OFFLINE', engine_id: null, reason: 'mock', audio_verified: false, service_alive: false };
+      if (command === 'logs') return [];
+      if (command === 'window_status') return { size: { width: 1040, height: 740 }, position: { x: 0, y: 0 }, scale_factor: 1, visible: true, always_on_top: false, decorated: false, native_click_through: false, tray_registered: true };
+      if (command === 'speech_status') return speechStatus();
+      if (command === 'speech_action') {
+        window.__speechMockActions.push(args);
+        if (window.__speechMockReject) throw new Error('MOCK_REJECT');
+        if (args.action?.action === 'settings') Object.assign(snapshot.settings, args.action.settings);
+        return { accepted: true };
+      }
+      return null;
+    };
+    window.__TAURI_INTERNALS__ = {
+      invoke,
+      transformCallback: (callback) => { const id = nextCallback++; callbacks.set(id, callback); return id; },
+      unregisterCallback: (id) => callbacks.delete(id),
+      runCallback: (id, payload) => callbacks.get(id)?.(payload),
+    };
+    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
+  });
+}
+
+async function mockPass() {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  const diagnostics = wireDiagnostics(page);
+  await mockTauri(page);
+  await page.goto(baseUrl);
+  await page.waitForSelector('main[data-native="true"]');
+  await selectTtsMode(page, ['Reference Male']);
+  const composer = page.getByLabel('Speech composer');
+
+  await composer.fill('enter sends through speech action');
+  await composer.press('Enter');
+  await page.waitForFunction(() => window.__speechMockActions?.some((entry) => entry.action?.action === 'submit'));
+  assert.equal(await composer.inputValue(), '');
+  const enterAction = await page.evaluate(() => window.__speechMockActions.at(-1));
+  assert.equal(enterAction.action.action, 'submit');
+  assert.equal(enterAction.action.enqueue, false);
+  assert.equal(enterAction.action.request.source, 'manual');
+  assert.equal(enterAction.action.request.metadata.route.rack_profile_id, 'seed-vc-neutral');
+
+  await composer.fill('explicit queue action');
+  await page.getByRole('button', { name: 'Add to Queue', exact: true }).click();
+  await page.waitForFunction(() => window.__speechMockActions?.some((entry) => entry.action?.action === 'submit' && entry.action.enqueue === true));
+  const queueAction = await page.evaluate(() => window.__speechMockActions.at(-1));
+  assert.equal(queueAction.action.enqueue, true);
+
+  const beforeIme = await page.evaluate(() => window.__speechMockActions.length);
+  await composer.fill('ime composing');
+  await composer.evaluate((element) => {
+    element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true }));
+    element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+  });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => window.__speechMockActions.length), beforeIme);
+  assert.equal(await composer.inputValue(), 'ime composing');
+
+  const enterSetting = page.getByLabel('Enter to send');
+  await enterSetting.uncheck();
+  await page.waitForFunction(() => window.__speechMockActions?.some((entry) => entry.action?.action === 'settings'));
+  await composer.press('Enter');
+  assert.equal(await composer.inputValue(), 'ime composing\n');
+  await composer.press('Shift+Enter');
+  assert.equal(await composer.inputValue(), 'ime composing\n\n');
+
+  await page.evaluate(() => { window.__speechMockBuffering = true; });
+  await page.waitForFunction(() => document.querySelector('.queue-current')?.textContent?.includes('CURRENT · ready'));
+  await page.getByRole('button', { name: 'Compact', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('main')?.classList.contains('compact'));
+  const bufferingCurrent = page.locator('.queue-current');
+  assert.ok(await bufferingCurrent.getByRole('button', { name: 'Stop Speaking', exact: true }).isEnabled());
+  assert.equal(await bufferingCurrent.getByRole('button', { name: 'Remove', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Full', exact: true }).click();
+  await page.evaluate(() => { window.__speechMockBuffering = false; });
+
+  await page.evaluate(() => { window.__speechMockReject = true; });
+  await page.evaluate(() => { window.__speechMockQueueError = true; });
+  await composer.fill('keep this text when rejected');
+  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'MOCK_REJECT' }).first().waitFor();
+  assert.equal(await composer.inputValue(), 'keep this text when rejected');
+  await page.waitForFunction(() => document.querySelector('.queue-history')?.textContent?.includes('TTS_FAILED: mock backend failure'));
+  await page.getByRole('button', { name: 'Compact', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('main')?.classList.contains('compact'));
+  assert.ok(await page.locator('.queue-pending').isVisible());
+  for (const name of ['Speak Now', 'Move Up', 'Move Down', 'Remove']) {
+    assert.ok(await page.getByRole('button', { name, exact: true }).isVisible(), `Compact queue action ${name} should be visible`);
+  }
+  assert.ok((await page.locator('.queue-history').textContent()).includes('TTS_FAILED: mock backend failure'));
+  await page.evaluate(() => { window.__speechMockReject = false; });
+
+  await page.getByRole('button', { name: 'Mini', exact: true }).click();
+  await page.getByRole('button', { name: '開啟 TTS Quick Input' }).click();
+  const quick = page.getByLabel('Compact quick input');
+  await quick.fill('quick accepted text');
+  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="speech-quick-popup"]') === null);
+  assert.deepEqual(diagnostics.errors, []);
+  assert.deepEqual(diagnostics.network, []);
+  await page.screenshot({ path: new URL('manual-tts-mock-mini.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
+  const actions = await page.evaluate(() => window.__speechMockActions);
+  await writeFile(new URL('manual-tts-mock-actions.json', artifactDir), JSON.stringify(actions, null, 2));
+  await browser.close();
+  return { status: 'PASS', consoleErrors: diagnostics.errors, networkErrors: diagnostics.network, actionCount: actions.length };
+}
+
+const report = { status: 'PASS', preview: await previewPass(), mock: await mockPass(), note: 'Mock IPC validates DOM/request/rejection behavior only; it is not native TTS or audio evidence.' };
+await writeFile(new URL('manual-tts-report.json', artifactDir), JSON.stringify(report, null, 2));
+console.log('PASS: manual TTS preview + explicit mock IPC UI checks; report in artifacts/desktop/ui/manual-tts-report.json');

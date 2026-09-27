@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentReply",
+  "description": "Future agent reply payload; TTS service currently rejects source=agent/system.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text", "emotion", "actions", "metadata"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1 },
+    "emotion": { "type": ["string", "null"] },
+    "actions": { "type": "array", "items": { "type": "object" } },
+    "metadata": { "type": "object" }
+  }
+}

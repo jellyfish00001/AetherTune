@@ -1,5 +1,7 @@
 # Desktop App 第一輪驗證 — 2026-09-27
 
+本文件保留 M0/M1/M2 首次交付與封存基線。Manual TTS 增量的最新程式、命令與分項結果改讀 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)；不能將歷史 planned TTS／未接 Transcript 的描述套用到增量版本，也不能將增量控制測試當成舊 LIVE 缺口已完成。
+
 本輪範圍：M0 + M1 + M2 skeleton。實作在現有 `D:\AetherTune` 主工作樹；開始時 HEAD `cb15ff0`、工作樹乾淨。**整體 PARTIAL；尚非日常即時音訊 MVP。** 以下保留首次交付的驗證基線；階段性 Git 發布及後續補測另列於本文件後續更新與當次回報。
 
 ## 目前版本封存與後續合併測試

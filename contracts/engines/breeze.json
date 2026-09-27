@@ -6,23 +6,31 @@
   ],
   "referenceVoice": true,
   "classification": "WAITING",
-  "implementation": "planned",
-  "requiredPaths": [],
+  "implementation": "implemented",
+  "adapter": "file_runner",
+  "supports_streaming_tts": false,
+  "requiredPaths": [
+    "tools/venvs/breeze-tts-wsl/bin/python",
+    "tools/breeze-tts2-run.ps1",
+    "tools/breeze-tts2-infer.py",
+    "tools/external/breeze-tts",
+    "models/speech-reconstruction/breeze-tts-2"
+  ],
+  "modelPaths": [
+    "models/speech-reconstruction/breeze-tts-2"
+  ],
+  "profiles": [
+    "reference-male",
+    "reference-female"
+  ],
   "id": "breeze",
   "name": "Breeze TTS 2",
-  "adapter": "planned",
   "limitations": [
-    "契約描述 Voice Design／Clone；M6 前禁止啟動。"
+    "目前只接 Breeze TTS 2 non-streaming file runner；supports_streaming_tts=false。",
+    "Breeze model/weights 受 research/non-commercial license 限制。",
+    "Audio rack 與 virtual route 為 external/manual，route evidence 維持 WAITING。"
   ],
   "parameters": [
-    {
-      "name": "voice_design",
-      "label": "Voice design",
-      "type": "text",
-      "level": "basic",
-      "default": "",
-      "runtime": false
-    },
     {
       "name": "instruction",
       "label": "Instruction",
@@ -40,6 +48,34 @@
       "min": 0,
       "max": 10,
       "step": 0.1,
+      "runtime": false
+    },
+    {
+      "name": "seed",
+      "label": "Seed",
+      "type": "number",
+      "level": "advanced",
+      "default": 42,
+      "runtime": false
+    },
+    {
+      "name": "fast_all",
+      "label": "Fast all",
+      "type": "toggle",
+      "level": "advanced",
+      "default": false,
+      "runtime": false
+    },
+    {
+      "name": "attention_implementation",
+      "label": "Attention implementation",
+      "type": "select",
+      "level": "advanced",
+      "default": "eager",
+      "options": [
+        "eager",
+        "flash_attention_2"
+      ],
       "runtime": false
     }
   ]

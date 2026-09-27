@@ -1,0 +1,27 @@
+{
+  "$schema": "../schemas/voice-profile.schema.json",
+  "id": "official-cosyvoice-sample",
+  "name": "Official CosyVoice Sample",
+  "engines": ["cosyvoice"],
+  "status": "WAITING",
+  "metadata": {
+    "review_status": "WAITING",
+    "manual_review_required": true,
+    "source": "tools/external/CosyVoice/asset/zero_shot_prompt.wav",
+    "notes": "官方 sample 已固定；Audio route 與本機播放驗收仍 WAITING。"
+  },
+  "references": {
+    "cosyvoice": {
+      "audio_path": "tools/external/CosyVoice/asset/zero_shot_prompt.wav",
+      "text_path": "tools/fixtures/cosyvoice/prompt-text.txt",
+      "metadata_status": "PASS",
+      "notes": "官方 CosyVoice prompt audio/text。"
+    }
+  },
+  "official_cosyvoice_sample": {
+    "audio_path": "tools/external/CosyVoice/asset/zero_shot_prompt.wav",
+    "text_path": "tools/fixtures/cosyvoice/prompt-text.txt",
+    "metadata_status": "PASS",
+    "notes": "官方 sample。"
+  }
+}
