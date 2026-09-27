@@ -22,10 +22,10 @@ for(const engine of ['seed-vc','meanvc2','xvc']){
   await page.getByRole('status').filter({hasText:preflight.valid?'預檢 PASS':'預檢 BLOCKED'}).waitFor();
   const before=0; // EngineManager 在每次新 run 清空有限的 UI log ring；完整 log 留 disk。
   await page.getByRole('button',{name:'▶ START',exact:true}).click();
-  await wait(async()=>Number.isInteger((await invoke('status')).runner_pid));
+  await wait(async()=>Number.isInteger((await invoke('status')).runner_pid)||(await invoke('status')).value==='ERROR');
   const runnerPid=(await invoke('status')).runner_pid;
   // 等到本次 runner 回報訊息或完成，以證明不是只起了空白橋接程序。
-  await wait(async()=>(await invoke('status')).value==='ERROR'||(await invoke('logs')).slice(before).some(e=>e.type==='log'&&e.stream==='backend'));
+  await wait(async()=>(await invoke('status')).value==='ERROR'||(await invoke('logs')).slice(before).some(e=>e.type==='log'&&e.stream==='backend'),120000);
   if(engine==='seed-vc'&&preflight.valid)await wait(async()=>{const s=await invoke('status');return s.value==='ERROR'||(await invoke('logs')).some(e=>e.type==='log'&&String(e.message).includes('Official GUI opens'));});
   const preStop=await invoke('status');
   const events=(await invoke('logs')).slice(before);

@@ -2,6 +2,38 @@
 
 本輪範圍：M0 + M1 + M2 skeleton。實作在現有 `D:\AetherTune` 主工作樹；開始時 HEAD `cb15ff0`、工作樹乾淨。**整體 PARTIAL；尚非日常即時音訊 MVP。** 以下保留首次交付的驗證基線；階段性 Git 發布及後續補測另列於本文件後續更新與當次回報。
 
+## 目前版本封存與後續合併測試
+
+使用者要求先提交目前版本，正在使用電腦期間暫停桌面操作；後續新需求完成後，再合併執行 UI／即時音訊驗收。本次封存只檢視既有 diff、log 與 report，不重新啟動 App、模型或瀏覽器。本節優先於下方首次驗證基線；**未完成項目仍為 WAITING，不宣告整體 PASS。**
+
+第一個階段已推送 `main`：`49581f58fc068cbedb39f08ef1029b62d8bcf5f5`，當時本機 HEAD、`origin/main` 與 `git ls-remote` SHA 一致。本次封存包含以下八個補測程式檔及本文件：
+
+- `services/engines/seed_cache.py`／`test_seed_cache.py`：只補既有登記的三個 Seed dependency cache。固定 revision、size 與 SHA-256；不同 ref／既有損壞內容不覆寫，預設唯讀，下載需明確參數。模型內容與 cache 不提交 Git，上游 provenance 不變。
+- `app/src-tauri/src/main.rs`：將 Tray／hotkey／hide／shell 動作寫入本機 JSONL，並輸出唯讀原生狀態快照；沒有新增網路控制端點。後續用實際操作對照 flags 與 log。
+- `app/src-tauri/src/bin/desktop-probe.rs`：增加 `--complete` 等待 runner 完成、ERROR 或 timeout；不將程序完成視為即時音訊 PASS。
+- `app/dev.ps1`：加入 cache 修復安全測試。
+- `app/tests/engines.mjs`／`probe-report.py`：修正預檢 ERROR 的等待條件與載入 timeout；彙整 probe 時不再覆寫其他 integration report。
+- `app/tests/hit-target.html`：受控點擊計數底板；僅新增測試材料，原生穿透送達尚未驗收。
+
+### 已有證據與待測範圍
+
+| 項目 | 封存狀態／證據 |
+|---|---|
+| Seed cache 修復 | PASS（檔案驗證）；[seed-cache-report.json](../artifacts/desktop/integration/seed-cache-report.json)。XLS-R 三檔重用既有相同 snapshot，其餘兩檔下載既有登記 revision；沒有升級 checkpoint |
+| Seed 原 launcher 預檢 | PASS；`-PreflightOnly` exit 0、`missing=[]`，DirectSound input `麥克風 (HyperX QuadCast S)`／output `CABLE Input (VB-Audio Virtual Cable)`；[seed-preflight.log](../artifacts/desktop/integration/seed-preflight.log)。原 cache BLOCKED 已解除；Desktop → GUI Start／Stop 重新驗收 WAITING |
+| MeanVC2 完整 WAV runner | PASS（file-driven CUDA）；`desktop-probe.exe meanvc2 180 --complete` 完成、exit 0，Stop 後 `service_alive=false`。完整事件見 [meanvc2-complete.jsonl](../artifacts/desktop/integration/meanvc2-complete.jsonl)，輸出與模型 hash／device 見 [output.run-evidence.json](../artifacts/desktop/runs/745323b509a34e94b269dab308134e84/output.run-evidence.json)；Mic／虛擬輸出／人工聽測仍 WAITING |
+| X-VC 完整 WAV probe | WAITING；本次補測載入期間受桌面操作中斷，清理自有測試程序。不得把截斷的 [xvc-complete.jsonl](../artifacts/desktop/integration/xvc-complete.jsonl) 視為完成；首次 start／stop 證據仍保留 |
+| Build 與程式測試 | 前次 `app/dev.ps1 -Build` PASS；六個 manifest／schema negative fixtures、Python Adapter 6 tests + cache 6 tests、Rust cleanup 3 tests PASS。debug exe 最後建置 2026-09-27 22:04:33，SHA-256 `B9ACA8E1B3CED5A0B988487E4719A74B3A6EFA483E24D2DCC2945E5E06537DA3`；本次封存未重跑 |
+| Edge 預覽回歸 | 前次 `npm run test:ui` PASS：三個 viewport、mode filtering、planned engine／browser Start disabled、無偽造 metrics、console/network errors 為空；[preview-report.json](../artifacts/desktop/ui/preview-report.json)。內建 Browser 也開啟 localhost 複核；原生 Overlay 驗收不由預覽取代 |
+| 原生診斷輸出 | 新 build 已實際啟動並寫出 [native-state.json](../artifacts/desktop/native-state.json)；這是退出前的快照，讀取時須核對 PID 與 timestamp，不能當成目前仍在執行 |
+| Tray／Hotkey／Opacity／Click-through | WAITING（完整原生 E2E）；診斷程式與底板已準備，新增動作紀錄的完整驗收尚未做。遊戲全螢幕、滑鼠送達與半透明觀感保留待測 |
+
+MeanVC2 本次 source SHA-256 `3a4a5a048154cff60d717fc1fce929ebebc887f7c9222c56222dad48adb60662`，reference SHA-256 `37976f69f73fb13d6fefaf80268794d545d6e19be5059437db067455a795f406`。40ms model SHA-256 `01caafec9a3991a5514df9412952d24ae3370406358a01e20e03df41f2f5d515`；VC／speaker／vocoder `cuda:0`，ASR `cpu`。輸出 `output.wav` SHA-256 `a976aa1993c64befa1ac5529564135a951759b6016c3301c91dfab3380866ed3`，14.87 秒、16 kHz、finite=true、RMS=0.0636489。這是已有 file-driven verifier 的證據，沒有新增即時 callback／loopback 或聽評證據。
+
+後續合併新需求後重驗順序：Full／Compact／Mini → Tray → 預設／自訂 Hotkey → opacity／lock／受控底板 click-through → Seed GUI migration start／stop → Mean／X 完整 runner 與 cleanup → 實際 headless Mic／Output 音訊。M3 動態參數／Preset、M4 STT 等仍依既有 milestone 排程；本版本不提前宣告已實作。
+
+以下章節是首次交付歷史基線，其中 Seed cache BLOCKED 與「未補 cache」描述已由本節更新，不代表目前仍有相同阻塞。
+
 ## 交付檔案與架構
 
 | 檔案／目錄 | 內容 |

@@ -43,6 +43,4 @@ for path in paths:
     baseline.append(dict(path=path,unchanged=True,sha256=hashlib.sha256(current).hexdigest()))
 report=dict(status='PARTIAL',scope='M0 + M1 + M2 skeleton',results=results,existing_runners=baseline)
 (FOLDER/'probe-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-# 舊 CDP runner 報告採非同步 predicate，已作廢；不讓舊 PASS 混入最新交付。
-(FOLDER/'engines-report.json').write_text(json.dumps(dict(status='INVALIDATED',reason='舊非同步 polling 未等待真正結果；以 probe-report.json 與原生 UI 操作證據為準'),ensure_ascii=False,indent=2),encoding='utf-8')
-print('PASS: three probe stops + no PID survivors + existing runner baseline unchanged; Seed GUI BLOCKED, realtime WAITING')
+print('PASS: three probe stops + no PID survivors + existing runner baseline unchanged; realtime WAITING')

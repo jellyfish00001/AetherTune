@@ -2,7 +2,7 @@
 use aethertune_desktop::engine_manager::{self, EngineManager};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fs, sync::{Arc, Mutex}};
+use std::{fs, io::Write, sync::{Arc, Mutex}, time::{Duration,SystemTime,UNIX_EPOCH}};
 use tauri::{Emitter, Manager, menu::{Menu, MenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}, LogicalSize};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -14,6 +14,30 @@ struct Shell {
 }
 impl Default for Shell { fn default()->Self { Self { mode:"full".into(),opacity:0.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:"Ctrl+Alt+A".into(),voice_hotkey:"Ctrl+Alt+V".into() } } }
 struct Desktop { engine:Mutex<EngineManager>, shell:Mutex<Shell>, last:Mutex<Option<(String,Value)>> }
+
+fn record_action(action:&str) {
+    let folder=engine_manager::root().join("artifacts/desktop");
+    let _=fs::create_dir_all(&folder);
+    if let Ok(mut file)=fs::OpenOptions::new().create(true).append(true).open(folder.join("window-events.jsonl")) {
+        let event=json!({"unix_ms":SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis(),"pid":std::process::id(),"action":action});
+        let _=writeln!(file,"{event}");let _=file.flush();
+    }
+}
+
+// 原生診斷只輸出狀態；測試可讀取真實 flags／程序結果，無需開 remote debugging port。
+fn start_diagnostics(app:tauri::AppHandle) {
+    std::thread::spawn(move||loop {
+        if app.get_webview_window("main").is_none(){break;}
+        let d=app.state::<Desktop>();
+        if let (Ok(engine),Ok(shell),Ok(window))=(d.engine.try_lock(),d.shell.try_lock(),window_status(app.clone())) {
+            let snapshot=json!({"unix_ms":SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis(),"pid":std::process::id(),"engine":engine.status(),"shell":*shell,"window":window});
+            let folder=engine_manager::root().join("artifacts/desktop");let _=fs::create_dir_all(&folder);
+            let temp=folder.join("native-state.tmp");
+            if fs::write(&temp,serde_json::to_vec(&snapshot).unwrap()).is_ok(){let _=fs::rename(temp,folder.join("native-state.json"));}
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    });
+}
 
 fn apply_shell(app:&tauri::AppHandle, shell:&Shell)->Result<(),String> {
     let (w,h)=match shell.mode.as_str() { "full"=>(1040.,740.), "compact"=>(420.,490.), "mini"=>(420.,74.), _=>return Err("未知視窗模式".into()) };
@@ -87,7 +111,7 @@ fn set_shell(app:tauri::AppHandle, shell:Shell)->Result<(),String> {
     // 重啟時永不恢復 click-through，以免視窗失去控制。
     let mut stored=shell.clone(); stored.click_through=false;
     fs::write(folder.join("shell.json"),serde_json::to_vec_pretty(&stored).unwrap()).map_err(|e|e.to_string())?;
-    *current=shell; Ok(())
+    *current=shell;record_action("shell:apply"); Ok(())
 }
 #[tauri::command]
 fn drag(app:tauri::AppHandle)->Result<(),String> {if !app.state::<Desktop>().shell.lock().unwrap().locked {app.get_webview_window("main").unwrap().start_dragging().map_err(|e|e.to_string())?;} Ok(())}
@@ -99,14 +123,15 @@ fn move_window(app:tauri::AppHandle,x:i32,y:i32)->Result<(),String> {
     Ok(())
 }
 #[tauri::command]
-fn hide(app:tauri::AppHandle)->Result<(),String> {app.get_webview_window("main").unwrap().hide().map_err(|e|e.to_string())}
+fn hide(app:tauri::AppHandle)->Result<(),String> {let result=app.get_webview_window("main").unwrap().hide().map_err(|e|e.to_string());if result.is_ok(){record_action("window:hide");}result}
 #[tauri::command]
 fn exit(app:tauri::AppHandle) {app.exit(0);}
 fn register_hotkeys(app:&tauri::AppHandle,shell:&Shell)->Result<(),String> {
     app.global_shortcut().on_shortcut(shell.visibility_hotkey.as_str(),|app,_,event|if event.state==ShortcutState::Pressed {
+        record_action("hotkey:visibility");
         if let Some(w)=app.get_webview_window("main") {if w.is_visible().unwrap_or(false) && !app.state::<Desktop>().shell.lock().unwrap().click_through {let _=w.hide();} else {reveal(app,None);}}
     }).map_err(|e|e.to_string())?;
-    app.global_shortcut().on_shortcut(shell.voice_hotkey.as_str(),|app,_,event|if event.state==ShortcutState::Pressed {let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));}).map_err(|e|e.to_string())?;
+    app.global_shortcut().on_shortcut(shell.voice_hotkey.as_str(),|app,_,event|if event.state==ShortcutState::Pressed {record_action("hotkey:voice");let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));}).map_err(|e|e.to_string())?;
     Ok(())
 }
 fn main() {
@@ -127,9 +152,10 @@ fn main() {
             let menu=Menu::with_items(app,&[&open,&overlay,&toggle,&recover,&quit])?;
             let icon=tauri::image::Image::new_owned([45u8,212,191,255].repeat(32*32),32,32);
             TrayIconBuilder::with_id("aethertune").icon(icon).tooltip("AetherTune — audio WAITING").menu(&menu).show_menu_on_left_click(false)
-                .on_menu_event(|app,e|match e.id.as_ref(){"open"=>reveal(app,Some("full")),"overlay"=>reveal(app,Some("compact")),"recover"=>reveal(app,None),"toggle"=>{let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));},"exit"=>app.exit(0),_=>{}})
-                .on_tray_icon_event(|tray,event|if matches!(event,TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}) {reveal(tray.app_handle(),None);})
+                .on_menu_event(|app,e|{record_action(&format!("tray:{}",e.id.as_ref()));match e.id.as_ref(){"open"=>reveal(app,Some("full")),"overlay"=>reveal(app,Some("compact")),"recover"=>reveal(app,None),"toggle"=>{let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));},"exit"=>app.exit(0),_=>{}}})
+                .on_tray_icon_event(|tray,event|if matches!(event,TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}) {record_action("tray:left_click");reveal(tray.app_handle(),None);})
                 .build(app)?;
+            start_diagnostics(handle.clone());
             Ok(())
         })
         .on_window_event(|w,event|if let tauri::WindowEvent::CloseRequested{api,..}=event {api.prevent_close();let _=w.hide();})
