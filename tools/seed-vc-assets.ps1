@@ -32,6 +32,76 @@ function Resolve-SeedVcProjectPath {
     return [IO.Path]::GetFullPath((Join-Path $resolvedProjectRoot $Path))
 }
 
+function Read-SeedVcGuiSettings {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @{} }
+    try {
+        $document = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+        $settings = ConvertTo-SeedVcManifestValue -Value $document
+        if ($settings -isnot [System.Collections.IDictionary]) { throw 'settings root must be a JSON object' }
+        return ,$settings
+    }
+    catch { throw "Isolated Seed-VC settings are invalid JSON: $Path ($($_.Exception.Message))" }
+}
+
+function Resolve-SeedVcReference {
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary]$SavedSettings,
+        [Parameter(Mandatory)][string]$ProjectRoot,
+        [Parameter(Mandatory)][string]$SettingsPath,
+        [AllowEmptyString()][string]$RequestedPath,
+        [switch]$ClearReference
+    )
+
+    $savedPath = $null
+    if ($SavedSettings.Contains('reference_audio_path')) {
+        $savedValue = $SavedSettings['reference_audio_path']
+        if ($null -ne $savedValue -and $savedValue -isnot [string]) {
+            throw "Isolated Seed-VC settings reference_audio_path must be a string: $SettingsPath"
+        }
+        if ($null -ne $savedValue -and [string]::IsNullOrWhiteSpace([string]$savedValue) -and -not [string]::IsNullOrEmpty([string]$savedValue)) {
+            throw "Isolated Seed-VC settings reference_audio_path cannot contain only whitespace: $SettingsPath"
+        }
+        if (-not [string]::IsNullOrEmpty([string]$savedValue)) { $savedPath = [string]$savedValue }
+    }
+
+    if (-not [string]::IsNullOrEmpty($RequestedPath) -and [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        throw 'Reference WAV path cannot contain only whitespace.'
+    }
+
+    if (-not [string]::IsNullOrEmpty($RequestedPath)) {
+        $source = 'command-line'
+        $candidate = $RequestedPath
+    }
+    elseif ($ClearReference) {
+        $source = 'cleared'
+        $candidate = $null
+    }
+    else {
+        $source = if ($savedPath) { 'saved' } else { 'none' }
+        $candidate = $savedPath
+    }
+
+    $effectivePath = $null
+    $sha256 = $null
+    if ($candidate) {
+        $effectivePath = Resolve-SeedVcProjectPath -Path $candidate -ProjectRoot $ProjectRoot
+        if (-not (Test-Path -LiteralPath $effectivePath -PathType Leaf)) {
+            throw "Reference WAV not found: $effectivePath"
+        }
+        $sha256 = (Get-FileHash -LiteralPath $effectivePath -Algorithm SHA256 -ErrorAction Stop).Hash
+    }
+
+    return [pscustomobject]@{
+        RequestedPath = $RequestedPath
+        SavedPath = $savedPath
+        EffectivePath = $effectivePath
+        Source = $source
+        Sha256 = $sha256
+    }
+}
+
 function Test-SeedVcSafeRelativePath {
     param([object]$Value)
 

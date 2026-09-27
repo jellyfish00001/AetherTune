@@ -48,7 +48,7 @@ function Resolve-Python310Path {
 
     $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
     if ($launcher) {
-        $candidate = & $launcher.Source -3.10 -c 'import sys; print(sys.executable)' 2>$null
+        $candidate = & $launcher.Source -3.10 -I -B -c 'import sys; print(sys.executable)' 2>$null
         if ($LASTEXITCODE -eq 0 -and $candidate) {
             $candidatePath = [string]($candidate | Select-Object -Last 1)
             if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
@@ -86,7 +86,7 @@ else {
 $pythonProbe = $null
 if ($resolvedPython) {
     $pythonProbeCode = "import json,sys; p={'version':list(sys.version_info[:3]),'bits':__import__('struct').calcsize('P')*8}; import tkinter; t=tkinter.Tcl(); p['tcl']=t.eval('info patchlevel'); t.call('package','require','Tk'); p['tk']='available'; print(json.dumps(p))"
-    $pythonProbeText = & $resolvedPython -c $pythonProbeCode 2>&1
+    $pythonProbeText = & $resolvedPython -I -B -c $pythonProbeCode 2>&1
     $pythonProbeExit = $LASTEXITCODE
     if ($pythonProbeExit -eq 0) {
         try {
@@ -155,7 +155,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "安裝 Seed-VC 依賴失敗，exit=$LASTEXITCODE" }
 
     $importSmokeCode = "import torch, torchaudio, torchvision, munch, dac, funasr, tkinter; t=tkinter.Tcl(); t.call('package','require','Tk'); print('Seed-VC imports and Tcl/Tk PASS'); print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
-    & $envPython -c $importSmokeCode
+    & $envPython -I -B -c $importSmokeCode
     if ($LASTEXITCODE -ne 0) { throw "Seed-VC import/Tcl-Tk smoke test 失敗，exit=$LASTEXITCODE" }
 
     Write-Output "Seed-VC environment ready: $envPython"
