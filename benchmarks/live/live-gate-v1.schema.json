@@ -20,7 +20,20 @@
     "backend_id": {"type": "string", "minLength": 1},
     "route_profile": {"type": "string", "minLength": 1},
     "hardware": {"type": "object"},
-    "capture": {"type": "object"},
+    "capture": {
+      "type": "object",
+      "required": ["device", "host_api", "sample_rate_hz", "channels", "input_wav", "input_sha256", "reference_wav", "reference_sha256"],
+      "properties": {
+        "device": {"type": "string", "minLength": 1},
+        "host_api": {"type": "string", "minLength": 1},
+        "sample_rate_hz": {"type": "integer", "minimum": 1},
+        "channels": {"type": "integer", "minimum": 1},
+        "input_wav": {"type": "string", "minLength": 1},
+        "input_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "reference_wav": {"type": "string", "minLength": 1},
+        "reference_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+      }
+    },
     "timing_ms": {
       "type": "object",
       "required": [
@@ -53,11 +66,13 @@
     },
     "output_validation": {
       "type": "object",
-      "required": ["status", "finite", "non_zero"],
+      "required": ["status", "finite", "non_zero", "output_wav", "wav_sha256"],
       "properties": {
         "status": {"type": "string"},
         "finite": {"type": "boolean"},
-        "non_zero": {"type": "boolean"}
+        "non_zero": {"type": "boolean"},
+        "output_wav": {"type": "string", "minLength": 1},
+        "wav_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
       }
     }
   }

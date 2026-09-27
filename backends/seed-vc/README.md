@@ -17,7 +17,11 @@ Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔
 | `offline-v1` | `seed-uvit-whisper-small-wavenet` | 離線 VC | 約 440 MB checkpoint；品質優先 |
 | `v2` | `hubert-bsqvae-small` | accent／speaker disentanglement | 需同時下載 CFM/AR 資產，延後處理 |
 
-## 使用
+## 即時 GUI
+
+Windows realtime-tiny 走官方 `real-time-gui.py`，不使用 offline inference config。先讀 [`docs/seed-vc-assets.md`](../../docs/seed-vc-assets.md)，檢查 source／checkpoint／config／encoder／vocoder／VAD cache，再依根目錄 [`README.md`](../../README.md) 列舉裝置並用 `tools/seed-vc-gui-run.ps1` 啟動。Launcher 使用 FP32／CUDA device 0，預設 offline mode 並要求唯一裝置名稱，不改 Windows 預設 audio endpoints，也不注入 WAV。`tools/seed-vc-live-capture.py` 可另行錄製 mic、CABLE Output 與 Voicemeeter B1 的實際 PCM／callback evidence；onset estimate 不能代替完整 LIVE_GATE。
+
+## 離線使用
 
 `tools/seed-vc-setup.ps1` 會建立獨立的 `tools/venvs/seed-vc`；`tools/seed-vc-run.ps1` 執行 `offline-v1` profile：檢查第三方 repo、checkpoint、輸入檔與輸出資料夾，再呼叫官方 `inference.py`。每次成功執行會寫出 `seed-vc-run.json`，記錄來源／目標／checkpoint／設定／Torch runtime／輸出 SHA-256 與 inference log。它不會自動覆蓋輸入，也不會把輸出誤登記成 ready model。`realtime-tiny` 要用官方 `real-time-gui.py`，不能把 tiny checkpoint 硬塞進 offline config。
 

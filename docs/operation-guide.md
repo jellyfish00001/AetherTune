@@ -1,9 +1,88 @@
 # AetherTune 完整操作流程
 
-文件版本：2026-09-22
-目前狀態：`Common rack planned / role model candidate / VCClient baseline blocked`
+文件版本：2026-09-26
+目前狀態：`Seed-VC GUI synthetic flow PASS / physical mic E2E WAITING / audio-rack runtime WAITING`
 
-使用入口：先讀根目錄 `README.md`，依 `LIVE_GATE <= 5s`、是否保留原始表演與是否重建文字選擇路線。本文件保留 RVC legacy 的 Windows 操作細節，同時定義所有 backend 共用的 audio-rack、virtual route、loopback 與驗收邊界。RVC 資料準備與訓練請先讀 [`model-training-guide.md`](model-training-guide.md)；共用 gate 讀 [`live-gate.md`](live-gate.md)。
+使用入口：先讀根目錄 `README.md`，依 `LIVE_GATE <= 5s`、是否保留原始表演與是否重建文字選擇路線。本文件先列 Seed-VC Windows 即時 GUI 與共同 audio-rack／virtual route 步驟；後續 VCClient、RVC 訓練與模型矩陣章節是保留的 legacy 操作細節，不代表該路線目前 E2E 已通過。RVC 資料準備與訓練請讀 [`model-training-guide.md`](model-training-guide.md)；共用 gate 讀 [`live-gate.md`](live-gate.md)。
+
+## Seed-VC 即時 GUI：Windows 首次操作
+
+### 1. 準備環境與資產
+
+先依 [`seed-vc-assets.md`](seed-vc-assets.md) 準備固定 upstream、Python 3.10、realtime-tiny checkpoint／config 與必要的本機 encoder／vocoder／VAD cache。資產盤點不會下載模型：
+
+```powershell
+Set-Location D:\AetherTune
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
+```
+
+只有在缺項已確認來源與使用條款、且準備安裝獨立依賴時才執行安裝：
+
+```powershell
+& .\tools\seed-vc-setup.ps1
+```
+
+缺 upstream source、requirements 或 Python 3.10 時 setup 會停止在 `BLOCKED`，不執行 pip。缺主要 checkpoint／config 時只會提示 `WAITING`，不替使用者下載權重。
+
+### 2. 列舉並選擇音訊端點
+
+在 Windows 使用者 session 執行；launcher 以精確名稱配對，遇到重名或沒有唯一裝置會停止：
+
+```powershell
+& .\tools\seed-vc-gui-run.ps1 -ListDevices
+```
+
+依實際 inventory 指定同一個 Host API 的實體麥克風與 `CABLE Input` playback。先用 offline 預設、FP32、CUDA device 0 啟動：
+
+```powershell
+& .\tools\seed-vc-gui-run.ps1 `
+  -HostApi 'Windows WASAPI' `
+  -InputDevice '麥克風的完整顯示名稱' `
+  -OutputDevice 'CABLE Input (VB-Audio Virtual Cable)' `
+  -Reference '.\dataset\reference-voices\voice-female-f1.wav'
+```
+
+只使用本人或明確獲得授權的 reference。GUI 開啟後確認 input、output、reference 與裝置設定，再按 **Start**。正常 launcher 不會注入測試 WAV；它不會設定 Windows 預設裝置。預設 Hugging Face／Transformers offline，缺少 auxiliary cache 時會停止。只有先檢查缺項來源與授權後，才可加 `-AllowNetworkAssets`；主要 realtime checkpoint 仍須自行放到文件指定路徑。
+
+### 3. 設定 virtual route 與 audio-rack
+
+按照 [`audio-rack/routing/seed-vc-virtual-route.json`](../audio-rack/routing/seed-vc-virtual-route.json) 的方向連接：
+
+```text
+實體 mic → Seed-VC GUI → CABLE Input
+                         ↓ VB-CABLE
+                      CABLE Output → Light Host input
+                                     Light Host output → Voicemeeter Input
+                                                        Voicemeeter B1 → app input
+```
+
+在 Light Host 中先用 rack bypass 建立共同基線，再以同一個 preset 的 full-chain/Graillon active 做 paired A/B。每組 A/B 必須引用同一個 source WAV 與 reference WAV 的實際 hash；對不同 live utterance 分開錄音時，不能把兩個 mic WAV 偽稱為同一來源。需要精確配對時使用固定 corpus source 重播完成 rack A/B，並把真實麥克風 E2E 結果另存為 LIVE_GATE evidence。Graillon 參數仍是 candidate，沒有人工採納記錄前不視為核准聲音風格。
+
+先實際檢查 Voicemeeter B1 meter、最終 loopback 與 feedback，再接 Discord／OBS；不要同時開啟會形成回授的監聽路徑。退出 GUI 後確認 Start 已停止，再關閉視窗。若要還原，將 GUI output 改回原本裝置；不要改 Windows 系統預設端點。
+
+### 4. 短測、長測與輸出證據
+
+先用本人語音做 30 秒短測；裝置穩定後再做 600 秒。以下工具會讀取已明確選定的 mic、backend loopback、Voicemeeter B1 三個 input endpoint，寫入唯一 run 目錄、PCM16 WAV、hash、callback overflow／underflow 與 ADC timestamp；它不會操作 GUI 或更改預設裝置：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py `
+  --list-devices
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py `
+  --host-api 'Windows WASAPI' `
+  --microphone '麥克風的完整顯示名稱' `
+  --backend-loopback 'CABLE Output (VB-Audio Virtual Cable)' `
+  --terminal-loopback 'Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)' `
+  --reference-audio 'C:\Audio\authorized-reference.wav' `
+  --seconds 30
+```
+
+錄製期間在 Seed-VC GUI 按 Start，對實體 mic 說話，並確認 downstream route 有訊號。短測通過後將 `--seconds` 改為 `600`。此 runner 的 onset latency 是跨 capture endpoint 的 threshold estimate；報告固定 `live_gate_status: WAITING`，需檢查 WAV、聽測、clock alignment、人工 review 後再建立 LIVE_GATE JSON。工具 PASS 只表示三個錄音 stream 有效且 PortAudio telemetry 無已知 flags，不會自動分類 LIVE。
+
+每次 real capture 都有自己的 run directory；不得覆寫舊檔或把 synthetic GUI callback／virtual route smoke 當成實體 mic 證據。LIVE_GATE validator 要求同一 evidence JSON 提供真實 capture input/reference/output WAV 路徑與 SHA-256。完整欄位與分類界線見 [`live-gate.md`](live-gate.md)；目前完整 mic → backend → rack → virtual route 仍是 `WAITING`。
+
+### 5. 離線對照
+
+若需重現相同來源內容的轉換結果，使用 `tools/seed-vc-run.ps1` 的 offline-v1 路線。每次 run 建立唯一目錄並檢查新產出的 PCM WAV／hash，不讀取上一輪舊輸出；`-Fp16` 只適用該 offline runner，不適用上面的 realtime GUI FP32 launcher。詳細命令見 [`backends/seed-vc/README.md`](../backends/seed-vc/README.md)。
 
 ## 0. 共用研究流程
 

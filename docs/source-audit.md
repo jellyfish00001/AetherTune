@@ -1,8 +1,10 @@
 # 開源專案與工具來源審核
 
-審核日期：2026-09-20（Asia/Taipei）
+審核日期：2026-09-26（Asia/Taipei）
 
 本文件只記錄目前查到的上游事實與採用判斷；下載、安裝、執行與模型授權仍需另外驗證。
+
+2026-09-26 交叉檢查並新增 MeanVC2、X-VC 候選列；其他元件列保留先前審核日期與範圍，沒有藉此代表全表已重新審核。
 
 | 元件 | 上游來源 | 目前確認 | 採用判斷 |
 |---|---|---|---|
@@ -15,7 +17,9 @@
 | 修音 plugin | [Auburn Sounds Graillon](https://www.auburnsounds.com/products/Graillon.html) | 官方免費版 `3.2`；ZIP SHA-256 `D9ED254BD6AC89D5C5E670383DEC2CB1ACF43A72C62EBF2E4401D039FF6BDA18`；已安裝 VST3/VST2 | 免費第三方修音；不列入開源元件，仍待 host chain 與人工聽測 |
 | MAutoPitch | MeldaProduction 官方產品 | 免費使用不等於開源；本輪未下載/驗證授權條款 | 只能列為免費第三方插件，不納入「全開源」宣稱 |
 | VB-CABLE / Voicemeeter | [VB-CABLE](https://vb-audio.com/Cable/)／[Voicemeeter](https://vb-audio.com/Voicemeeter/) | 免費／免費授權路由工具不等於開源；本次 VB-CABLE Driver Pack 45 ZIP SHA-256 `B950E39F01AF1D04EA623C8F6D8EB9B6EA5C477C637295FABF20631C85116BFB`；Windows endpoint 已驗證 | 接受第三方閉源元件後採用；目前標準版 Voicemeeter，若需更多 bus 再考慮 Banana/Potato |
-| Seed-VC | [Plachtaa/seed-vc](https://github.com/Plachtaa/seed-vc)／[Plachta/Seed-VC model](https://huggingface.co/Plachta/Seed-VC) | 官方 README 提供 zero-shot VC、real-time GUI 與 offline／V2 profiles；本機 repo commit `51383efd921027683c89e5348211d93ff12ac2a8`；已下載 realtime tiny `C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88` 與 offline checkpoint `8EC8841B20BB46DF9F7E8E570A6946A4B87B940133C7F0E778487FF33841F720` | 先採獨立環境做離線 candidate；GUI latency、provider 與 reference voice 使用權仍需實測 |
+| MeanVC2 | [ASLP-lab/MeanVC2](https://github.com/ASLP-lab/MeanVC2)／[arXiv:2606.09050](https://arxiv.org/abs/2606.09050) | repo 標示 Apache-2.0；官方 README 指定 Python 3.11、Torch／TorchAudio 2.5.1 CUDA 12.1，並報告 40 ms chunk／約 110 ms first-packet latency。Windows standalone executable 標示 CPU-only；Python GPU 與 checkpoint/data 條款尚未核實 | Seed-VC 後的 priority candidate；未 pin revision、未取權重、未安裝；先依候選 intake 文件盤點程式、權重、依賴及 Windows GPU 可行性 |
+| X-VC | [Jerrister/X-VC](https://github.com/Jerrister/X-VC)／[arXiv:2604.12456](https://arxiv.org/abs/2604.12456) | repo 採 MIT，使用 Python 3.10 與 requirements lock 範圍含 Torch 2.5.1、DeepSpeed 0.14.4；官方推論 scripts 為 shell scripts，另需 GLM-4-Voice tokenizer、ERes2Net 與 X-VC 權重。native Windows GPU 與各權重條款未確認 | research candidate；等 MeanVC2 同 corpus／rack baseline 後再固定 revision、核對權重授權及隔離環境；未安裝、未取權重 |
+| Seed-VC | [Plachtaa/seed-vc](https://github.com/Plachtaa/seed-vc)／[Plachta/Seed-VC model](https://huggingface.co/Plachta/Seed-VC) | 官方 README 提供 zero-shot VC、real-time GUI 與 offline／V2 profiles；repo 已 archived；本機 revision `51383efd921027683c89e5348211d93ff12ac2a8`，realtime tiny SHA-256 `C853EA578B409F625F961BCB15D5CFF1F8EF9A75F3209EC21D9B7C73AB422E88`、config SHA-256 `9559600F7A8EFCD46979073E431785820F6B2DBAE477A18CF0BFDE3E740E758B` | established baseline；headless、GUI settings／synthetic route 有 PASS 證據；實體 mic → backend → rack → route、人工聽測及長期穩定性仍 WAITING |
 | CosyVoice 2 | [QwenAudio/CosyVoice](https://github.com/QwenAudio/CosyVoice)／[FunAudioLLM/CosyVoice2-0.5B](https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B) | 官方 model card 標示 Apache-2.0，支援 multilingual zero-shot voice cloning；安裝基線為 Python 3.10/Conda，Windows native 尚未驗證 | STT → TTS 語音重建候選；先在 WSL2／獨立環境，不與 RVC `.venv` 混裝 |
 | Breeze TTS 2 | [BreezeBlue/Breeze-TTS-2](https://huggingface.co/BreezeBlue/Breeze-TTS-2)／[breeze-tts source](https://github.com/breezeblue-ai/breeze-tts) | 官方 model card 支援 voice clone/design/direction 與中英雙語；weights、derivatives、self-hosted outputs 為 research/non-commercial；quick start 以 Linux、CUDA、約 12 GB VRAM 為基線 | WSL2、Torch 2.9.1 cu128、16 GB GPU 已完成 Voice Design 與男女 reference clone 輸出；品質與 license 邊界仍依官方限制 |
 | JVNV reference samples | VCClient 內附 `JVNV/readme.md` 與 [JVNV source](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvnv_corpus) | 目前複製一個 F1 與一個 M1 sample；上游 readme 標示 CC BY-SA 4.0；hash 已寫入 `dataset/manifests/reference-register.csv` | 僅作本機研究 reference voice，保留 attribution，不視為使用者自有聲線 |

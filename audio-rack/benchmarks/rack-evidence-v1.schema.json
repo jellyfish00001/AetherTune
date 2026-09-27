@@ -6,20 +6,34 @@
   "required": [
     "schema_version",
     "run_id",
+    "pair_group_id",
     "backend_id",
     "route_profile",
     "rack_mode",
+    "capture",
     "timing_ms",
     "continuity",
     "output_validation",
-    "artifacts"
+    "artifacts",
+    "delta_latency_ms"
   ],
   "properties": {
     "schema_version": {"const": "aethertune-audio-rack/evidence-v1"},
     "run_id": {"type": "string", "minLength": 1},
+    "pair_group_id": {"type": "string", "minLength": 1},
     "backend_id": {"type": "string", "minLength": 1},
     "route_profile": {"type": "string", "minLength": 1},
     "rack_mode": {"enum": ["bypass", "full-chain"]},
+    "capture": {
+      "type": "object",
+      "required": ["input_wav", "input_sha256", "reference_wav", "reference_sha256"],
+      "properties": {
+        "input_wav": {"type": "string", "minLength": 1},
+        "input_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "reference_wav": {"type": "string", "minLength": 1},
+        "reference_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+      }
+    },
     "timing_ms": {
       "type": "object",
       "required": ["backend_first_packet_ms", "postfx_first_packet_ms", "routing_first_packet_ms", "e2e_first_packet_ms", "e2e_p50_ms", "e2e_p95_ms"],
@@ -52,13 +66,14 @@
     },
     "artifacts": {
       "type": "object",
-      "required": ["output_wav", "metrics_json", "wav_sha256"],
+      "required": ["output_wav", "metrics_json", "wav_sha256", "paired_evidence_path"],
       "properties": {
         "output_wav": {"type": "string", "minLength": 1},
         "metrics_json": {"type": "string", "minLength": 1},
-        "wav_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"}
+        "wav_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "paired_evidence_path": {"type": "string", "minLength": 1}
       }
     },
-    "delta_latency_ms": {"type": ["number", "null"], "minimum": 0}
+    "delta_latency_ms": {"type": ["number", "null"]}
   }
 }

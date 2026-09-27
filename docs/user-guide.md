@@ -13,15 +13,15 @@
 - 願意準備乾聲資料並訓練角色模型。
 - 願意花時間測試 pitch、index、chunk 與音訊路由。
 
-RVC 會保留較多原始說話內容與聲學表演，但需要角色模型、VCClient、虛擬音訊與延遲驗收。這是最適合長時間即時使用的路線。
+RVC 需要先有來源與授權完整的角色模型，並另外完成 VCClient／虛擬音訊／延遲驗收。目前 VCClient packaged role conversion 仍有 HTTP 500 與全零輸出阻塞；RVC 保留為 historical baseline，不能由離線 GPU 推論推論成即時 ready。若不打算訓練角色模型，Seed-VC 是目前較直接的 Streaming VC baseline。
 
 ### Seed-VC／Zero-Shot VC
 
 選 Seed-VC 的情況：
 
 - 不想先訓練角色模型。
-- 想用一段 source 聲音快速試男聲或女聲 reference。
-- 可以接受先產生 WAV，而不是直接接入即時通話。
+- 想用授權 reference voice 做即時麥克風變聲或離線對照。
+- 使用獨立 Python 3.10 環境，不與 RVC venv 混裝。
 
 Seed-VC 會由 source 保留內容與表現，reference 提供目標聲線。它不是把 `.pth/.index` 放入 RVC，也不需要建立訓練資料集。
 
@@ -46,18 +46,64 @@ Set-Location D:\AetherTune
 
 ## 3. 使用 Seed-VC
 
-若尚未建立獨立環境，先執行一次：
+### 安裝與資產盤點
+
+先閱讀 [`seed-vc-assets.md`](seed-vc-assets.md)。新 clone 不會包含 ignored third-party repo、模型權重或快取；setup 不會代為 clone、下載 checkpoint 或安裝到使用者的全域 Python。第一次執行先做唯讀 preflight：
+
+```powershell
+Set-Location D:\AetherTune
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
+```
+
+按輸出結果補齊 Python 3.10、固定 Seed-VC source、realtime-tiny checkpoint/config 和本機模型快取，再安裝獨立環境：
 
 ```powershell
 & .\tools\seed-vc-setup.ps1
 ```
 
-### 輸入規則
+setup 會在任何 pip mutation 前印出資產狀態。缺 Python 3.10、upstream source 或 requirements 時以 `BLOCKED` 結束；缺 realtime model 時仍可建立 venv，但 GUI 會保持 `WAITING`。GUI launcher 預設離線，輔助模型快取缺失時會阻止 GUI 自行下載；主要 checkpoint 需由使用者先核對授權並手動放到清單指定位置。
 
-- `-Source`：保留內容的來源 WAV。
-- `-Target`：目標聲線 reference，建議 1–30 秒、乾淨、單一說話者。
-- reference voice 目前放在 `dataset/reference-voices/`。
-- 輸出與輸入不會互相覆蓋。
+### 選擇裝置與 reference，啟動官方 GUI
+
+先唯讀列出 PortAudio 裝置，再依實際名稱啟動。輸入裝置和輸出裝置都必須在同一個 Host API 下唯一匹配；不使用 Windows 預設裝置作靜默 fallback：
+
+```powershell
+& .\tools\seed-vc-gui-run.ps1 -ListDevices
+& .\tools\seed-vc-gui-run.ps1 `
+  -HostApi 'Windows WASAPI' `
+  -InputDevice '<PortAudio 顯示的實體麥克風名稱>' `
+  -OutputDevice '<PortAudio 顯示的 CABLE Input 名稱>' `
+  -Reference 'C:\Audio\authorized-reference.wav'
+```
+
+`-HostApi`、`-InputDevice`、`-OutputDevice` 和 `-Reference` 都可省略，但只有在 upstream GUI 的已保存設定能唯一核對且檔案仍存在時才沿用；第一次設定請明確傳入。reference path 必須是 GUI 可讀的音訊檔，並符合上游 GUI 的 ASCII 路徑限制。使用者也可以不傳 `-Reference`，在 GUI reference 欄位選取音檔。
+
+啟動器會先檢查 CUDA device 0、checkpoint/config、XLS-R、CampPlus、HiFT、FunASR VAD 快取及裝置身份，並以 `--fp16 False --gpu 0` 啟動官方 GUI。一般 GUI 流程接收實體麥克風，不注入 WAV；它會保存裝置/reference 選擇到 ignored runtime config。未提供 `-AllowNetworkAssets` 時 Hugging Face／Transformers 設為 offline；該參數只允許缺少的輔助模型由 upstream loader 取得，主要 tiny checkpoint 仍不會自動下載。
+
+### 路由、短測與 600 秒穩定性
+
+- **先做 bypass**：Seed-VC GUI output 設為 `CABLE Input (VB-Audio Virtual Cable)`；`CABLE Output` 是給錄音程式讀取的另一端。
+- **full-chain**：`CABLE Output` → Light Host Modern input → Graillon bypass 或 active → `Voicemeeter Input` → 開啟對應 strip 的 B bus → 下游使用 `Voicemeeter Out B1`。Discord/OBS 麥克風從該 app 設定選擇 B1。先用耳機，確認沒有 feedback。
+- **正常停止／還原**：先按 Seed-VC GUI 的 Stop，再關閉 GUI；停止 Light Host；在 Discord/OBS 將麥克風改回使用前選項，並關閉 Voicemeeter 這條 route 的 B bus。整個流程不需改 Windows 預設音訊裝置。
+
+GUI 啟動後，在實體 mic 前先短講測試句並確認端點 meter。準備擷取前可唯讀列出終端點，再做 30 秒短測：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py --list-devices
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py `
+  --host-api 'Windows WASAPI' `
+  --microphone '<實體麥克風錄音 endpoint 名稱>' `
+  --backend-loopback '<CABLE Output endpoint 名稱>' `
+  --terminal-loopback '<Voicemeeter Out B1 endpoint 名稱>' `
+  --reference-audio 'C:\Audio\authorized-reference.wav' `
+  --seconds 30
+```
+
+`--reference-audio` 必須指向該 GUI session 使用的非靜音 PCM WAV；runner 會保存 reference path／format／hash，不會複製音檔。開始 capture 後按 GUI Start 並持續對 mic 說話。runner 會保存原始 mic、backend loopback、B1 loopback WAV、SHA-256、PortAudio flags、callback frame/timestamp continuity 和首個非靜音 onset 時間。onset timing 是跨裝置 threshold estimate；先人工聽三份輸出、檢查 metrics，再做 `--seconds 600`。Rack bypass/full-chain A/B 要引用相同 capture source/reference WAV 與 hash；不同現場重講會產生不同 mic WAV，不能冒充為相同來源的 pair。必要時用固定、已授權 corpus source 做可重複的 rack A/B，再將實體 mic 的完整 route 單獨登記到 LIVE_GATE。600 秒 capture 也不會自動變成 LIVE：人工聽測、paired bypass/full-chain evidence 與 `tools/live-gate-validate.py` gate 仍須分開完成。
+
+### 離線 WAV 對照
+
+`source` 是要保留內容的語音；`target` 是建議 1–30 秒、乾淨、單一說話者的 reference。只使用本人或已取得授權的聲音：
 
 ### 男聲轉女聲
 
@@ -65,8 +111,7 @@ Set-Location D:\AetherTune
 & .\tools\seed-vc-run.ps1 `
   -Source .\dataset\reference-voices\voice-male-m1.wav `
   -Target .\dataset\reference-voices\voice-female-f1.wav `
-  -OutputDir .\artifacts\seed-vc\male-to-female `
-  -Fp16
+  -OutputDir .\artifacts\seed-vc\male-to-female
 ```
 
 ### 女聲轉男聲
@@ -75,17 +120,16 @@ Set-Location D:\AetherTune
 & .\tools\seed-vc-run.ps1 `
   -Source .\dataset\reference-voices\voice-female-f1.wav `
   -Target .\dataset\reference-voices\voice-male-m1.wav `
-  -OutputDir .\artifacts\seed-vc\female-to-male `
-  -Fp16
+  -OutputDir .\artifacts\seed-vc\female-to-male
 ```
 
 成功後查看：
 
-- `artifacts/seed-vc/<run>/vc_*.wav`：音訊結果。
-- `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
+- `artifacts/seed-vc/<output-name>/<run-id>/vc_*.wav`：本次唯一 run 的音訊結果。
+- `artifacts/seed-vc/<output-name>/<run-id>/seed-vc-run.json`：run id、輸入/reference/checkpoint hash、Torch runtime、每個新 WAV 的有限值/非靜音結果；失敗時保存 `FAIL` manifest。
 - `backends/seed-vc/README.md` 與 `docs/agent-implementation-status-latest.md`：Seed-VC 輸入契約與目前實際驗證摘要。
 
-目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及官方 GUI callback user-flow 的四組 reference 輸出；但 virtual route loopback、人工聽測與長時間 realtime 穩定性仍待補。
+目前已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及 deterministic WAV 注入的官方 GUI callback user-flow；這些仍不能代替真人說話的實體 mic → backend → rack → B1 鏈路。
 
 正式啟動 GUI user-flow 前，先做不改裝置、不開 stream 的唯讀 preflight：
 

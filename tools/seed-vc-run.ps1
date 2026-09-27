@@ -14,79 +14,125 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 
-foreach ($path in @($Source, $Target)) {
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "找不到音檔：$path"
-    }
-}
-if (-not (Test-Path -LiteralPath (Join-Path $Repo 'inference.py') -PathType Leaf)) {
-    throw "找不到 Seed-VC inference.py：$Repo；請先依 backends/seed-vc/README.md 建立獨立環境與 repo。"
-}
-if (-not (Test-Path -LiteralPath $Checkpoint -PathType Leaf)) {
-    throw "找不到 checkpoint：$Checkpoint；請先下載官方 Seed-VC offline-v1 checkpoint。"
-}
-if (-not (Test-Path -LiteralPath $Config -PathType Leaf)) {
-    throw "找不到 Seed-VC config：$Config"
-}
-if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
-    throw "找不到 Seed-VC Python environment：$Python；請先執行 tools\seed-vc-setup.ps1"
+function Resolve-ProjectPath([string]$Path) {
+    if ([IO.Path]::IsPathRooted($Path)) { return [IO.Path]::GetFullPath($Path) }
+    return [IO.Path]::GetFullPath((Join-Path $projectRoot $Path))
 }
 
-$resolvedOutput = [IO.Path]::GetFullPath($OutputDir)
-New-Item -ItemType Directory -Force -Path $resolvedOutput | Out-Null
-$resolvedSource = [IO.Path]::GetFullPath($Source)
-$resolvedTarget = [IO.Path]::GetFullPath($Target)
-$resolvedRepo = [IO.Path]::GetFullPath($Repo)
-$resolvedCheckpoint = [IO.Path]::GetFullPath($Checkpoint)
-$resolvedConfig = [IO.Path]::GetFullPath($Config)
-$resolvedPython = [IO.Path]::GetFullPath($Python)
-
-$args = @('inference.py', '--source', $resolvedSource, '--target', $resolvedTarget, '--output', $resolvedOutput, '--checkpoint', $resolvedCheckpoint, '--config', $resolvedConfig, '--f0-condition', 'False')
-if ($Fp16) { $args += @('--fp16', 'True') }
-
-Write-Output "Seed-VC source SHA256: $((Get-FileHash -LiteralPath $resolvedSource -Algorithm SHA256).Hash)"
-Write-Output "Seed-VC target SHA256: $((Get-FileHash -LiteralPath $resolvedTarget -Algorithm SHA256).Hash)"
-Write-Output "Seed-VC checkpoint SHA256: $((Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash)"
-Write-Output "Seed-VC config: $resolvedConfig"
-Write-Output "執行官方 Seed-VC inference.py；輸出資料夾：$resolvedOutput"
-
-Push-Location $resolvedRepo
-$inferenceText = @()
-try {
-    $inferenceText = @(& $resolvedPython @args 2>&1 | ForEach-Object { $_.ToString() })
-    $inferenceExitCode = $LASTEXITCODE
-    $inferenceText | ForEach-Object { Write-Output $_ }
-    if ($inferenceExitCode -ne 0) { throw "Seed-VC inference failed with exit code $inferenceExitCode" }
-}
-finally {
-    Pop-Location
+function Save-Manifest([System.Collections.IDictionary]$Value, [string]$Path) {
+    $tempPath = "$Path.tmp"
+    $json = $Value | ConvertTo-Json -Depth 12
+    [IO.File]::WriteAllText($tempPath, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $tempPath -Destination $Path -Force
 }
 
-$outputFiles = @(Get-ChildItem -LiteralPath $resolvedOutput -Filter '*.wav' -File -ErrorAction SilentlyContinue | ForEach-Object {
-    [ordered]@{
-        relative_path = $_.FullName.Substring($projectRoot.Length + 1)
-        bytes = $_.Length
-        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-    }
-})
-if ($outputFiles.Count -eq 0) {
-    throw "Seed-VC inference completed but no WAV output was found: $resolvedOutput"
+$resolvedSource = Resolve-ProjectPath $Source
+$resolvedTarget = Resolve-ProjectPath $Target
+$resolvedOutputRoot = Resolve-ProjectPath $OutputDir
+$resolvedRepo = Resolve-ProjectPath $Repo
+$resolvedCheckpoint = Resolve-ProjectPath $Checkpoint
+$resolvedConfig = Resolve-ProjectPath $Config
+$resolvedPython = Resolve-ProjectPath $Python
+$wavCheck = Join-Path $PSScriptRoot 'seed-vc-wav-check.py'
+
+foreach ($file in @($resolvedSource, $resolvedTarget, $resolvedCheckpoint, $resolvedConfig, $resolvedPython, $wavCheck)) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "找不到必要檔案：$file" }
 }
+if (-not (Test-Path -LiteralPath (Join-Path $resolvedRepo 'inference.py') -PathType Leaf)) {
+    throw "找不到 Seed-VC inference.py：$resolvedRepo；請先依 docs/seed-vc-assets.md 準備 official source。"
+}
+
+$resolvedSource = (Resolve-Path -LiteralPath $resolvedSource).Path
+$resolvedTarget = (Resolve-Path -LiteralPath $resolvedTarget).Path
+$sourceHash = (Get-FileHash -LiteralPath $resolvedSource -Algorithm SHA256).Hash
+$targetHash = (Get-FileHash -LiteralPath $resolvedTarget -Algorithm SHA256).Hash
+$checkpointHash = (Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash
+$runId = [Guid]::NewGuid().ToString('N')
+$startedAt = [DateTimeOffset]::UtcNow
+$resolvedRunDir = Join-Path $resolvedOutputRoot $runId
+New-Item -ItemType Directory -Path $resolvedRunDir -ErrorAction Stop | Out-Null
+$manifestPath = Join-Path $resolvedRunDir 'seed-vc-run.json'
 
 $manifest = [ordered]@{
-    status = 'PASS'
-    completed_at_utc = [DateTime]::UtcNow.ToString('o')
+    schema_version = 'aethertune-seed-vc-run/v2'
+    run_id = $runId
+    status = 'RUNNING'
+    started_at_utc = $startedAt.ToString('o')
     backend = 'seed-vc'
     profile = 'offline-v1'
     python = $resolvedPython
-    torch_runtime = (& $resolvedPython -c "import torch; print(torch.__version__ + ' cuda=' + str(torch.version.cuda) + ' available=' + str(torch.cuda.is_available()))" | Select-Object -Last 1).ToString()
-    source = [ordered]@{ path = $resolvedSource; sha256 = (Get-FileHash -LiteralPath $resolvedSource -Algorithm SHA256).Hash }
-    target = [ordered]@{ path = $resolvedTarget; sha256 = (Get-FileHash -LiteralPath $resolvedTarget -Algorithm SHA256).Hash }
-    checkpoint = [ordered]@{ path = $resolvedCheckpoint; sha256 = (Get-FileHash -LiteralPath $resolvedCheckpoint -Algorithm SHA256).Hash }
+    source = [ordered]@{ path = $resolvedSource; sha256 = $sourceHash }
+    target = [ordered]@{ path = $resolvedTarget; sha256 = $targetHash }
+    checkpoint = [ordered]@{ path = $resolvedCheckpoint; sha256 = $checkpointHash }
     config = $resolvedConfig
-    output_files = $outputFiles
-    inference_log = $inferenceText
+    fp16 = [bool]$Fp16
+    output_directory = $resolvedRunDir
+    output_validation = [ordered]@{ status = 'WAITING'; finite = $false; non_zero = $false }
 }
-$manifestPath = Join-Path $resolvedOutput 'seed-vc-run.json'
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
-Write-Output "Seed-VC manifest: $manifestPath"
+Save-Manifest $manifest $manifestPath
+
+$inferenceArgs = @(
+    'inference.py', '--source', $resolvedSource, '--target', $resolvedTarget,
+    '--output', $resolvedRunDir, '--checkpoint', $resolvedCheckpoint,
+    '--config', $resolvedConfig, '--f0-condition', 'False'
+)
+if ($Fp16) { $inferenceArgs += @('--fp16', 'True') }
+
+Write-Output "Seed-VC run id: $runId"
+Write-Output "Seed-VC source SHA256: $sourceHash"
+Write-Output "Seed-VC target SHA256: $targetHash"
+Write-Output "Seed-VC checkpoint SHA256: $checkpointHash"
+Write-Output "執行官方 Seed-VC inference.py；本次全新輸出資料夾：$resolvedRunDir"
+
+Push-Location $resolvedRepo
+try {
+    try {
+        $inferenceText = @(& $resolvedPython @inferenceArgs 2>&1 | ForEach-Object { $_.ToString() })
+        $inferenceExitCode = $LASTEXITCODE
+        $inferenceText | ForEach-Object { Write-Output $_ }
+        if ($inferenceExitCode -ne 0) { throw "Seed-VC inference failed with exit code $inferenceExitCode" }
+
+        $wavFiles = @(Get-ChildItem -LiteralPath $resolvedRunDir -Filter '*.wav' -File | Sort-Object FullName)
+        if ($wavFiles.Count -eq 0) { throw "Seed-VC inference created no WAV in this run directory: $resolvedRunDir" }
+
+        $outputFiles = @()
+        foreach ($wavFile in $wavFiles) {
+            if ($wavFile.LastWriteTimeUtc -lt $startedAt.UtcDateTime.AddSeconds(-1)) {
+                throw "Output file predates this run and cannot be accepted: $($wavFile.FullName)"
+            }
+            $validationJson = & $resolvedPython $wavCheck $wavFile.FullName
+            if ($LASTEXITCODE -ne 0) { throw "WAV signal gate failed for $($wavFile.FullName): $validationJson" }
+            $validation = $validationJson | ConvertFrom-Json
+            if ($validation.status -ne 'PASS' -or -not $validation.finite -or -not $validation.non_zero) {
+                throw "WAV signal gate did not return finite non-zero PASS: $($wavFile.FullName)"
+            }
+            $outputFiles += [ordered]@{
+                path = $wavFile.FullName
+                bytes = $wavFile.Length
+                sha256 = (Get-FileHash -LiteralPath $wavFile.FullName -Algorithm SHA256).Hash
+                metrics = $validation
+            }
+        }
+
+        $torchRuntime = (& $resolvedPython -c "import torch; print(torch.__version__ + ' cuda=' + str(torch.version.cuda) + ' available=' + str(torch.cuda.is_available()))" | Select-Object -Last 1).ToString()
+        if ($LASTEXITCODE -ne 0) { throw '無法讀取 Torch runtime identity。' }
+        $manifest.status = 'PASS'
+        $manifest.completed_at_utc = [DateTimeOffset]::UtcNow.ToString('o')
+        $manifest.torch_runtime = $torchRuntime
+        $manifest.inference_log = $inferenceText
+        $manifest.output_files = $outputFiles
+        $manifest.output_validation = [ordered]@{ status = 'PASS'; finite = $true; non_zero = $true }
+        Save-Manifest $manifest $manifestPath
+        Write-Output "Seed-VC manifest: $manifestPath"
+        Write-Output "Seed-VC output validation: PASS ($($outputFiles.Count) new WAV file(s), finite and non-zero)"
+    } catch {
+        $manifest.status = 'FAIL'
+        $manifest.completed_at_utc = [DateTimeOffset]::UtcNow.ToString('o')
+        $manifest.error = $_.Exception.Message
+        Save-Manifest $manifest $manifestPath
+        Write-Output "Seed-VC failure manifest: $manifestPath"
+        throw
+    }
+} finally {
+    Pop-Location
+}

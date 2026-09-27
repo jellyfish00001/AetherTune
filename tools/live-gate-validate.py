@@ -5,10 +5,22 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 from pathlib import Path
 from typing import Any
 
+_HELPERS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HELPERS))
+from importlib.util import module_from_spec, spec_from_file_location
+
+_WAV_SPEC = spec_from_file_location("wav_evidence", _HELPERS / "wav-evidence.py")
+assert _WAV_SPEC and _WAV_SPEC.loader
+_WAV_MODULE = module_from_spec(_WAV_SPEC)
+_WAV_SPEC.loader.exec_module(_WAV_MODULE)
+validate_wav = _WAV_MODULE.validate_wav
+SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED_TOP_LEVEL = {
     "schema_version",
@@ -30,6 +42,17 @@ REQUIRED_TIMINGS = {
     "e2e_p50_ms",
     "e2e_p95_ms",
 }
+REQUIRED_CAPTURE = {
+    "device",
+    "host_api",
+    "sample_rate_hz",
+    "channels",
+    "input_wav",
+    "input_sha256",
+    "reference_wav",
+    "reference_sha256",
+}
+REQUIRED_OUTPUT = {"status", "finite", "non_zero", "output_wav", "wav_sha256"}
 
 
 def _is_number(value: Any) -> bool:
@@ -40,12 +63,61 @@ def _fail(message: str) -> tuple[str, list[str]]:
     return "BLOCKED", [message]
 
 
-def classify(record: dict[str, Any]) -> tuple[str, list[str]]:
+def _resolve_artifact(value: Any, root: Path) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = Path(value).expanduser()
+    return candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
+
+
+def _check_wav(path_value: Any, expected_hash: Any, label: str, root: Path) -> tuple[str, str | None]:
+    path = _resolve_artifact(path_value, root)
+    if path is None:
+        return "BLOCKED", f"{label} path is missing or empty"
+    if not isinstance(expected_hash, str) or not SHA256_RE.fullmatch(expected_hash):
+        return "BLOCKED", f"{label} SHA-256 must be a 64-character hex digest"
+    try:
+        actual = validate_wav(path)
+    except (OSError, ValueError) as exc:
+        return "BLOCKED", f"{label} WAV validation failed: {exc}"
+    if actual["sha256"].lower() != expected_hash.lower():
+        return "BLOCKED", f"{label} SHA-256 does not match the referenced WAV"
+    if actual["non_zero"] is not True:
+        return "BLOCKED", f"{label} WAV is silent"
+    return "PASS", None
+
+
+def classify(record: dict[str, Any], artifact_root: Path | None = None) -> tuple[str, list[str]]:
     missing = sorted(REQUIRED_TOP_LEVEL - record.keys())
     if missing:
         return _fail(f"missing top-level fields: {', '.join(missing)}")
     if record.get("schema_version") != "aethertune-live-gate/v1":
         return _fail("schema_version must be aethertune-live-gate/v1")
+    if not isinstance(record.get("run_id"), str) or not record["run_id"].strip():
+        return _fail("run_id must be a non-empty string")
+    if not isinstance(record.get("backend_id"), str) or not record["backend_id"].strip():
+        return _fail("backend_id must be a non-empty string")
+
+    root = (artifact_root or PROJECT_ROOT).resolve()
+    capture = record["capture"]
+    if not isinstance(capture, dict):
+        return _fail("capture must be an object")
+    missing_capture = sorted(REQUIRED_CAPTURE - capture.keys())
+    if missing_capture:
+        return _fail(f"missing capture fields: {', '.join(missing_capture)}")
+    for key in ("device", "host_api"):
+        if not isinstance(capture[key], str) or not capture[key].strip():
+            return _fail(f"capture.{key} must be a non-empty string")
+    for key in ("sample_rate_hz", "channels"):
+        if not isinstance(capture[key], int) or isinstance(capture[key], bool) or capture[key] <= 0:
+            return _fail(f"capture.{key} must be a positive integer")
+    for key, hash_key, label in (
+        ("input_wav", "input_sha256", "capture input"),
+        ("reference_wav", "reference_sha256", "reference"),
+    ):
+        status, message = _check_wav(capture[key], capture[hash_key], label, root)
+        if status != "PASS":
+            return _fail(message or f"{label} validation failed")
 
     timing = record["timing_ms"]
     if not isinstance(timing, dict):
@@ -72,9 +144,15 @@ def classify(record: dict[str, Any]) -> tuple[str, list[str]]:
     if not isinstance(output, dict):
         return _fail("output_validation must be an object")
     if output.get("status") == "WAITING":
-        return "WAITING", ["output_validation is not a verified finite non-zero PASS artifact"]
+        return "WAITING", ["output_validation is not a verified finite non-zero WAV artifact"]
+    missing_output = sorted(REQUIRED_OUTPUT - output.keys())
+    if missing_output:
+        return _fail(f"missing output_validation fields: {', '.join(missing_output)}")
     if output.get("status") != "PASS" or output.get("finite") is not True or output.get("non_zero") is not True:
         return "BLOCKED", ["output_validation explicitly failed finite/non-zero validation"]
+    status, message = _check_wav(output["output_wav"], output["wav_sha256"], "routed output", root)
+    if status != "PASS":
+        return _fail(message or "routed output validation failed")
 
     first_packet = timing["e2e_first_packet_ms"]
     if first_packet > 5000:
