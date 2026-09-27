@@ -123,7 +123,7 @@ Seed-VC 官方 GUI 的設定操作只有在以下條件全數通過時，才可�
 3. PortAudio duplex stream 可啟停；四組 reference 的 callback 輸出均為 finite、non-zero，且與注入 source 不相同。
 4. 啟用 loopback 時，VB-CABLE recording endpoint 收到 finite、non-zero 的同案輸出。
 
-這個 GUI user-flow 只驗證設定、backend 與 VB-CABLE 的部分路徑，不等同實體麥克風、full-chain audio-rack、600 秒穩定性或 LIVE PASS。2026-09-26 官方修復 Python 3.10.11 Tcl/Tk Support 元件後，Seed-VC venv preflight 與四個 GUI settings／backend／loopback case 已 PASS；完整範圍與限制見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
+這個 GUI user-flow 只驗證設定、backend 與 VB-CABLE 的部分路徑，不等同實體麥克風、full-chain audio-rack、600 秒穩定性或 LIVE PASS。2026-09-26 的四個 `offline-v1` GUI settings／backend／loopback case 已 PASS；2026-09-27 `realtime-tiny` GUI lifecycle/settings PASS，但有效 callback WAV 與同期 CABLE loopback 仍 `WAITING`。最新證據見 [`seed-vc-verification-latest.md`](seed-vc-verification-latest.md)。
 
 ## Windows routing 語意
 

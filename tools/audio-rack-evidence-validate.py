@@ -7,7 +7,6 @@ import hashlib
 import json
 import math
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -333,9 +332,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Classify paired AetherTune audio-rack A/B evidence")
     parser.add_argument("evidence", type=Path, help="path to an audio-rack evidence JSON file")
     args = parser.parse_args()
-
     try:
-        record = json.loads(args.evidence.read_text(encoding="utf-8"))
+        record = json.loads(args.evidence.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         print(f"BLOCKED: evidence file not found: {args.evidence}")
         return 2
@@ -346,11 +344,7 @@ def main() -> int:
     for message in messages:
         print(f"{status}: {message}")
     print(f"classification={status}")
-    if status == "BLOCKED":
-        return 2
-    if status == "WAITING":
-        return 3
-    return 0
+    return {"PASS": 0, "OFFLINE": 0, "WAITING": 3, "BLOCKED": 2}.get(status, 2)
 
 
 if __name__ == "__main__":

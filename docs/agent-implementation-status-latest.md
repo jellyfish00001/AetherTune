@@ -1,6 +1,6 @@
 # Agent 實作與測試總表
 
-本輪 2026-09-27 更新：realtime-tiny GUI 四組 reference／設定／有效變聲 callback／VB-CABLE loopback 全數 `PASS`。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；操作入口與後續測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
+本輪 2026-09-27 更新：realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效變聲 callback WAV 與同期 CABLE loopback `WAITING`，獨立 VB-CABLE synthetic smoke `PASS` 不代表 GUI 音訊。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；操作入口與後續測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
 
 更新日期：2026-09-27（Asia/Taipei）
 
@@ -30,7 +30,7 @@
 | MeanVC2 | `installed / candidate`，基本音訊 `PASS` | 固定 code/model revision、兩組 checkpoint、隔離 venv、雙向 CUDA file-driven streaming WAV、必要權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING` |
 | X-VC | `installed / candidate`，基本音訊 `PASS` | 主模型、GLM tokenizer、ERes2Net、隔離 venv、雙向 CUDA streaming WAV 與權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING`；新 streaming 方法另行 intake |
 | CosyVoice3 | `PLANNED`／`candidate` | 在 speech-reconstruction backend 登記 A/B 方向 | 尚未安裝、確認 license／model snapshot 或本機 benchmark |
-| 三層 benchmark | `PLANNED` | 建立 `benchmarks/corpus/live/quality/subjective/` 契約 | 固定 corpus、paired output、客觀比較與人工盲測尚未完成 |
+| 三層 benchmark | schema／空白模板 `PASS`；實際資料 `PLANNED` | 加入只有 header 的 corpus sample register 與 anonymous listening template；未填入合成台詞、聲音或分數 | 固定 corpus、paired output、客觀比較與人工盲測尚未完成 |
 
 ## 本輪工具契約修正與可重跑檢查
 
@@ -65,6 +65,7 @@ Set-Location D:\AetherTune
 & .\.venv\Scripts\python.exe .\tools\audio-output-validation-regression.py
 & .\.venv\Scripts\python.exe .\tools\live-gate-regression.py
 & .\.venv\Scripts\python.exe .\tools\audio-rack-evidence-regression.py
+& .\.venv\Scripts\python.exe .\tools\portaudio-callback-telemetry-regression.py
 ```
 
 這一行只驗證 classifier 契約；它不產生真實 LIVE evidence。實際 gate 要把真實 JSON 路徑傳給 `tools/live-gate-validate.py`，沒有 evidence 時不要用虛構資料補 PASS。

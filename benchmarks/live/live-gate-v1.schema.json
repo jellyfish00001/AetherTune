@@ -78,7 +78,7 @@
     },
     "output_validation": {
       "type": "object",
-      "required": ["status", "finite", "non_zero"],
+      "required": ["status", "finite", "non_zero", "output_wav", "wav_sha256"],
       "properties": {
         "status": {"enum": ["PASS", "WAITING", "FAIL"]},
         "finite": {"type": "boolean"},

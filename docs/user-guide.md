@@ -9,8 +9,8 @@
 選 Seed-VC 的情況：
 
 - 不想先訓練角色模型。
-- 想用一段 source 聲音快速試男聲或女聲 reference。
-- 可以接受先產生 WAV，而不是直接接入即時通話。
+- 想用授權 reference voice 做即時麥克風變聲或離線對照。
+- 使用獨立 Python 3.10 環境，不與 RVC venv 混裝。
 
 Seed-VC 會由 source 保留內容與表現，reference 提供目標聲線。它不是把 `.pth/.index` 放入 RVC，也不需要建立訓練資料集。
 
@@ -41,7 +41,16 @@ Set-Location D:\AetherTune
 
 ## 3. 使用 Seed-VC
 
-若尚未建立獨立環境，先執行一次：
+### 安裝與資產盤點
+
+先閱讀 [`seed-vc-assets.md`](seed-vc-assets.md)。新 clone 不會包含 ignored third-party repo、模型權重或快取；setup 不會代為 clone、下載 checkpoint 或安裝到使用者的全域 Python。第一次執行先做唯讀 preflight：
+
+```powershell
+Set-Location D:\AetherTune
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
+```
+
+按輸出結果補齊 Python 3.10、固定 Seed-VC source、realtime-tiny checkpoint/config 和本機模型快取，再安裝獨立環境：
 
 ```powershell
 & .\tools\seed-vc-setup.ps1 -PreflightOnly
@@ -50,12 +59,47 @@ Set-Location D:\AetherTune
 
 此 setup gate 只保證 `realtime-tiny` GUI 所需的 Python 3.10、固定 upstream source revision、Tcl/Tk、checkpoint、HF snapshot revision/檔案 size/SHA-256 與 ModelScope VAD observed size/hash；缺項會在 pip 前列出並停止。`tools/seed-vc-assets.json` 中的 HF/VAD 本機 observed hashes 不等於 vendor provenance，FSMN-VAD 官方 revision/license 仍 `UNKNOWN/WAITING`。offline-v1 的 Whisper/BigVGAN checkpoint、preset 與 helper completeness 明確為 `WAITING / out-of-scope`；不得由 realtime setup PASS 推論 offline helper 可開箱。此流程不會 clone repo 或下載權重；找不到 Python 時以 `-Python310 <python.exe>` 明確指定。模型資產需先按專案 source/license 流程取得。
 
-### 輸入規則
+### 選擇裝置與 reference，啟動官方 GUI
 
-- `-Source`：保留內容的來源 WAV。
-- `-Target`：目標聲線 reference，建議 1–30 秒、乾淨、單一說話者。
-- reference voice 目前放在 `dataset/reference-voices/`。
-- 輸出與輸入不會互相覆蓋。
+先執行唯讀 preflight；輸出 JSON 會列出 PortAudio 裝置，再依實際名稱啟動。輸入裝置和輸出裝置都必須在同一個 Host API 下唯一匹配：
+
+```powershell
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
+& .\tools\seed-vc-gui-run.ps1 `
+  -HostApi 'Windows WASAPI' `
+  -InputDeviceName '<PortAudio 顯示的實體麥克風名稱>' `
+  -OutputDeviceName '<PortAudio 顯示的 CABLE Input 名稱>' `
+  -ReferenceWav 'C:\Audio\authorized-reference.wav'
+```
+
+`-HostApi`、`-InputDeviceName`、`-OutputDeviceName` 和 `-ReferenceWav` 都可省略，但只有在隔離 session 的已保存設定能唯一核對且檔案仍存在時才沿用；第一次設定請明確傳入。reference path 必須是 GUI 可讀的音訊檔，並符合上游 GUI 的 ASCII 路徑限制。使用者也可以不傳 `-ReferenceWav`，在 GUI reference 欄位選取音檔。
+
+啟動器會先檢查 CUDA device 0、checkpoint/config、XLS-R、CampPlus、HiFT、FunASR VAD 快取及裝置身份，再以 `--fp16 False --gpu 0` 啟動官方 GUI。一般 GUI 流程接收實體麥克風，不注入 WAV；裝置/reference 設定保存在 ignored runtime config。launcher 固定使用本機模型 cache，不會下載缺少的資產。
+
+### 路由、短測與 600 秒穩定性
+
+- **先做 bypass**：Seed-VC GUI output 設為 `CABLE Input (VB-Audio Virtual Cable)`；`CABLE Output` 是給錄音程式讀取的另一端。
+- **full-chain**：`CABLE Output` → Light Host Modern input → Graillon bypass 或 active → `Voicemeeter Input` → 開啟對應 strip 的 B bus → 下游使用 `Voicemeeter Out B1`。Discord/OBS 麥克風從該 app 設定選擇 B1。先用耳機，確認沒有 feedback。
+- **正常停止／還原**：先按 Seed-VC GUI 的 Stop，再關閉 GUI；停止 Light Host；在 Discord/OBS 將麥克風改回使用前選項，並關閉 Voicemeeter 這條 route 的 B bus。整個流程不需改 Windows 預設音訊裝置。
+
+GUI 啟動後，在實體 mic 前先短講測試句並確認端點 meter。準備擷取前可唯讀列出終端點，再做 30 秒短測：
+
+```powershell
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py --list-devices
+& .\tools\venvs\seed-vc\Scripts\python.exe .\tools\seed-vc-live-capture.py `
+  --host-api 'Windows WASAPI' `
+  --microphone '<實體麥克風錄音 endpoint 名稱>' `
+  --backend-loopback '<CABLE Output endpoint 名稱>' `
+  --terminal-loopback '<Voicemeeter Out B1 endpoint 名稱>' `
+  --reference-audio 'C:\Audio\authorized-reference.wav' `
+  --seconds 30
+```
+
+`--reference-audio` 必須指向該 GUI session 使用的非靜音 PCM WAV；runner 會保存 reference path／format／hash，不會複製音檔。開始 capture 後按 GUI Start 並持續對 mic 說話。runner 會保存原始 mic、backend loopback、B1 loopback WAV、SHA-256、PortAudio flags、callback frame/timestamp continuity 和首個非靜音 onset 時間。onset timing 是跨裝置 threshold estimate；先人工聽三份輸出、檢查 metrics，再做 `--seconds 600`。Rack bypass/full-chain A/B 要引用相同 capture source/reference WAV 與 hash；不同現場重講會產生不同 mic WAV，不能冒充為相同來源的 pair。必要時用固定、已授權 corpus source 做可重複的 rack A/B，再將實體 mic 的完整 route 單獨登記到 LIVE_GATE。600 秒 capture 也不會自動變成 LIVE：人工聽測、paired bypass/full-chain evidence 與 `tools/live-gate-validate.py` gate 仍須分開完成。
+
+### 離線 WAV 對照
+
+`source` 是要保留內容的語音；`target` 是建議 1–30 秒、乾淨、單一說話者的 reference。只使用本人或已取得授權的聲音：
 
 ### 男聲轉女聲
 
@@ -63,8 +107,7 @@ Set-Location D:\AetherTune
 & .\tools\seed-vc-run.ps1 `
   -Source .\dataset\reference-voices\voice-male-m1.wav `
   -Target .\dataset\reference-voices\voice-female-f1.wav `
-  -OutputDir .\artifacts\seed-vc\male-to-female `
-  -Fp16
+  -OutputDir .\artifacts\seed-vc\male-to-female
 ```
 
 ### 女聲轉男聲
@@ -73,38 +116,16 @@ Set-Location D:\AetherTune
 & .\tools\seed-vc-run.ps1 `
   -Source .\dataset\reference-voices\voice-female-f1.wav `
   -Target .\dataset\reference-voices\voice-male-m1.wav `
-  -OutputDir .\artifacts\seed-vc\female-to-male `
-  -Fp16
+  -OutputDir .\artifacts\seed-vc\female-to-male
 ```
 
 成功後查看：
 
-- `artifacts/seed-vc/<run>/vc_*.wav`：音訊結果。
-- `artifacts/seed-vc/<run>/seed-vc-run.json`：輸入、checkpoint、Torch runtime、輸出 hash 與 warning。
+- `artifacts/seed-vc/<output-name>/<run-id>/vc_*.wav`：本次唯一 run 的音訊結果。
+- `artifacts/seed-vc/<output-name>/<run-id>/seed-vc-run.json`：run id、輸入/reference/checkpoint hash、Torch runtime、每個新 WAV 的有限值/非靜音結果；失敗時保存 `FAIL` manifest。
 - `backends/seed-vc/README.md` 與 `docs/agent-implementation-status-latest.md`：Seed-VC 輸入契約與目前實際驗證摘要。
 
 既有證據已驗證 `offline-v1` 雙向 WAV、60 秒長音檔、`realtime-tiny` headless GPU block，以及官方 GUI callback user-flow 的四組 reference 輸出。這些既有離線執行結果不表示本輪 setup/manifest gate 涵蓋 offline-v1 helper bootstrap；offline-v1 helper completeness（含 Whisper/BigVGAN）仍 `WAITING / out-of-scope`。實體 mic E2E、audio-rack paired bypass/full-chain、人工聽測與 600 秒 realtime 穩定性也仍待補。
-
-### 一般使用者：手動即時 GUI
-
-`tools/seed-vc-gui-run.ps1` 啟動官方 realtime-tiny GUI，使用本機 Hifi-GAN profile、FP32 與 CUDA device 0。先唯讀檢查，再啟動：
-
-```powershell
-pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
-pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 `
-  -InputDeviceName '麥克風 (HyperX QuadCast S)' `
-  -OutputDeviceName 'CABLE Input (VB-Audio Virtual Cable)' `
-  -HostApi 'Windows DirectSound' `
-  -ReferenceWav .\dataset\reference-voices\voice-female-f1.wav
-```
-
-上述裝置名稱是目前這台主機 PortAudio inventory 的完整字串；在其他電腦請替換成 launcher preflight 顯示的完整名稱與對應 Host API。此 Host API 下該 CABLE output 唯一匹配 1 個 endpoint；launcher 會在啟動前重新驗證。
-
-GUI launcher 要由 PowerShell 7.2 以上（`pwsh`，junction 驗證使用 .NET 6 API）執行。預設會使用 setup 建立且含 Seed-VC GUI dependencies 的 `tools\venvs\seed-vc\Scripts\python.exe`；若改用自訂 venv，傳入 `-Python <venv\Scripts\python.exe>`。`-Python310 <base python.exe>` 僅供 `seed-vc-setup.ps1` 建立 venv 時選 Python 3.10，不能傳給 GUI launcher，也不能拿未安裝 Seed-VC dependencies 的 base Python 取代 venv。
-
-`-InputDeviceName`、`-OutputDeviceName`、`-HostApi` 與 `-ReferenceWav` 都可省略；省略時沿用 launcher 的 isolated session 設定或唯一的 Windows default endpoint。名稱以 preflight 列出的 PortAudio 裝置為準，必須能唯一解析；裝置缺失、重名、方向不符或 input/output Host API 不一致時會停止。Launcher 不更改 Windows default endpoint、不注入測試 WAV、不開啟 stream，也不下載模型。
-
-設定副本、隔離的 HF cache lock 和 ModelScope cache root 位於 ignored `artifacts/seed-vc/gui-session/`；HF 模型目錄只連結到已驗證的本機 snapshot，VAD 以程序內 local-path mapping 讀取已驗證的本機 snapshot。官方 GUI 儲存的裝置／reference 偏好因此落在隔離資料夾，不寫入 third-party repo、使用者 profile 或原 cache。啟動後再次核對畫面上的 reference、input、output、Host API 和 CUDA device 0，再按 `Start VC`；通話結束按 `Stop VC`，關閉視窗。若輸出到 `CABLE Input`，仍要另驗證 `CABLE Output → audio-rack → Voicemeeter B1 → Discord/OBS`。
 
 ### 工具測試：deterministic callback harness
 

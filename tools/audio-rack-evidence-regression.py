@@ -41,8 +41,6 @@ def wav_metadata(path: Path) -> dict:
         "frames": int(info.frames),
         "duration_sec": int(info.frames) / int(info.samplerate),
     }
-
-
 def tone(*, silent: bool = False) -> np.ndarray:
     if silent:
         return np.zeros(4800, dtype=np.float32)

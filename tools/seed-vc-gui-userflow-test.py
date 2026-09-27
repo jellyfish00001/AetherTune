@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
+from importlib.util import module_from_spec, spec_from_file_location
 import json
 import os
 import re
@@ -110,6 +111,14 @@ _OUTPUT_ROOT = DEFAULT_OUT
 _LOOPBACK_RECORDER = None
 _LOOPBACK_SETUP_ERROR: str | None = None
 
+_TELEMETRY_SPEC = spec_from_file_location(
+    "portaudio_callback_telemetry", Path(__file__).with_name("portaudio-callback-telemetry.py")
+)
+assert _TELEMETRY_SPEC and _TELEMETRY_SPEC.loader
+_TELEMETRY_MODULE = module_from_spec(_TELEMETRY_SPEC)
+_TELEMETRY_SPEC.loader.exec_module(_TELEMETRY_MODULE)
+_CallbackTelemetry = _TELEMETRY_MODULE.CallbackTelemetry
+
 
 # FunASR import 時只用 ffmpeg 做可選能力探針；本測試所有輸入都是 WAV，且系統
 # 的 ffmpeg 執行檔目前受 Windows 權限阻擋，因此只對這個探針回報已存在。
@@ -164,6 +173,7 @@ class _CableOutputLoopbackRecorder:
         self._started_at = 0.0
         self._first_nonzero_at: float | None = None
         self._first_nonzero_after_backend_at: float | None = None
+        self._telemetry = _CallbackTelemetry(LOOPBACK_SAMPLE_RATE)
 
     def start(self, label: str) -> None:
         self._label = label
@@ -185,7 +195,8 @@ class _CableOutputLoopbackRecorder:
             self.errors[label] = repr(error)
             self._stream = None
 
-    def _callback(self, indata, _frames, _time, _status):
+    def _callback(self, indata, frames, times, status):
+        self._telemetry.record(int(frames), times, status)
         now = time.perf_counter()
         if np.any(np.abs(indata) > 1e-5):
             if self._first_nonzero_at is None:
@@ -227,6 +238,7 @@ class _CableOutputLoopbackRecorder:
                     else None
                 )
             }
+            self.timing_ms[self._label]["portaudio_callback"] = self._telemetry.snapshot()
         except Exception as error:  # pragma: no cover - device is host-specific
             self.errors[self._label] = repr(error)
         finally:
@@ -244,6 +256,7 @@ class _RecordingStream:
         self._started_at = time.perf_counter()
         self._first_input_at: float | None = None
         self._first_output_at: float | None = None
+        self._telemetry = _CallbackTelemetry(self._sample_rate)
         source, source_sr = sf.read(_SOURCE_PATH, always_2d=False)
         if source.ndim > 1:
             source = source.mean(axis=1)
@@ -259,6 +272,7 @@ class _RecordingStream:
         callback = kwargs["callback"]
 
         def wrapped_callback(indata, outdata, frames, times, status):
+            self._telemetry.record(int(frames), times, status)
             callback_started_at = time.perf_counter()
             if self._first_input_at is None:
                 self._first_input_at = callback_started_at
@@ -313,6 +327,7 @@ class _RecordingStream:
                     if self._first_output_at is not None
                     else None
                 ),
+                "portaudio_callback": self._telemetry.snapshot(),
             }
             _save_capture(self._label, self._input_chunks, self._output_chunks, self._sample_rate)
 
@@ -952,6 +967,7 @@ def main() -> int:
                     else {}
                 ),
             },
+            "portaudio_callback": _CAPTURES.get(label, {}).get("timing_ms", {}).get("portaudio_callback"),
         }
 
     try:

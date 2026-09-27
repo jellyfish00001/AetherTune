@@ -32,14 +32,16 @@ AetherTune 的硬條件是：在 RTX 5060 Ti 16GB、本地運算與完整音訊�
 
 `tools/live-gate-validate.py` 讀取本次實際 input/output WAV 與 metrics JSON，並要求 metrics SHA 綁定完整 `timing_ms`、`continuity`、capture source type、capture sample rate/channels、input/output WAV 的 sample rate/channels/frames/duration，以及整個 `human_review` object。capture 宣告必須與 input WAV header 相符；output metadata 也必須同時符合 manifest、hash-bound metrics 和 output WAV header。只重算 WAV file hash、卻沿用舊 metadata 的修改會 `BLOCKED`；若檔案本身改變，證據、metrics 和實際 header 必須重新一致。若 `human_review.status=PASS`，還需 reviewer/review identity、timezone-aware `reviewed_at_utc`、精確 input/output WAV hashes，以及自然度、音色相似、表演保留、內容正確、噪音／破音與接受度 1–5 ratings；不完整的 PASS review 會 `BLOCKED`。尚未完成的 `status=WAITING` 維持 `LIVE_CANDIDATE`，不會成為 LIVE。它不會替代真實 capture、PortAudio、VST、virtual device 或人工聽測，也不會由 synthetic audio 建立 physical-microphone evidence。paired rack 欄位另見 [`audio-rack/benchmarks/README.md`](../audio-rack/benchmarks/README.md)。
 
+[`tools/seed-vc-live-capture.py`](../tools/seed-vc-live-capture.py) 可在官方 Seed-VC GUI 已待命時，以明確指定的實體麥克風、backend loopback 與終端 loopback 同步錄音，保存 callback 數量、frame continuity、ADC timestamps、WAV hash 與訊號檢查。它產生的 onset delta 是跨 stream threshold estimate，不是精確 first-packet timing；capture 報告維持 `WAITING`，需另行核實完整時間線、填入符合 LIVE_GATE schema 的 evidence 並完成聽評，不能直接分類為 LIVE。
+
 ## 研究優先級
 
 ### Streaming VC：保留原始表演
 
 1. RVC + FCPE/RMVPE：`historical-baseline`。保留作既有系統與延遲／失真對照；不再預設為主線。
 2. Seed-VC upstream：`established-baseline`。本機 headless evidence 已有，但 upstream 已 archived。
-3. MeanVC2：`priority candidate`。下一個優先 intake；[上游 repo](https://github.com/ASLP-lab/MeanVC2) 報告 40 ms chunk 與 110 ms first-packet latency，本專案尚未安裝、下載 checkpoint 或驗證 Windows／RTX 5060 Ti／完整鏈路。
-4. X-VC：`research-candidate`。官方[程式碼庫](https://github.com/Jerrister/X-VC) 已公開 streaming inference；在 MeanVC2 baseline 矩陣完成後再 intake，先查固定 revision、weights、license 與環境。
+3. MeanVC2：`priority candidate / installed`。Windows／RTX 5060 Ti 隔離 runtime 與雙向 CUDA file-driven streaming WAV `PASS`；mic、paired rack、600 秒連續穩定與人工聽評仍 `WAITING`。上游報告的 40 ms chunk／110 ms first-packet latency 不是本機完整鏈路結果。
+4. X-VC：`research-candidate / installed`。固定 code/model 資產與雙向 CUDA streaming WAV `PASS`；完整 physical capture、paired rack、600 秒穩定及人工聽評仍 `WAITING`。GLM tokenizer 的授權範圍需與 repo 及各模型權重分開核對。
 5. Seed-VC realtime fork：`candidate`。作為獨立 worker/device/VAD 執行路徑比較；先做 source/revision/license/runtime inventory，不取代模型比較。
 6. RT-VC 與後續新方法：`research-candidate`。保留觀察；只有來源、程式碼／權重、license 和可重現 streaming profile 齊備後才進可執行矩陣。
 

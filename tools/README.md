@@ -14,6 +14,9 @@
 - `audio-rack-evidence-validate.py`：讀取 rack A/B 的 source、bypass/full-chain WAV 與 metrics JSON，驗檔案、SHA-256、run/model/hardware/route identity 及實測 delta；rack PASS 不等於 LIVE。
 - `audio-rack-evidence-regression.py`：涵蓋未配對、缺檔、hash/identity/timing/continuity/paired-run/output/delta mismatch、靜音與超過 5 秒；確認 rack fixture 送入 LIVE gate 仍是 WAITING。
 - `live-gate-validate.py`／`live-gate-regression.py`：驗證本次 mic input/output artifact、metrics hash 綁定完整 timing/continuity/source type/human review identity+audio hashes+ratings、run 時間與 600 秒穩定性；synthetic source 不能通過 LIVE，不完整的 PASS human review 會 BLOCKED。
+- `portaudio-callback-telemetry.py`／`portaudio-callback-telemetry-regression.py`：統計 callback、frame continuity、PortAudio status 與 ADC timestamp drift；不保留音訊 samples，合成 regression 不代表實際裝置通過。
+- `wav-evidence.py`／`seed-vc-wav-check.py`：用 WAV header 與 PCM payload 檢查實際 metadata、hash、finite/non-zero 訊號；不能取代 paired rack 或 LIVE_GATE。
+- `seed-vc-live-capture.py`：在官方 Seed-VC GUI 已待命時，錄製使用者明確指定的實體 mic、backend loopback 與終端 loopback，輸出 WAV／callback evidence。onset delta 是估算值，報告保持 `WAITING`，不自動升格 LIVE。
 - `voice-backend-check.ps1`：唯讀檢查 RVC venv、Seed-VC source／isolated environment／checkpoint、男／女 reference voice 與 CosyVoice/Breeze TTS 2 模型狀態；不代表端到端品質通過。
 - `seed-vc-run.ps1`：先以新 run_id 覆寫非 PASS preflight manifest，再檢查輸入、checkpoint、config 與 Seed-VC Python，之後呼叫官方 Seed-VC offline inference；只接受新 WAV 或內容 hash 有變化的本次輸出，stale WAV 不會沿用成 PASS，輸出驗證也使用同一個 Seed-VC venv Python。`seed-vc-run-preflight-regression.ps1` 覆蓋六種缺項並確認舊 PASS 被新 BLOCKED manifest 取代。
 - `seed-vc-gui-userflow-test.py`：以官方 GUI event path 驗證 Seed-VC callback；加上 `--capture-loopback` 時同步錄取 WASAPI `CABLE Output`，並保存 `callback_first_input_ms`、`callback_first_nonzero_output_ms` 與 `cable_output_first_nonzero_after_backend_ms` 的 partial timing。每個 case 會記錄 widget update／event value 狀態；任何設定錯誤都會將該 case 降為 `WAITING`。這不代表 Light Host full-chain 或 LIVE。

@@ -1,6 +1,6 @@
 # AetherTune
 
-2026-09-27：**realtime-tiny GUI 有效輸出已通過四組 reference、17/17 設定與 VB-CABLE loopback 測試**。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
+2026-09-27：**realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效 callback WAV 與同期 CABLE loopback `WAITING`**。獨立 synthetic VB-CABLE smoke 為 `PASS`，但不代表 GUI 有效變聲。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
 
 現在可雙擊根目錄 **`AetherTune.cmd`** 開啟控制台：Seed-VC 可設 Reference／音訊裝置／八項參數再開官方即時 GUI；MeanVC2／X-VC 可選 source、Reference 與參數產生 WAV。控制台提供停止、日誌、開啟 WAV 與結果資料夾。Seed 官方視窗再按 `Start Voice Conversion` 開始，結束按 `Stop Voice Conversion`。
 
@@ -18,7 +18,7 @@ AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。�
 
 | 研究路線／結果 | 使用方法 | 是否要訓練 | 輸入 | 目前狀態 |
 |---|---|---:|---|---|
-| 即時通話、遊戲、Discord、OBS | **Streaming VC**：Seed-VC baseline → MeanVC2 → X-VC | 通常不要 | mic/source + reference | Seed-VC tiny GUI／cable `PASS`；MeanVC2、X-VC 已安裝並完成雙向 CUDA WAV `PASS`；完整 mic／rack／LIVE 仍 `WAITING` |
+| 即時通話、遊戲、Discord、OBS | **Streaming VC**：Seed-VC baseline → MeanVC2 → X-VC | 通常不要 | mic/source + reference | Seed-VC GUI lifecycle/settings `PASS`、有效 callback `WAITING`；MeanVC2、X-VC 雙向 CUDA WAV `PASS`；完整 mic／rack／LIVE 仍 `WAITING` |
 | 既有低延遲對照 | **RVC + FCPE/RMVPE** | 要 | 乾聲資料、角色 `.pth/.index` | `historical-baseline`；四組離線 GPU 證據 `PASS`，VCClient 即時鏈路 `BLOCKED/DEGRADED` |
 | 改寫或重建內容，保留參考聲線 | **STT → TTS**：CosyVoice2／CosyVoice3／Breeze | 不要訓練角色 | source WAV → transcript + reference WAV | CosyVoice2／Breeze runtime 證據保留；CosyVoice3 `candidate`；目前不能列為 LIVE |
 
@@ -29,21 +29,20 @@ AetherTune 是一個本地即時 AI Voice Transformation Research Workbench。�
 - 要「先辨識文字，再重新說一遍」：選 STT → TTS。它重新生成聲學表演，不會完整保留原始笑聲、呼吸、停頓與語氣。
 - 所有路線都要通過同一個 audio-rack 與 benchmark 契約；不要把 Post-FX 掛在 RVC 專屬流程中。
 
-## 五分鐘開始
+## Seed-VC 即時變聲快速開始
 
-在 PowerShell 執行：
+Seed-VC 是目前 Windows Streaming VC 的 established baseline。第一次使用前先按 [`docs/seed-vc-assets.md`](docs/seed-vc-assets.md) 準備固定版本的 upstream、模型與本機快取；不提供或不下載未核對授權的權重。
+
+在 PowerShell：
 
 ```powershell
 Set-Location D:\AetherTune
-& .\tools\voice-backend-check.ps1
+& .\tools\seed-vc-setup.ps1 -PreflightOnly
 ```
 
-### Seed-VC：目前最接近主線的 baseline
-
-如果 `tools/venvs/seed-vc/` 尚未存在，先執行一次：
+確認 preflight 已列出所需 source 和本機資產後，安裝 Seed-VC 獨立環境：
 
 ```powershell
-& .\tools\seed-vc-setup.ps1 -PreflightOnly
 & .\tools\seed-vc-setup.ps1
 ```
 
@@ -52,14 +51,15 @@ Set-Location D:\AetherTune
 然後執行：
 
 ```powershell
-& .\tools\seed-vc-run.ps1 `
-  -Source .\dataset\reference-voices\voice-male-m1.wav `
-  -Target .\dataset\reference-voices\voice-female-f1.wav `
-  -OutputDir .\artifacts\seed-vc\male-to-female `
-  -Fp16
+pwsh -NoProfile -File .\tools\seed-vc-gui-run.ps1 -PreflightOnly
+& .\tools\seed-vc-gui-run.ps1 `
+  -HostApi 'Windows WASAPI' `
+  -InputDeviceName '<PortAudio 顯示的麥克風名稱>' `
+  -OutputDeviceName '<PortAudio 顯示的 CABLE Input 名稱>' `
+  -ReferenceWav 'C:\Audio\authorized-reference.wav'
 ```
 
-交換 `-Source` 和 `-Target` 就能測試女聲→男聲。結果 WAV 與 `seed-vc-run.json` 會留在 `artifacts/seed-vc/`。離線 runner 需要另行具備其 checkpoint/config/helper assets；realtime-only setup 不會核驗 offline-v1 helper completeness，該範圍目前 `WAITING / out-of-scope`。既有 WAV 證據只代表先前 offline/headless runtime，不是新機 bootstrap，也不是 mic → backend → audio-rack → virtual route 的 LIVE PASS。完整輸入契約與驗證結果見 [`backends/seed-vc/README.md`](backends/seed-vc/README.md) 及 [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)。Seed-VC upstream 已 archived；fork 候選見 [`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)。
+Preflight JSON 會列出裝置清單；啟動後在官方 GUI 確認 input/output/reference，再由使用者按 Start／Stop。這個命令不注入 WAV，也不代表完整 mic → backend → audio-rack → virtual route 的 LIVE PASS。離線 WAV 對照另用 `tools/seed-vc-run.ps1`；offline-v1 helper completeness 目前 `WAITING / out-of-scope`。完整操作與限制見 [`docs/user-guide.md`](docs/user-guide.md)、[`backends/seed-vc/README.md`](backends/seed-vc/README.md) 及 [`docs/agent-implementation-status-latest.md`](docs/agent-implementation-status-latest.md)。Seed-VC upstream 已 archived；fork 候選見 [`backends/seed-vc-realtime/README.md`](backends/seed-vc-realtime/README.md)。
 
 ### Seed-VC：日常手動即時 GUI
 

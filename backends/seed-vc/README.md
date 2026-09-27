@@ -17,7 +17,11 @@ Seed-VC 是不需先訓練角色模型的 voice conversion 路線：來源音檔
 | `offline-v1` | `seed-uvit-whisper-small-wavenet` | 離線 VC | 約 440 MB checkpoint；品質優先 |
 | `v2` | `hubert-bsqvae-small` | accent／speaker disentanglement | 需同時下載 CFM/AR 資產，延後處理 |
 
-## 使用
+## 即時 GUI
+
+Windows realtime-tiny 走官方 `real-time-gui.py`，不使用 offline inference config。先讀 [`docs/seed-vc-assets.md`](../../docs/seed-vc-assets.md)，檢查 source／checkpoint／config／encoder／vocoder／VAD cache，再依根目錄 [`README.md`](../../README.md) 列舉裝置並用 `tools/seed-vc-gui-run.ps1` 啟動。Launcher 使用 FP32／CUDA device 0，預設 offline mode 並要求唯一裝置名稱，不改 Windows 預設 audio endpoints，也不注入 WAV。`tools/seed-vc-live-capture.py` 可另行錄製 mic、CABLE Output 與 Voicemeeter B1 的實際 PCM／callback evidence；onset estimate 不能代替完整 LIVE_GATE。
+
+## 離線使用
 
 `tools/seed-vc-setup.ps1` 會先完成唯讀 preflight，再建立獨立的 `tools/venvs/seed-vc`；目前 manifest gate 的支援範圍是 `realtime-tiny` GUI。缺少 realtime prerequisites 時會先列完整缺項，不會執行 pip；setup 不 clone source 或下載權重。Python 3.10 base interpreter 可由 `pyvenv.cfg`／本機安裝探索，也可只對 setup 明確傳 `-Python310 <base-python.exe>`。此 setup PASS 不表示 `offline-v1` checkpoint/config/Whisper/BigVGAN helper assets 齊全；offline helper completeness 維持 `WAITING / out-of-scope`，雖然本機保有先前離線推論 evidence。若另行執行 `tools/seed-vc-run.ps1`，它會檢查 offline route 的第三方 repo、checkpoint、輸入檔與輸出資料夾，再呼叫官方 `inference.py`。每次執行會先記錄現有 WAV 路徑/hash；只有本次新增 WAV 或內容 hash 變更的輸出，經 `audio_output_validation.py` 確認後才會記為 PASS，manifest 會記錄 run id、來源／目標／checkpoint／Torch runtime、輸出 SHA-256 與 inference log。單純觸碰舊 WAV 時間不會通過 stale-output gate。它不會自動覆蓋輸入，也不會把輸出誤登記成 ready model。`realtime-tiny` GUI 需搭配官方 XLS-R/Hifi-GAN preset，不能把 tiny checkpoint 硬塞進 offline config。
 
