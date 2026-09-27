@@ -34,6 +34,9 @@ models/speech-reconstruction/*/*
 !models/speech-reconstruction/*/README.md
 models/speech-reconstruction/cosyvoice/README.md
 
+# Local browser automation logs
+/.playwright-cli/
+
 # External tools and runtime caches
 tools/external/*
 tools/cache/*

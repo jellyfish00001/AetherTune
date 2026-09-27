@@ -104,6 +104,7 @@ Set-Location D:\AetherTune
 - 不把下載成功、import 成功、Web UI HTTP 200、provider 清單或模型檔存在寫成音訊 E2E PASS。
 - 驗證結果必須寫出實際命令、輸入／模型 hash、device/provider、輸出 artifact、PASS/WAITING/BLOCKED 與未解事項。
 - 不保存 API key、密碼、cookie、token 或私人聲音授權資料。
+- Git 長期整合分支只保留 `main`。只有並行隔離或明確 review 需要才新建分支；名稱使用 `codex/<area>-<problem>`，讓目的可辨識，禁止無實作內容線索的 phase／流水號分支。完成後先確認變更已提交、檢核通過且 commit 可由 `origin/main` 到達，再刪除該分支；未提交或尚未合併的唯一內容必須先整合，不可丟棄。避免為同一問題重複開分支。
 
 ## 6. 回報格式
 
