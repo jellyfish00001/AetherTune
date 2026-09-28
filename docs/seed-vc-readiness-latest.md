@@ -1,6 +1,8 @@
 # AetherTune／Seed-VC 開箱與 LIVE readiness
 
-2026-09-27 最新結果：Seed-VC GUI lifecycle 與設定保存 `PASS`；realtime-tiny GUI callback backend WAV／同步 CABLE loopback `WAITING`。既有四案 settings/callback/loopback PASS 使用 offline-v1，不代表 realtime-tiny。完整 LIVE 仍待另外驗收。
+**文件邊界：**本報告保存 2026-09-27 的 Seed-VC 資產、setup／launcher、環境及使用者交接 readiness 證據；下方操作與研究背景是當日驗證脈絡，不是第二份現行手冊。現行 backend 命令看[Seed-VC README](../backends/seed-vc/README.md)，GUI callback／CABLE 實測看[seed-vc-verification-latest.md](seed-vc-verification-latest.md)，分類看[live-gate.md](live-gate.md)。
+
+2026-09-27 當次結果：Seed-VC GUI lifecycle 與設定保存 `PASS`；realtime-tiny GUI callback backend WAV／同步 CABLE loopback `WAITING`。既有四案 settings/callback/loopback PASS 使用 offline-v1，不代表 realtime-tiny。完整 LIVE 仍待另外驗收。
 
 更新日期：2026-09-27（Asia/Taipei）
 

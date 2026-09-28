@@ -1,14 +1,10 @@
 # VCClient 即時前端相容性 Gate
 
+**文件邊界：**本頁只定義 packaged VCClient 與專案 RVC runtime 必須分開驗證的條件及失敗分流；實際版本、CUDA 警告、sample／角色輸出及當次 PASS／WAITING 由[packaged 修復報告](vcclient-packaged-repair-latest.md)、[RVC 音訊驗證](vcclient-rvc-probe-latest.md)及[線路驗證](wiring-verification-latest.md)負責。
+
 ## 為什麼獨立驗收
 
-專案 `.venv` 與 VCClient 是兩個不同 runtime。現在的本機證據是：
-
-- AetherTune `.venv`：Torch `2.7.1+cu128`，RTX 5060 Ti `sm_120`，實際 CUDA tensor op 成功。
-- VCClient `2.1.4-alpha cuda`：embedded Torch `2.7.0+cu118`；啟動 log 顯示 CUDA build `11.8`，並曾警告 `sm_120` 不在該 PyTorch build 的相容清單。官方 runtime repair 已可重現恢復 module/sample assets。
-- 最新 probe 可以送出官方 ONNX sample 的 chunk request，但 artifact 只有 120 bytes、WAV 不是有效可播放輸出；因此 packaged RVC offline path 仍未通過，不能拿來證明四組本機 candidate 角色模型、GPU provider 或即時音訊鏈路。
-
-因此不能用專案 venv 的 PASS 代替 VCClient PASS，也不能因 Web UI `HTTP 200` 或 sample slot 存在就宣布即時變聲可用。
+專案 `.venv` 與 packaged VCClient 各自內含模型執行環境；一方的 CUDA tensor、FCPE 或離線 WAV 成功，不會讓另一方自動通過。VCClient 須在自己的 embedded runtime 下產生同輪有效角色輸出，並記錄實際 GPU provider、slot 與模型身分。Web UI `HTTP 200`、sample slot 存在或官方 ONNX 範例的 chunk request 也不能代替可播放角色音訊。當次版本與錯誤細節請看上述分項報告。
 
 ## 有角色模型後的驗收順序
 
@@ -24,4 +20,4 @@
 - 若前端的 ONNX 模式可推論但 CUDA provider 失敗：保留 CPU/DirectML 作為相容性實驗，重新量測延遲；不能把 CPU 輸出標為 GPU 即時方案。
 - 若只能載入模型、不能產生輸出：保留 WAITING/BLOCKED，並將錯誤 log 與測試 artifact 登記到報告。
 
-目前狀態：`WAITING（packaged sample output, custom roles in VCClient, GPU provider, realtime chain）`。AetherTune RVC WebUI 的四組 `FCPE + cuda:0` 離線證據另見 [`vcclient-rvc-probe-latest.md`](vcclient-rvc-probe-latest.md)；兩條 runtime 不可互相代替。
+RVC WebUI 離線輸出、packaged VCClient 輸出及下游實體線路的結果各在對應驗證報告，不可互相代替。

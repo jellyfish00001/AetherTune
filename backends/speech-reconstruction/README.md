@@ -1,5 +1,7 @@
 # 語音重建：STT → TTS
 
+**文件邊界：**本頁負責 STT → TTS wrapper、CosyVoice／Breeze 特有 CLI 參數、reference transcript 與輸出契約；目前 CUDA、RTF 與品質結果由[CosyVoice 驗證](../../docs/cosyvoice-verification-latest.md)、[Breeze 驗證](../../docs/breeze-tts2-verification-latest.md)及[Manual TTS 驗證](../../docs/manual-tts-verification-latest.md)分別負責。Desktop 按鈕操作看[使用手冊](../../docs/desktop-user-guide.md)。
+
 這條路線是：
 
 ```text
@@ -8,14 +10,9 @@
 
 它會重新生成笑聲、呼吸、停頓與節奏，不應和 RVC／Seed-VC 用同一套品質標準比較。
 
-## 目前狀態
+## 組件與隔離環境
 
-| 元件 | 狀態 | 已驗證內容 |
-|---|---|---|
-| Faster-Whisper STT | PASS（CPU） | small model 成功辨識男／女 reference，輸出 JSON transcript |
-| CosyVoice2 0.5B | PASS（CUDA） | 官方 zero-shot 與男／女 reference clone 都產生 24 kHz WAV；offline baseline |
-| Fun-CosyVoice3 | PLANNED / candidate | 先做[官方 CosyVoice repository](https://github.com/QwenAudio/CosyVoice) 的 source、model／license intake，再與 CosyVoice2 A/B；尚未安裝 |
-| Breeze TTS 2 | PASS（CUDA） | Voice Design 男／女與 reference clone 男／女均產生 24 kHz WAV |
+Faster-Whisper 提供 STT draft；CosyVoice2 與 Breeze TTS 2 由各自 runtime 合成文字。Fun-CosyVoice3 只是研究候選，完成 source、model／license intake 前不加入可執行 profile；候選決策見[決策紀錄](../../docs/decision-log.md)。
 
 模型與環境分開保存：
 
@@ -112,10 +109,8 @@ Breeze 官方 source revision、model snapshot 與 license 證據見 [`docs/bree
 
 Faster-Whisper 的輸出是 `STT draft`，voice clone 前仍應人工核對 reference audio。不能用空白、猜測或不相符文字。現有男女 reference 的 STT evidence 位於 `artifacts/stt/`，fixture 位於 `tools/fixtures/`。
 
-## 已知限制
+## Runtime 邊界與已知限制
 
-- Breeze eager 與 `-FastAll` CUDA graph 都已在本機 RTX 5060 Ti 產生 WAV；`fast-all` 實測 RTF `11.4196`，官方 H100 benchmark 的 RTF 不適用本機。
-- Breeze `flash-attn==2.8.3` 已嘗試安裝但仍無法 import，現在使用 manual PyTorch path；不要把 `-AttentionImplementation flash_attention_2` 當成可用預設。
-- Breeze system SoX 仍未安裝（sudo 需要密碼），但已完成 `artifacts/sox-local/` 的 SoX `14.4.2` portable extraction；runner 會自動注入 local PATH／LD_LIBRARY_PATH，該目錄不存在時才回到系統 SoX。
-- CosyVoice 主模型 CUDA 已 PASS；`tools/cosyvoice-frontend-cudnn8-probe.ps1` 可用隔離 cuDNN 8 library path 重跑 speech tokenizer 的實際 ONNX Node provider CUDA 證據，但上游 CampPlus embedding 明確固定 CPU，因此目前是 partial frontend GPU，不是全 frontend GPU。證據見 [`docs/cosyvoice-verification-latest.md`](../../docs/cosyvoice-verification-latest.md)。
-- CosyVoice3 只列為 candidate；不要把上游「相較 CosyVoice2 改善」的描述寫成 AetherTune 本機品質 PASS。完成隔離環境、模型來源／license、固定 corpus、RTF／TTFA 與人工聽測後，才能建立 A/B verification report。
+- Breeze `-FastAll`、attention implementation 與 SoX 路徑必須按本機 runtime preflight 選用；不要從其他 GPU 的 RTF 推論本機表現。可用性與數字看[Breeze 驗證](../../docs/breeze-tts2-verification-latest.md)。
+- CosyVoice 的主模型、speech tokenizer 與 CampPlus 是不同計算階段；`available_providers` 不能證明整個 frontend 都用 CUDA。實際 Node provider 看[CosyVoice 驗證](../../docs/cosyvoice-verification-latest.md)。
+- Fun-CosyVoice3 在獨立環境、模型來源／license、固定 corpus、RTF／TTFA 與人工聽測完成前，只保留為候選，不宣稱本機品質。

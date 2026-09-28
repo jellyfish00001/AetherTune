@@ -1,6 +1,8 @@
 # Seed-VC 最新驗證
 
-2026-09-27 最新狀態：官方 GUI lifecycle、設定套用與 saved-reference restart `PASS`；realtime-tiny GUI callback backend WAV 與該次 CABLE Output loopback `WAITING`。較早的四-reference callback 報告曾在其測試條件下得到有限非零輸出，保留於 [`backend-install-test-latest.md`](backend-install-test-latest.md) 作為該次 run 的證據，不代表後續 callback 重跑已通過。最新缺口與報告 hash 見本頁下方；2026-09-26 offline-v1 GUI user-flow 是另一組歷史結果。
+**文件邊界：**本報告只保存 Seed-VC 官方 GUI 的 settings、callback 與同期 CABLE 實測，含本輪及明確標記的較早 run；setup／資產 readiness 見[seed-vc-readiness-latest.md](seed-vc-readiness-latest.md)，日常命令看[Seed-VC README](../backends/seed-vc/README.md)。本報告不定義完整 LIVE 規則。
+
+2026-09-27 當次狀態：官方 GUI lifecycle、設定套用與 saved-reference restart `PASS`；realtime-tiny GUI callback backend WAV 與該次 CABLE Output loopback `WAITING`。較早的四-reference callback 報告曾在其測試條件下得到有限非零輸出，保留於 [`backend-install-test-latest.md`](backend-install-test-latest.md) 作為該次 run 的證據，不代表後續 callback 重跑已通過。當次缺口與報告 hash 見本頁下方；2026-09-26 offline-v1 GUI user-flow 是另一組歷史結果。
 
 更新日期：2026-09-26
 更新日期：2026-09-27

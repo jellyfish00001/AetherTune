@@ -1,5 +1,7 @@
 # RVC 模型訓練與模型管理
 
+**文件邊界：**本頁只負責 RVC 原始素材、切片、訓練、`.pth/.index` 提取與 register；不負責 VCClient／VST／Discord 接線或其他 backend 的模型設定。輸出裝置看[路由手冊](operation-guide.md)，實際模型狀態看[RVC audit](rvc-model-audit-latest.md)與對應 VCClient 驗證。
+
 這份文件只處理 RVC。Seed-VC、CosyVoice、Breeze TTS 2 的一般使用不需要先訓練一個 RVC 角色 `.pth/.index`。
 
 ## 1. 訓練前要準備什麼
@@ -126,16 +128,9 @@ Get-FileHash $index -Algorithm SHA256
 
 ## 7. 接到 VCClient 與即時路由
 
-只有離線結果穩定後才接：
+只有離線模型與 register 核對後，才依[RVC backend 文件](../backends/rvc/README.md)把角色送進 VCClient。完整裝置方向、VST、B1 bus 與終端 loopback 只在[路由手冊](operation-guide.md)維護；當輪 VCClient 是否有效以[packaged 修復與驗證](vcclient-packaged-repair-latest.md)為準，不能由本訓練文件推斷 `ready`。
 
-```text
-麥克風 → VCClient/RVC → VB-CABLE → Light Host + Graillon
-→ Voicemeeter → Discord／遊戲／OBS
-```
-
-完整裝置方向、VST 掃描、B1 bus 與 loopback 步驟見 [`operation-guide.md`](operation-guide.md)。目前 VCClient Web UI 已可開啟，但工作區角色模型載入與真實 GPU 推論仍未完成，因此不要把整條鏈路標成 ready。
-
-## 8. 另外兩條路線為什麼不需要這份訓練流程
+## 8. 其他路線不使用這份訓練流程
 
 - Seed-VC：下載 checkpoint，給 source 與 reference，直接做 zero-shot conversion；使用 [`backends/seed-vc/README.md`](../backends/seed-vc/README.md)。
 - CosyVoice／Breeze：先做 STT，再把 transcript 與 reference audio 送入 TTS；需要 exact transcript 與獨立環境，不使用 RVC `.pth/.index`。使用 [`backends/speech-reconstruction/README.md`](../backends/speech-reconstruction/README.md)。

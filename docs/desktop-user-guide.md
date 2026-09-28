@@ -1,6 +1,6 @@
 # Desktop／Manual TTS 操作手冊
 
-適用版本：2026-09-28 的 Desktop 與 Manual TTS 實作。第一次使用先讀[一頁式快速使用說明](quick-start.md)；本文再回答「開哪個程式、按什麼、結果放哪裡、出錯先看什麼」。程式用途先看[Agent 快速地圖](agent-quick-map.md)，必要時查[逐檔索引](project-file-map.md)；修改／除錯查[維護手冊](agent-maintenance-guide.md)，實測 hash 與 PASS 範圍查 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)。
+**文件邊界：**本頁擁有 Desktop／Manual TTS 的建置、逐步 UI 操作、Queue、Output、結果位置與使用者排錯。第一次使用先讀[一頁式快速使用說明](quick-start.md)；跨層修改查[Agent 維護手冊](agent-maintenance-guide.md)，實測 hash 與 PASS 範圍查[Manual TTS 驗證](manual-tts-verification-latest.md)。本頁不定義產品需求、後端模型參數或 LIVE 分類。
 
 ## 1. 先選正確入口
 
@@ -36,7 +36,7 @@ npm ci
 .\src-tauri\target\debug\aethertune-desktop.exe
 ```
 
-建置需要 Node/npm、Rust MSVC、Visual Studio C++ Build Tools 與 WebView2。`dev.ps1` 優先使用本機 `artifacts/desktop-toolchain/` 的 Rust，只設定當次 process 環境；準備方式見 [app-architecture.md](app-architecture.md)。不要同時開著 exe 又覆蓋它，以免 Windows file lock 讓 build 失敗。
+建置需要 Node/npm、Rust MSVC、Visual Studio C++ Build Tools 與 WebView2。`dev.ps1` 優先使用本機 `artifacts/desktop-toolchain/` 的 Rust，只設定當次 process 環境；開發／測試命令與環境說明見 [Agent 維護手冊](agent-maintenance-guide.md)。不要同時開著 exe 又覆蓋它，以免 Windows file lock 讓 build 失敗。
 
 Git 只包含程式／契約／文件，不包含模型、reference WAV、venv、第三方 source 或 build。新機還要按 [local-environment.md](local-environment.md)、[backends/speech-reconstruction/README.md](../backends/speech-reconstruction/README.md) 準備 Windows Seed Python、WSL `Ubuntu`、CosyVoice／Breeze 環境與資產。只 clone repository 不等於可以發聲。Desktop 預設 root 是建置時的 checkout；移動位置需重新建置，或在啟動前明確設定 `AETHERTUNE_ROOT` 指向完整專案。
 

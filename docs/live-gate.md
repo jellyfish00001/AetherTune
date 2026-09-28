@@ -1,5 +1,7 @@
 # LIVE_GATE 與研究分類
 
+**文件邊界：**本頁是 `LIVE`／`LIVE_CANDIDATE`／`OFFLINE`／`WAITING`／`BLOCKED` 的唯一分類規則；實際某輪是否符合，須由該輪 artifact／validator 與對應驗證報告證明。本頁不記錄 backend 當前成績、安裝步驟或人類操作流程。
+
 更新日期：2026-09-26（Asia/Taipei）
 
 ## 目的

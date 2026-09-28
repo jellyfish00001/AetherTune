@@ -1,6 +1,6 @@
 # Manual TTS 增量實作與驗證
 
-第一次使用讀[快速使用說明](quick-start.md)，環境與排錯讀[詳細操作手冊](desktop-user-guide.md)；後續修改先用[Agent 快速地圖](agent-quick-map.md)定位，再按需查[維護手冊](agent-maintenance-guide.md)與[逐檔索引](project-file-map.md)。本文保存驗收命令與 evidence，不作為完整操作手冊。
+**文件邊界：**本報告只保存 2026-09-27～28 Desktop Manual TTS 的 service／Queue／生成／播放／Transcript 驗收命令與 evidence，不作完整操作手冊、產品需求或 LIVE 結論。第一次使用讀[快速說明](quick-start.md)，建置與排錯讀[Desktop 手冊](desktop-user-guide.md)，跨層維護讀[Agent 維護手冊](agent-maintenance-guide.md)。
 
 日期：2026-09-27～28（Asia/Taipei）。範圍依使用者「Manual TTS 與 Agent Reply Extension」規格：實作 Manual Text、統一 Request／Queue／Orchestrator、完成播放後的 Transcript，以及 Full／Compact／Mini 快速輸入。Agent API、Personality、Auto Reply、Phrase Hotkeys 停用且 PLANNED。
 

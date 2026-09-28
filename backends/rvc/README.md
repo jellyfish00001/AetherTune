@@ -1,6 +1,6 @@
 # RVC（historical baseline）
 
-RVC 是 AetherTune 的既有即時變聲基準，沿用既有 `tools/external/Retrieval-based-Voice-Conversion-WebUI` 與 VCClient。它保留作 latency、失真與路由對照，不再預設為研究主線；VCClient packaged realtime 的最新狀態仍以 verifier 為準。
+**文件邊界：**本頁負責 RVC adapter 的模型格式、FCPE／RMVPE 與 VCClient 交接命令；訓練看[訓練手冊](../../docs/model-training-guide.md)，實測結果看[RVC 音訊驗證](../../docs/vcclient-rvc-probe-latest.md)及[VCClient runtime gate](../../docs/vcclient-runtime-gate.md)。RVC 沿用既有 `tools/external/Retrieval-based-Voice-Conversion-WebUI` 與 VCClient，保留作 latency、失真與路由的歷史對照。
 
 人類入口：先讀 [`docs/user-guide.md`](../../docs/user-guide.md)；要準備資料、訓練與登錄 `.pth/.index` 讀 [`docs/model-training-guide.md`](../../docs/model-training-guide.md)；要接 VCClient、VST、VB-CABLE、Discord／OBS 讀 [`docs/operation-guide.md`](../../docs/operation-guide.md)。
 
@@ -9,9 +9,9 @@ RVC 是 AetherTune 的既有即時變聲基準，沿用既有 `tools/external/Re
 - 訓練／推論：RVC WebUI，revision 以 `docs/source-audit.md` 的固定值為準。
 - 音高擷取：**FCPE 首選，RMVPE 備用**。
 - 現有模型交接路徑：`models/weights/`、`models/indexes/`、`models/model-register.csv`。這些舊路徑先保留，避免破壞既有 verifier 與文件。
-- 目前有 4 組本機角色 `.pth/.index` 配對，已寫入 `models/model-register.csv`；四組都已通過專案 RVC WebUI 的 `FCPE + cuda:0` 離線推論並產生非零 WAV。來源、授權與訓練 metadata 尚未補齊，且 VCClient 即時鏈路仍待驗收。名稱與 hash 見 `docs/current-rvc-model-inventory.md`。
+- 角色模型名稱、配對與 hash 由 `models/model-register.csv` 及[人類可讀盤點](../../docs/current-rvc-model-inventory.md)負責；離線推論和 VCClient realtime 分別驗證。
 - VCClient 的 role model 需要透過其 slot/upload path 建立到自己的 `model_dir`；請使用 `tools/vcclient-rvc-register.ps1`，不要直接複製大型模型進 Git。最新 packaged 修復、限制與 conversion 證據見 [`docs/vcclient-packaged-repair-latest.md`](../../docs/vcclient-packaged-repair-latest.md)。
-- RVC 輸出仍應接到共用 [`audio-rack/`](../../audio-rack/)，但目前 Light Host／Graillon chain 尚未完成 full-chain loopback 與 Δ latency evidence。
+- RVC 輸出交給共用 [`audio-rack/`](../../audio-rack/)；full-chain loopback 與延遲證據由[線路驗證](../../docs/wiring-verification-latest.md)負責。
 
 ## 驗證順序
 
@@ -23,6 +23,6 @@ RVC 是 AetherTune 的既有即時變聲基準，沿用既有 `tools/external/Re
 
 FCPE probe 的 artifact 必須查看 `device`、實際執行 provider、輸出誤差與時間；不能只看套件存在或 provider 清單。
 
-最新 FCPE synthetic probe：`artifacts/fcpe-probe-latest.json`，CUDA device `NVIDIA GeForce RTX 5060 Ti`、220 Hz 目標的 median error `0.0582 Hz`，status `PASS`。這是 FCPE runtime smoke test，不代表 VCClient packaged RVC 已使用 FCPE 完成角色模型推論。
+FCPE synthetic probe 的裝置、誤差與當次結果讀 `artifacts/fcpe-probe-latest.json`；它不能代替角色模型音訊或 packaged VCClient 驗證。
 
 四組角色的實際 FCPE + GPU 推論請使用 `tools/rvc-fcpe-gpu-infer.py`，最新矩陣見 [`docs/vcclient-rvc-probe-latest.md`](../../docs/vcclient-rvc-probe-latest.md)。

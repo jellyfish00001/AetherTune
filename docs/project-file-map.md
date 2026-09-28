@@ -1,6 +1,6 @@
 # AetherTune Git 檔案地圖
 
-本索引以 2026-09-28 執行的 `git ls-files` 為範圍基準，共 251 個已追蹤檔案；再納入本輪新增的 `docs/desktop-user-guide.md`、`docs/agent-maintenance-guide.md`、`docs/quick-start.md`、`docs/agent-quick-map.md`、`docs/project-file-map.md` 五份文件後，覆蓋目標為 256 個檔案。它不是每次任務都要整篇讀的資料庫：先讀 `AGENTS.md` 與 `docs/agent-quick-map.md`，再用 `rg` 依 owner／路徑搜尋局部；只有需要逐檔責任、入口或同步檢核時才開本表。每列都連到一個 tracked 或本輪新增文件，並說明它的實際責任、主要讀取者或執行入口，以及修改時需要一起檢查的契約。這是導覽索引，不是功能就緒清單；PASS、WAITING、PLANNED 與 BLOCKED 仍以各 verification 文件和可重跑 artifact 為準。
+本索引對應 `git ls-files` 的 Git 管理檔案，包含[文件權責地圖](README.md)。它不是每次任務都要整篇讀的資料庫：先讀 `AGENTS.md` 與 `docs/agent-quick-map.md`，再用 `rg` 依 owner／路徑搜尋局部。每列說明檔案用途、主要讀取者及修改時要檢查的相依；**各說明文件的唯一內容權威由[文件權責地圖](README.md)指定**。本索引不判定功能就緒；PASS／WAITING 等仍以各 verification 與可重跑 artifact 為準。
 
 ## 導覽規則
 
@@ -8,6 +8,32 @@
 - `audio-rack/` 與 `benchmarks/` 是跨 backend 的後製、路由與驗收基礎設施；`backends/`、`models/`、`dataset/`、`tools/` 和 `docs/` 分別保存後端契約、模型登錄、素材 provenance、可重跑工具與證據文件。
 - 修改程式或契約時，先讀本表列出的主要同步文件，再用對應的 test、regression、validator 或 verification 命令核對；不要以檔案存在取代 runtime 或音訊證據。
 - 逐步載入原則：先以 `AGENTS.md` 確認邊界，從 `docs/agent-quick-map.md` 找 owner，再用 `rg -n` 查直接相依；不要為單一修改載入整庫或整份本表。
+
+## 保留資料夾應放的內容
+
+已移除根目錄完全空白、且未被專案 source 使用的 `checkpoints/`、`model_dir/`、`settings/`、`tmp_dir/`、`upload_dir/`。這些是舊工具可能產生的**根目錄**空資料夾；第三方 repo 內同名路徑（例如 VCClient 的 `model_dir/`）不在清理範圍。保留的資料夾如下，README 或 register 即使目前沒有音訊／權重，也代表明確的放置契約，不應因看起來空而刪除。
+
+| 路徑 | 應放內容；為何保留 |
+|---|---|
+| `.git/` | Git 版本庫中繼資料；由 Git 管理，不是專案輸出。 |
+| `.playwright-cli/` | 本機瀏覽器測試暫存與記錄；ignored，不是產品 source 或測試 PASS 本身。 |
+| `.venv/`、`.venv-py312-backup/` | 現有隔離 Python 環境與舊版備份；不進 Git，未確認替代環境前不能清除。 |
+| `app/` | React/Tauri Desktop source、tests、build 設定；`node_modules/`、`dist/`、`target/` 是可重建但不屬 Git 的本機產物。 |
+| `artifacts/` | 每輪 logs、WAV、metrics、證據、TTS SQLite／session；是本機 runtime 資料，**不能**因 ignored 就刪。 |
+| `artifacts/desktop-toolchain/rustup/downloads/`、`tmp/` | Rustup 安裝／更新時的下載與暫存落點；即使當下空白也由本機 toolchain 管理。 |
+| `artifacts/seed-vc/gui-session*/hf-home/`、`modelscope/`、`checkpoints/.locks/` | 官方 GUI session 隔離的 Hugging Face／ModelScope cache 與 checkpoint 鎖；可暫時為空，不當成過期輸出清除。 |
+| `artifacts/seed-vc/*/session/checkpoints/` | Seed-VC 驗證 session 的 checkpoint 落點；由該輪 runtime／證據管理，不以空白 leaf 判定可刪。 |
+| `audio-rack/`、`benchmarks/` | 跨 backend 後製／路由契約，以及 Live／客觀訊號／人工聽測規則。 |
+| `backends/` | 每個 backend 的版本、輸入輸出、runner 與限制 README。 |
+| `contracts/`、`services/` | UI／Rust／Python 共用 machine-readable 契約，以及既有 VC／TTS service。 |
+| `dataset/raw/` | 具來源和授權的原始乾聲；目前 README 是放置契約，音檔不進 Git。 |
+| `dataset/sliced/`、`dataset/augmented/` | 可回溯 parent hash 的切片與擴增衍生資料；不覆寫 raw。 |
+| `dataset/reference-voices/`、`dataset/manifests/` | 已授權 reference 音訊及來源／hash／audit 登錄；兩者互相對照。 |
+| `docs/` | 本地手冊、規格與分項驗證；每份權責看[文件地圖](README.md)。 |
+| `models/weights/`、`models/indexes/` | 已配對並登錄的 RVC `.pth`／`.index`；權重不進 Git。 |
+| `models/seed-vc/`、`models/speech-reconstruction/`、`models/meanvc2/`、`models/xvc/` | 各模型獨立 checkpoint、snapshot、必要 tokenizer；依各 README／register 核對，不能混入 RVC。 |
+| `models/shared/` | 僅放已決定跨 backend 共用、且有來源／hash 登錄的資產；目前保留 README 契約，未批准前不可隨意複製 checkpoint。 |
+| `tools/` | 可重跑 setup、run、probe、verify 腳本與 fixtures；`external/`、`venvs/`、`cache/` 存本機第三方／runtime，不當作自有 source。 |
 
 ## 根目錄
 
@@ -17,9 +43,9 @@
 |---|---|---|
 | [.gitignore](../.gitignore) | 排除 venv、模型權重、音訊、第三方 upstream、artifacts、前端 build 與本機 secrets，並保留必要 README。 | 新增生成路徑前檢查是否誤把證據或敏感資料納入 Git；與本表的 ignored-folder 索引同步。 |
 | [.python-version](../.python-version) | pyenv 類工具使用的專案 Python minor version，內容固定為 `3.10`。 | 變更時同步各隔離 runtime、`tools/python-runtime-check.ps1` 與環境文件。 |
-| [AGENTS.md](../AGENTS.md) | Agent 導航、研究分組、狀態詞彙、讀取順序、修改界線與驗收規則；所有 Agent 的第一個專案讀取入口。 | 架構、目錄責任或驗收邊界改變時同步 README、相關 docs 與本表。 |
+| [AGENTS.md](../AGENTS.md) | Agent 研究邊界、漸進讀取、修改與證據規則；不保存當次狀態表。 | 架構、目錄責任或驗收邊界改變時同步 README、相關 docs 與本表。 |
 | [AetherTune.cmd](../AetherTune.cmd) | Windows 日常控制台啟動器，解析專案 root 後呼叫 `tools/venvs/seed-vc` 的 Python 與 `tools/aethertune-ui.py`。 | 同步 `tools/aethertune-ui.py`、Seed runtime 路徑與 `docs/python-ui-verification-latest.md`。 |
-| [README.md](../README.md) | 人類快速入口，連到 Desktop App、Manual TTS、backend 安裝與 Python UI 文件，並界定目前限制。 | 入口命令、狀態分類或主要路線變更時同步 `docs/user-guide.md`、`AGENTS.md` 與本表。 |
+| [README.md](../README.md) | 對外快速定位與操作文件入口；不複製詳細命令或當次測試表。 | 路線或文件入口變更時同步對應手冊、`AGENTS.md` 與本表。 |
 | [start_vcclient.bat](../start_vcclient.bat) | 以 `%~dp0` 為 root，切到被忽略的 `tools/external/VCClient/2.1.4-alpha/dist/main`，開啟 `http://127.0.0.1:18000/` 後執行 `main.exe start --https false`。 | VCClient 版本、dist 路徑、port 或啟動參數變更時同步 `docs/vcclient-runtime-gate.md`；不可將 HTTP 200 當作音訊 PASS。 |
 
 ## `app/`
@@ -31,7 +57,7 @@
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
 | [app/app-icon.svg](../app/app-icon.svg) | 前端 favicon 與原生 icon 的向量來源，繪製 AetherTune 波形標誌。 | 同步 `app/index.html` favicon 與 Tauri icon 產物；視覺變更需重建 app icon。 |
-| [app/dev.ps1](../app/dev.ps1) | Desktop 開發入口；為本次 process 設定 portable Cargo/toolchain，支援 build/test 參數，不改系統 PATH。 | 同步 `app/package.json`、Tauri toolchain 與 `docs/app-architecture.md` 的啟動命令。 |
+| [app/dev.ps1](../app/dev.ps1) | Desktop 開發入口；為本次 process 設定 portable Cargo/toolchain，支援 build/test 參數，不改系統 PATH。 | 同步 `app/package.json`、Tauri toolchain 與 `docs/agent-maintenance-guide.md` 的開發命令。 |
 | [app/index.html](../app/index.html) | Vite HTML shell，設定 `zh-Hant`、favicon、title 與 `src/main.tsx` module entry。 | 同步 React root、favicon 與 `app/src/main.tsx`。 |
 | [app/package-lock.json](../app/package-lock.json) | npm lockfile，固定 Vite、React、Tauri API、Playwright、AJV 等前端依賴解析結果。 | 只由 `npm install`/依賴變更更新，與 `app/package.json` 一起跑 build/test。 |
 | [app/package.json](../app/package.json) | Desktop frontend package metadata 與 `dev`、`build`、`test:contracts`、`test:ui`、`test:manual-tts-ui` scripts。 | 依賴或命令變更同步 lockfile、`app/dev.ps1` 與驗證文件。 |
@@ -367,12 +393,13 @@
 
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
-| [docs/architecture.md](architecture.md) | 系統研究目標、backend layering、audio rack/benchmark 與 LIVE evidence 定義；架構決策與 Agent 先讀。 | backend、rack 或 evidence boundary 改動同步 `AGENTS.md`、`voice-conversion-architecture.md`、相關 contracts。 |
-| [docs/voice-conversion-architecture.md](voice-conversion-architecture.md) | Streaming VC 與 Speech Reconstruction 的分層、輸入輸出、候選順序與比較契約。 | 新增 backend/profile 時同步 `backends/README.md`、engine manifests、model/backend register。 |
+| [docs/README.md](README.md) | 每份 Markdown 的唯一內容權威、歷史／最新與衝突處理規則；不保存操作或測試數字。 | 新增、刪除、分拆文件時先更新權責，再同步各入口與本索引。 |
+| [docs/architecture.md](architecture.md) | 系統研究目標、分層和跨路線不變條件；不保存 runtime 狀態。 | backend、rack 或 evidence boundary 改動同步 `AGENTS.md`、`voice-conversion-architecture.md`、相關 contracts。 |
+| [docs/voice-conversion-architecture.md](voice-conversion-architecture.md) | Streaming VC 與 Speech Reconstruction 的 adapter 分工、輸入輸出及下游 handoff；不保存當次狀態。 | 新增 backend/profile 時同步 `backends/README.md`、engine manifests、model/backend register。 |
 | [docs/app-requirements.md](app-requirements.md) | Desktop M0/M1/M2 及 Manual TTS 需求，包含 Mode → Engine → Voice → Devices 統一流程與功能邊界。 | UI/contract/native orchestration 變更同步 `app/src`、`contracts/schemas`、app verification。 |
-| [docs/app-architecture.md](app-architecture.md) | Desktop app 的 React/Tauri/Python service orchestration、IPC、shell lifecycle 與啟動命令。 | app/native/service protocol 變更同步 `app/src/services/desktop.ts`、Rust commands、`docs/app-verification-latest.md`。 |
-| [docs/user-guide.md](user-guide.md) | 人類 route selection、input/reference setup 與主要命令流程入口。 | route/command 或 user-facing navigation 改動同步 README、backend/user guide 相關章節。 |
-| [docs/operation-guide.md](operation-guide.md) | Windows audio rack、VCClient、VST、VB-CABLE/Voicemeeter 的人工操作順序與 route 注意事項。 | device/route 或 command 變更同步 `tools/verify_wiring.ps1`、rack evidence、wiring report。 |
+| [docs/app-architecture.md](app-architecture.md) | Desktop React/Tauri/Python orchestration、IPC 與 shell lifecycle 設計；測試命令在 Agent 維護手冊。 | app/native/service protocol 變更同步 `app/src/services/desktop.ts`、Rust commands、`docs/app-verification-latest.md`。 |
+| [docs/user-guide.md](user-guide.md) | 人類 backend 路線選擇、共同 preflight／輸入與對應 CLI 文件入口；單一 backend 的細節由其 README 擁有。 | 路線或入口變更同步 README、對應 backend README。 |
+| [docs/operation-guide.md](operation-guide.md) | Backend 後段 Windows audio rack、VCClient、VST、VB-CABLE／Voicemeeter 接線與排錯；不重述訓練。 | device/route 變更同步 `tools/verify_wiring.ps1`、rack evidence、wiring report。 |
 | [docs/model-training-guide.md](model-training-guide.md) | RVC dataset/training/register workflow、metadata、source/provenance gates。 | dataset/model register 或 RVC workflow 變更同步 `models/*register.csv`、dataset audit、RVC tools。 |
 | [docs/live-gate.md](live-gate.md) | LIVE/LIVE_CANDIDATE/OFFLINE/WAITING/BLOCKED 的嚴格分類、首包 <=5s、600 秒與 human evidence 要求。 | gate schema/validator 或 evidence 欄位變更同步 `benchmarks/live/live-gate-v1.schema.json`、LIVE tools。 |
 | [docs/verification-plan.md](verification-plan.md) | P0–P3 evidence levels 與 Definition of Done，區分環境/匯入/訊號/完整 live/人工驗收。 | 新驗收層或 gate 變更同步所有 verification docs、`AGENTS.md`。 |
@@ -429,9 +456,9 @@
 - `upstream/`、`external/`、第三方整合包與下載 cache：依 `docs/source-audit.md` 登記 source URL、revision、license 與本機位置，不直接提交第三方內容。
 - `dataset/raw/`、`dataset/reference-voices/`、`dataset/sliced/`、`dataset/augmented/` 內的音檔及 generated batches：依 dataset manifests、source register 和 audit tools 追溯，不以檔案存在取代授權或 audio evidence。
 
-## 本輪新增導航文件與索引
+## 新增導航文件與索引
 
-本文件以本次 `git ls-files` 的 251 個 tracked paths 為基準，並明確加上本輪五份新增手冊/速查/索引；提交這批變更後，索引覆蓋總數為 256。新增文件與自我索引如下：
+以下五份是前次導航整理新增的文件；本輪另在上面的 `docs/` 表加入文件權責地圖。實際涵蓋數量以 `git ls-files` 與連結檢核結果為準，不手填固定數字。
 
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|

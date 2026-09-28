@@ -67,7 +67,6 @@ app/src-tauri/icons/ios/
 app/src-tauri/icons/icon.icns
 output/playwright/
 
-# Keep directory placeholders and documentation
-!.gitkeep
+# Keep directory documentation; no empty-folder placeholders are tracked
 !README.md
 models/speech-reconstruction/cosyvoice/README.md

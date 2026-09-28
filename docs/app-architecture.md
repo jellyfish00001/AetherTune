@@ -1,6 +1,6 @@
 # AetherTune Desktop App — 架構與開發入口
 
-本輪新增 orchestration layer；`backends/`、`tools/`、`models/`、`audio-rack/`、`benchmarks/` 與已驗證 runner 保持原樣。產品基準見 [app-requirements.md](app-requirements.md)。
+**文件邊界：**本頁只定義 Desktop React／Tauri／Python 的分層、程序生命週期與 IPC 設計。產品預期行為由 [app-requirements.md](app-requirements.md) 擁有；建置、測試與除錯命令由 [agent-maintenance-guide.md](agent-maintenance-guide.md) 擁有；真實結果見對應驗證報告。`backends/`、`tools/`、`models/`、`audio-rack/`、`benchmarks/` 與已驗證 runner 保持各自責任。
 
 ```mermaid
 flowchart TB
@@ -64,39 +64,9 @@ Click-through 只適用 Overlay；`Ctrl+Alt+A` 在 click-through 時解除並 sh
 
 瀏覽器預覽無原生能力，Start／Stop、Tray、native settings 按鈕明確停用。`npm run dev` 不是 Tauri 的音訊或程序驗收。
 
-## 開發與驗證入口
+## 開發入口的設計界線
 
-需要 Windows WebView2、Visual Studio C++ Build Tools、Rust MSVC、Node/npm；依 [Tauri 官方 prerequisites](https://v2.tauri.app/start/prerequisites/) 準備。本機已有 C++ tools／WebView2，Rust 本輪安裝於 ignored `artifacts/desktop-toolchain/`，不修改系統 PATH。npm 依賴在 `app/node_modules/`，lockfiles 保留固定解析版本；模型／Python venv 沿用原有版本。
-
-```powershell
-Set-Location D:\AetherTune\app
-npm ci
-.\dev.ps1          # Tauri dev + Vite
-.\dev.ps1 -Build   # debug exe；不產生 installer
-.\dev.ps1 -Test    # M0 contracts + Python adapter negatives + Rust lifecycle
-```
-
-本機 build：`app/src-tauri/target/debug/aethertune-desktop.exe`。目前 portable／installer 尚未實作；repo 根路徑預設使用 compile-time checkout，可用 `AETHERTUNE_ROOT` 指向已準備的完整專案。本輪 UI reference／devices defaults 是這台 PC 的 migration 設定，不代表跨機 portability。
-
-可重跑畫面驗證：
-
-```powershell
-# 瀏覽器預覽：另一個終端先 npm run dev
-npm run test:ui
-
-# 原生 WebView2：只在測試時開本機 debug port，平日不設定此環境變數
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9223'
-Start-Process .\src-tauri\target\debug\aethertune-desktop.exe -WindowStyle Hidden
-$env:AETHERTUNE_CDP='http://127.0.0.1:9223'
-npm run test:ui
-node tests/engines.mjs
-# UI 檢核會 hide 視窗；用 Tray 或 Ctrl+Alt+A 重新顯示
-node tests/exit-running.mjs
-# 需先取得本輪啟動的 App PID；下行的佔位值不可直接執行。
-# .\tests\cleanup.ps1 -AppProcessId <本次測試 App PID>
-```
-
-畫面／reports：`artifacts/desktop/ui/`；integration／cleanup：`artifacts/desktop/integration/`。Computer Use／內建 Browser 作獨立目視複核，不能僅依 Playwright。
+Windows WebView2、Rust MSVC／C++ Build Tools 與 Node/npm 是目前 Desktop build 的前置；模型／Python 仍按 backend 隔離。開發檔位於 `app/`，build/cache 與測試報告留在 ignored 目錄，不能由 exe 存在推論 portable installer 或音訊通過。具體建置、Browser／native 畫面測試與 cleanup 命令集中在[Agent 維護手冊](agent-maintenance-guide.md)；本機啟動結果以[Desktop 驗證](app-verification-latest.md)及[Manual TTS 驗證](manual-tts-verification-latest.md)為準。
 
 ## 後續架構邊界
 
@@ -108,7 +78,7 @@ M5 VoiceProfile 與 M6 TTS 共用 Mode → Engine；M7 只接既有 Audio Rack�
 
 ## Manual TTS 增量架構
 
-外部操作先讀[快速使用說明](quick-start.md)；開發先用[Agent 快速地圖](agent-quick-map.md)定位 owner，再按需讀[詳細操作](desktop-user-guide.md)、[維護與除錯](agent-maintenance-guide.md)或[逐檔索引](project-file-map.md)。以下保留架構概覽，實測以對應 verification 為準。
+以下只保留設計層的關係；修改步驟、probe 命令和錯誤分流集中在[Agent 維護手冊](agent-maintenance-guide.md)。實測以[Manual TTS 驗證](manual-tts-verification-latest.md)為準。
 
 新增服務留在 `services/tts/`，原生 bridge 留在 `app/src-tauri/src/speech_manager/`。`speech_status` 懶啟動受 Windows Job 管理的 Python JSONL service；`speech_action` 傳入 allowlist 動作，每次 command_id 都要收到 accepted／error ACK，拒絕新 request 不能被 UI 當成送出成功。IPC／WebView 仍不傳 PCM。
 
@@ -120,4 +90,4 @@ Session、request history、成功 Transcript 與 phrase settings 由 SQLite 保
 
 現有 adapter 的輸出是完整 WAV，`supports_streaming_tts=false`；Generation 與 Playback 保留分層及 chunk extension。AgentReplyProvider／AgentReply 僅契約，agent_reply input 與 agent source 提交均停用。
 
-可重跑檢核與真實音訊結果見 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)。無視窗 probe：`app/src-tauri/target/debug/speech-probe.exe <engine> <voice-profile-id[,voice-profile-id…]> <UTF8-text-file> [count=1..20] [cancel-after-seconds|playing]`。多句文字逐行循環、Voice IDs 依序交替；`playing` 在 PLAYING 持續 1 秒後取消，並記錄取消時間供獨立音訊擷取對照。probe 使用正式 Rust manager／Python service，固定送往既有 CABLE Input，不修改 Windows 預設裝置。
+無視窗正式 manager probe 與實際 CABLE 擷取的命令、輸入和限制由[Agent 維護手冊](agent-maintenance-guide.md)與[Manual TTS 驗證](manual-tts-verification-latest.md)擁有，不在架構文件複製。

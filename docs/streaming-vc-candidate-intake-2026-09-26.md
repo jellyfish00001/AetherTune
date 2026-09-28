@@ -2,7 +2,7 @@
 
 更新日期：2026-09-26（Asia/Taipei）
 
-> 歷史快照：此文件記錄 2026-09-26 的 intake 前狀態。MeanVC2 與 X-VC 後續已在隔離環境完成安裝及雙向 CUDA WAV 驗證；目前狀態與剩餘 LIVE gate 以 [`live-gate.md`](live-gate.md)、[`agent-implementation-status-latest.md`](agent-implementation-status-latest.md) 為準。本文件只保留當時的來源／依賴／授權審核流程。
+> 歷史快照：此文件記錄 2026-09-26 的 intake 前狀態；下文 `not installed` 等語句只屬於當日，不能作目前判定。MeanVC2／X-VC 後續的安裝與 CUDA WAV 證據看[後端驗證](backend-install-test-latest.md)；完整鏈路的分類看 [LIVE gate](live-gate.md)。本頁只保留當時的來源／依賴／授權審核流程。
 
 本文件是候選研究清單，不是安裝或採納記錄。兩個候選都維持 `candidate / not installed / no local runtime evidence`；尚未 clone 候選 repo、安裝依賴或下載 checkpoints。先完成 Seed-VC physical mic／audio-rack baseline，再依下列順序 intake。
 

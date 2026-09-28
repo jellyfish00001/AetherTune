@@ -1,6 +1,6 @@
 # Agent 維護、調適與除錯手冊
 
-適用：2026-09-28 Desktop／Manual TTS 及其既有 backend 邊界。先讀根目錄 [AGENTS.md](../AGENTS.md) 與[快速地圖](agent-quick-map.md)定位 owner；日常操作讀[詳細手冊](desktop-user-guide.md)，逐檔職責按路徑查[檔案索引](project-file-map.md)。本文只在跨層修改或除錯時展開，說明「問題落在哪層、資料從哪裡來、修改後要驗什麼」，不能取代 [live-gate.md](live-gate.md) 或各輪 evidence。
+**文件邊界：**本頁只負責 Desktop／Manual TTS 跨層修改、協定、程序所有權、測試入口和除錯，不作人類操作手冊或實測成績單。先讀根目錄 [AGENTS.md](../AGENTS.md) 與[快速地圖](agent-quick-map.md)定位 owner；使用者步驟看[Desktop 手冊](desktop-user-guide.md)，逐檔用途按路徑查[檔案索引](project-file-map.md)，實測結果看[Manual TTS 驗證](manual-tts-verification-latest.md)。
 
 ## 1. 先確認範圍與權威來源
 
@@ -182,6 +182,21 @@ Set-Location D:\AetherTune
 `dev.ps1 -Test` 跑 contracts、runner／cache fixtures、TTS lifecycle／storage／ownership 及 Rust lifecycle。它含真實短 WSL ownership fixture，但不生成模型聲音，不代表 GUI／CABLE PASS。
 
 UI 改動用兩個終端：第一個 `Set-Location D:\AetherTune\app` 後 `npm run dev`；第二個在同目錄跑 `npm run test:ui`、`npm run test:manual-tts-ui`。後者是 explicit mocked Tauri IPC，配合內建 Browser／Chrome 複核畫面，按 AGENTS 記錄 URL、viewport、actions、console／network、screenshots。native layer 未測就明列 WAITING。純文件改動只檢查連結、檔案覆蓋、指令與 source 一致，不重跑模型或錄音。
+
+原生 WebView2 測試需當次 App PID，不能拿舊 PID 或只依瀏覽器預覽。只在測試 shell 設定 CDP port；啟動時隱藏視窗，測試後用受控 Exit 回收本輪程序：
+
+```powershell
+Set-Location D:\AetherTune\app
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9223'
+$appProcess = Start-Process .\src-tauri\target\debug\aethertune-desktop.exe -WindowStyle Hidden -PassThru
+$env:AETHERTUNE_CDP = 'http://127.0.0.1:9223'
+npm run test:ui
+node tests/engines.mjs
+if (-not $appProcess.HasExited) { .\tests\cleanup.ps1 -AppProcessId $appProcess.Id }
+Remove-Item Env:AETHERTUNE_CDP,Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+```
+
+`cleanup.ps1` 只接受本專案 Desktop build 的 PID，並核對其 owned process tree；每輪重取 PID，不能拿上一輪的值。CDP／Playwright、內建 Browser／Chrome 的測試範圍要分開回報，沒有實際 native 畫面及音訊 evidence 就保持相應 `WAITING`。
 
 ### 正式 Rust manager → 真實模型 → CABLE
 

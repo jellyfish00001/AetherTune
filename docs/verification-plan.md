@@ -1,120 +1,65 @@
 # 驗證計畫與 Definition of Done
 
+**文件邊界：**本頁只定義要收集的證據、執行順序與完成條件，**不記錄某輪是否通過**。`LIVE` 分類與門檻只由 [live-gate.md](live-gate.md) 定義；實際 PASS／WAITING、日期、命令、hash 和 artifact 依[文件權責地圖](README.md)查對應驗證報告。不要把本頁的待測項目當成已完成狀態。
+
 ## 證據等級
 
-- `P0`：來源/授權/版本文件證據。
-- `P1`：本機命令、模型載入、檔案 hash 或裝置列舉證據。
-- `P2`：離線音訊輸入輸出結果與人工聽測。
-- `P3`：真實即時路由、loopback、延遲與終端應用收音證據。
+| 等級 | 回答的問題 | 不能代替 |
+|---|---|---|
+| P0：來源 | revision、license、模型和音訊來源是否可追溯 | 安裝或執行 |
+| P1：環境 | 依賴、模型 hash、裝置列舉及實際 provider 是否符合 | 有效輸出音訊 |
+| P2：音訊 | 本輪 source／reference → backend 的 finite、非零 WAV、hash 與客觀檢查 | 實體麥克風或完整路由 |
+| P3：線路 | physical mic → backend → Rack → virtual route → 終端 loopback 的同輪 artifact | 人工自然度與目標音色評分 |
 
-編譯成功、頁面能開啟或單一 mock 不得單獨宣稱整條管線完成。
+每項測試都要記錄 run id、輸入與模型 hash、runtime、裝置／provider、命令、輸出 artifact、判定及未解事項。編譯、HTTP 200、UI 可開啟、provider 清單或合成 tone 只回答它們自己的檢查，不能提升其他層級。
 
 ## Phase 0：環境與來源
 
-- [x] 建立 `dataset/`、`models/`、`tools/` 骨架。
-- [x] 登記上游來源、目前授權與未決版本。
-- [x] 記錄本機 GPU、Python、FFmpeg 與已知阻塞。
-- [x] 建立 Python 3.12 x64 隔離環境（`.venv`）。
-- [x] 確認 FFmpeg/FFprobe 9.0.1 可執行與來源；目前以固定絕對路徑驗證。
-- [ ] 在新 PowerShell 確認 `ffmpeg -version` 與 `ffprobe -version` 不需絕對路徑。
-- [x] 確認 VB-CABLE、Voicemeeter 與實體麥克風可被 Windows；FFmpeg/PortAudio 列舉路徑已分開保留。
-- [x] 建立 `tools/verify_wiring.ps1` 與最新 P1 報告；BLOCKED 會以非零 exit code 結束。
-- [x] 合成 loopback 產生 WAV、metrics JSON 與 WAV SHA-256；只存在 WAV 不算 PASS。
-- [x] 加入 sample RVC ONNX synthetic inference probe，記錄實際 executed provider；provider 清單不再單獨算推論成功。
+1. 固定上游 source／revision／license；登記模型、reference、依賴與本機位置。權威登錄在 [source-audit.md](source-audit.md)、`models/*register.csv` 和 `dataset/manifests/`。
+2. 對每個隔離 runtime 檢查 Python／Torch／CUDA、FFmpeg／FFprobe、模型 hash 和裝置方向；`tools/voice-backend-check.ps1` 是唯讀盤點，實際音訊需另測。
+3. 以 `tools/verify_wiring.ps1` 核對 VB-CABLE／Voicemeeter 端點；synthetic loopback 要保存 WAV、metrics 與 hash，且只歸為線路 smoke。
 
-## Phase 1：Dataset
+## Phase 1：Dataset 與角色資料
 
-- [x] 建立只讀 metadata audit 與 provenance manifest 工具。
-- [x] 加入來源／授權／批次 register、空資料集 gate、疑似靜音 gate，以及重跑時保留人工 notes。
-- [ ] 將具授權的原始音檔放入 `dataset/raw/`，再執行 `dataset_audit.py`。
-- [ ] 來源具備明確使用權與 provenance。
-- [ ] 原始資料為乾聲、單人、低底噪，並記錄取樣率/聲道。
-- [ ] 完成切片；抽查 5、10、15 秒邊界與切點是否截斷子音。
-- [ ] 變調擴增僅保留有理由的樣本，記錄 `+3/+5/-3/-5` 與工具版本。
-- [ ] 以 manifest 記錄每個檔案的來源、處理鏈與 hash。
+1. 原始資料須有明確使用權、單人乾聲、取樣率、聲道與來源；用 `tools/dataset_audit.py` 查空集合、疑似靜音、重複、來源與 hash。
+2. 切片後抽查 5／10／15 秒邊界與子音；變調擴增只保留有理由的樣本，記錄參數、parent hash 和工具版本。
+3. RVC 訓練後將 `.pth/.index` 配對、f0、訓練資料批次和 hash 寫入 model register，使用未參與訓練的保留語句做離線音訊測試。具體訓練操作由[訓練手冊](model-training-guide.md)擁有。
 
-## Phase 2：RVC
+## Phase 2：Backend 輸出
 
-- [x] RVC WebUI clone 到 `tools/external/` 並固定 revision。
-- [x] RVC WebUI 依賴在獨立 `.venv` 完成安裝，`pip check` 通過。
-- [x] Torch CUDA smoke test 成功識別 RTX 5060 Ti；不等同於模型推論已驗證。
-- [x] HuBERT 與 RMVPE runtime 資產下載、hash 與 CUDA smoke test 完成。
-- [x] RVC `pretrained/`、`pretrained_v2/` 與 `logs/mute/` 訓練資產完成下載。
-- [ ] 使用具授權的真實乾聲完成離線 f0/推論檢核。
-- [ ] 產出 `.pth` 與 `.index`，並依 `models/model-register.csv` 記錄訓練設定、資料批次與檔案 hash。
-- [ ] 以未參與訓練的保留語句做離線驗證。
+1. 先以固定 source／reference 或人工核對文字，對每個 backend/profile 保存本輪 WAV／stream 與 runner manifest；先確認可解碼、finite、非零、hash 和實際 device/provider。
+2. Streaming VC 的 Seed-VC、MeanVC2、X-VC、RVC 各自獨立報告；Speech Reconstruction 的 STT draft、reference transcript 與 TTS WAV 不與 VC 的表演保留結果混成單一品質分數。
+3. 同一 corpus、sample rate／loudness policy 下比較內容正確性 proxy、RMS、peak、clipping、DC、silence 和速度；RTF／backend timing 不能作完整鏈路首包時間。
 
-## Phase 3：即時 VCClient
+## Phase 3：VCClient 與 Windows 路由
 
-- [x] VCClient `2.1.4-alpha cuda` 官方整合包已部署。
-- [x] VCClient 本機 Web UI 回應 `HTTP 200`，內建示例頁可操作。
-- [ ] 角色 `.pth/.index` 載入與 GPU 推論；目前整合包啟動時有 RTX 5060 Ti `sm_120` 相容性警告，必須用實際角色模型確認。
+VCClient packaged runtime 要獨立於專案 RVC `.venv` 驗證。角色 slot、model/index、f0、實際 GPU provider、有效 output、chunk 和 dropout 依[VCClient gate](vcclient-runtime-gate.md)執行；Web UI 回應不構成音訊通過。
 
-使用同一個角色模型與同一段固定測試語句，一次只改一個參數；`chunkSec`、`extraFrameSec` 單位都是秒：
+每次只變動一個參數，使用同一角色模型與測試句；以下是**待測矩陣**，不是已採用預設值：
 
-| 階段 | 固定值 | 唯一變動值 |
+| 階段 | 固定條件 | 變動值 |
 |---|---|---|
 | baseline | pitch +9、chunkSec 0.50、extraFrameSec 0.08、index 0.50、RMVPE | 無 |
-| chunk | 其他同 baseline | 0.25 / 0.50 / 0.75 s |
-| extra | 其他同 baseline | 0.04 / 0.08 / 0.12 s |
-| pitch | 其他同 baseline | +6 / +9 / +12 |
-| index | 其他同 baseline | 0.00 / 0.50 / 0.70 |
-| VST | 最佳 RVC 組合 | Graillon bypass / active |
+| chunk | 其他同 baseline | 0.25／0.50／0.75 s |
+| extra | 其他同 baseline | 0.04／0.08／0.12 s |
+| pitch | 其他同 baseline | +6／+9／+12 |
+| index | 其他同 baseline | 0.00／0.50／0.70 |
+| VST | 最佳 RVC 組合 | Graillon bypass／active |
 
-- [ ] 每 case 記錄模型載入、CPU/GPU、破音、斷音與端到端延遲。
-- [ ] 每 case 記錄 model/hash、測試句、持續時間、p50/p95 延遲、underrun、斷音與 artifact；暫定日常 gate 是 10 分鐘零斷音／零 underrun、p95 ≤ 250 ms。
-- [ ] 以固定錄音與人工聽測比較自然度、咬字、音高穩定度。
-- [ ] 只有在矩陣證據支持時，才把某一組設定提升為預設值。
+各 case 保存 model/hash、測試句、持續時間、p50/p95、underrun、破音、WAV 和 log；矩陣證據支援後才調整預設值。Windows 操作順序只在[路由手冊](operation-guide.md)，線路的當次結果只在[線路驗證](wiring-verification-latest.md)。
 
-## Phase 4：VST 與路由
+## Phase 4：Rack 與完整線路
 
-- [x] Light Host Modern `v1.3.1` portable 已部署並可啟動。
-- [x] Graillon Free `3.2` VST3/VST2 已安裝。
-- [ ] 由 Light Host 掃描 Graillon、設定 input/output、完成離線/loopback 音訊通過。
-- [ ] 以 Chromatic、慢速、低深度的修音候選做 A/B；不得只記參數、不記聲音結果。
-- [x] 實際列舉 VB-CABLE/Voicemeeter 裝置名稱，記錄播放端與錄音端方向。
-- [x] 以合成音完成 VB-CABLE 與 `Voicemeeter Input → B1 → Voicemeeter Out B1` virtual route smoke；保存 WAV、JSON、SHA-256 與 Remote API level evidence。
-- [ ] 完成「麥克風 → VCClient → VST → 虛擬輸出 → loopback 錄音」P3 證據。
-- [ ] 最後才以 Discord/OBS 測試收音；確認對方端或錄影檔聽到的是後製訊號。
+1. 在同一 source、backend/model、hardware、route 下保存 `Post-FX bypass` 和 `Post-FX full-chain` 兩筆 WAV／metrics／hash，量實際 `delta_latency_ms`。Plugin、preset 和 paired evidence 欄位由 [`audio-rack/`](../audio-rack/README.md) 擁有。
+2. 先證明 backend → CABLE，再證明 Light Host／VST → Voicemeeter B1，最後在 Discord／OBS 等終端保存 loopback；每段的 input/output identity 必須能串回同一 run。
+3. 以 physical mic 進入完整路徑，再按 [LIVE gate](live-gate.md) 執行首包、連續穩定、dropout／underrun 與 human listening；局部 CABLE capture 不代替完整鏈路。
+
+## Phase 5：固定比較與候選 intake
+
+固定 corpus 至少涵蓋對話、快語速、氣音、笑聲、驚叫、嘆氣、拉長音、音域變化、中日英混合、長句與長時間案例，且每筆有授權與 hash。[`benchmarks/`](../benchmarks/README.md) 分別擁有 Live Technical、Acoustic Objective、Human Listening；人工自然度、相似度與表演評分不可由 Agent 代填。
+
+新候選（例如 Seed-VC realtime fork、CosyVoice3）先做獨立 source／model／license／runtime intake，再進固定 corpus 與同一 Rack／LIVE gate。MeanVC2／X-VC 任何新 revision 或 profile 也重新走相應 gate；既有安裝結果只看[後端驗證](backend-install-test-latest.md)。
 
 ## 完成定義
 
-只有當 Phase 1–4 各自有可追溯證據，且實體 P3 loopback/終端測試成功，才能標示「系統完成」。目前狀態為 `wiring deployed; synthetic virtual route smoke PASS; role dataset/model, audio-rack full-chain and physical P2/P3 evidence pending`。最新唯讀結果見 `docs/wiring-verification-latest.md`。
-
-## 新架構追加的研究 Gate
-
-既有 Phase 1–4 保留作 RVC／Windows wiring 歷史基線；新的跨 backend 研究必須另外通過以下分層，不能用既有 RVC 的成功或失敗代替：
-
-### Phase 5：Common Audio Rack
-
-- [x] 在 `audio-rack/` 登記 plugin／host／route profile、版本、license classification 與來源；實際 runtime 與 plugin loading 仍分開驗證。
-- [x] 建立 VB-CABLE／Voicemeeter virtual route smoke evidence；這不等同 audio-rack plugin full-chain。
-- [ ] 以同一 backend、同一 source、同一 output route 完成 `Post-FX bypass`。
-- [ ] 以同一組輸入完成 `Post-FX full-chain`。
-- [ ] 保存 bypass latency、full-chain latency、`delta_latency_ms`、WAV、metrics JSON 與 hash。
-- [ ] Pitch correction 保持 `optional`；未經人工聽測不得變成所有 backend 的預設。
-
-### Phase 6：LIVE_GATE
-
-- [x] 建立 `docs/live-gate.md` 的 `aethertune-live-gate/v1` evidence 契約。
-- [x] 建立 `tools/live-gate-validate.py`，分類 `LIVE`／`OFFLINE`／`WAITING`／`BLOCKED`。
-- [x] Seed-VC deterministic GUI callback → `CABLE Input` → `CABLE Output` screening；此項只證明 backend output 到 VB-CABLE，不含 physical mic、Light Host audio-rack 或完整 LIVE timing。
-- [x] 在上述 screening 保存 callback 首次輸入、首次非零 backend output 與 backend 後首次非零 `CABLE Output` timing；這是 partial timing evidence，不是完整 `e2e_first_packet_ms`。
-- [ ] Seed-VC 完成 mic／PortAudio → backend → audio-rack → virtual route → loopback 的 60 秒 screening。
-- [ ] 通過至少 600 秒 stability、zero dropout／underrun，才可稱為 `live_candidate`。
-- [ ] 所有 first-packet timing 必須是完整鏈路，不可只填 inference 或 RTF。
-
-### Phase 7：三層比較
-
-- [ ] `benchmarks/corpus/` 建立有授權且固定 hash 的測試語料：對話、快語速、氣音、大笑、驚叫、嘆氣、拉長音、音域變化、中日英混合、60 秒與 10 分鐘。
-- [ ] `benchmarks/live/` 完成 Live Technical paired run。
-- [ ] `benchmarks/quality/` 完成同 sample rate／loudness policy 的 Acoustic Objective paired run。
-- [ ] `benchmarks/subjective/` 由人類完成 blind listening；Agent 不代填自然度、相似度或情緒保留分數。
-
-### Phase 8：候選 intake
-
-- [ ] Seed-VC realtime fork：固定 revision、來源、license、獨立 environment 與實測 gate。
-- [ ] MeanVC2：確認上游 code／checkpoint／依賴／license、RTX 5060 Ti 相容性，再進固定 corpus。
-- [ ] Fun-CosyVoice3：與 CosyVoice2 做 isolated A/B；先確認 model snapshot、license、RTF／TTFA 與人工聽測。
-
-在 Phase 5–8 尚未完成前，README 的新架構只是正確的研究方向與證據邊界，不代表新 backend 或共用 audio-rack 已可直接使用。
+只有 P0–P3 都能由本輪可重跑證據串起、Rack bypass/full-chain 可成對比較、終端確實收到指定 backend 的聲音，並完成 [LIVE gate](live-gate.md) 所需長時間與人工驗收，才能宣稱完整即時鏈路完成。局部 PASS 保持局部分類；缺項清楚記為 `WAITING` 或 `BLOCKED`。

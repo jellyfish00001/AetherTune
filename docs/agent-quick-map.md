@@ -1,6 +1,6 @@
 # AetherTune Agent 快速地圖
 
-這是開發任務的**一頁式導航**。先讀根目錄 [AGENTS.md](../AGENTS.md) 的邊界，再在此定位 owner；只讀該模組的檔案、契約與對應 verification。需要完整呼叫關係才開[維護手冊](agent-maintenance-guide.md)，需要逐檔用途才在[完整檔案索引](project-file-map.md)搜尋路徑。不要為單一修改先載入整份索引或所有 `docs/`。
+**文件邊界：**本頁只做開發任務的**一頁式 owner 導航**。先讀根目錄 [AGENTS.md](../AGENTS.md)，再定位 owner、該模組契約與對應 verification；跨層關係才開[維護手冊](agent-maintenance-guide.md)，逐檔用途才在[完整檔案索引](project-file-map.md)搜尋路徑。文件內容權威看[文件地圖](README.md)，不要為單一修改載入整份索引或所有 `docs/`。
 
 ## 一眼看資料流
 
@@ -45,4 +45,4 @@ rg --files services/tts
 
 找到 owner 後，讀該檔與直接相依的契約，再讀相關驗證。變更若跨層，沿 **UI → IPC → service → adapter／playback → storage** 檢查 payload、錯誤與生命週期；不要只改畫面文字就宣稱後端行為已改。新增、刪除、更名 Git 管理檔案時更新[逐檔索引](project-file-map.md)；變更功能時同步對應操作說明與驗證狀態。
 
-`PASS`、`WAITING`、`PLANNED` 以[集中狀態](agent-implementation-status-latest.md)與各分項驗證為線索，**實際可重跑 artifact／verifier 優先**。Manual TTS 已有本機生成、CABLE capture 與 Transcript 證據；實體 Mic、Agent Reply、外部 Rack 與完整 LIVE 仍須分開驗收。
+`PASS`、`WAITING`、`PLANNED` 以[集中狀態](agent-implementation-status-latest.md)定位分項驗證，**實際可重跑 artifact／verifier 優先**。本頁不保存另一份當前狀態表。

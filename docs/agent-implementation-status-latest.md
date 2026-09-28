@@ -1,5 +1,7 @@
 # Agent 實作與測試總表
 
+**文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
+
 本輪 2026-09-27 更新：realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效變聲 callback WAV 與同期 CABLE loopback `WAITING`，獨立 VB-CABLE synthetic smoke `PASS` 不代表 GUI 音訊。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；操作入口與後續測試見 [`python-ui-verification-latest.md`](python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
 
 更新日期：2026-09-28（Asia/Taipei）

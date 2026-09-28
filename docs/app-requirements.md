@@ -1,5 +1,7 @@
 # AetherTune Desktop App — 產品需求與實作規格 v1
 
+**文件邊界：**本頁是 Desktop 的**預期產品行為與里程碑**，不是已完成功能清單。實作分層看[app-architecture.md](app-architecture.md)，實際操作看[Desktop 手冊](desktop-user-guide.md)，哪些測試通過看[Desktop](app-verification-latest.md)與[Manual TTS](manual-tts-verification-latest.md)的分項驗證；不能把本頁的 M4～M8 計畫當成 runtime PASS。
+
 日期：2026-09-27。依使用者提供的 v1 規格建立；首次交付 M0、M1、M2 skeleton。後續 Manual TTS 增量範圍以下節為準。
 
 ## 產品目的與使用流程
