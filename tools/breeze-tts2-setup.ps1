@@ -26,4 +26,4 @@ if ($DownloadModel) {
 
 Write-Output 'Breeze TTS 2 setup finished in the dedicated WSL venv.'
 Write-Output 'Model license: BreezeBlue Research and Non-Commercial; see models/speech-reconstruction/breeze-tts-2/README.md.'
-Write-Output 'Run tools/breeze-tts2-infer.py through the command documented in docs/breeze-tts2-verification-latest.md.'
+Write-Output 'Run tools/breeze-tts2-infer.py through the command documented in docs/verification/backends/breeze-tts2-verification-latest.md.'

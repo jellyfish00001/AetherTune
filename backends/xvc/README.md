@@ -1,6 +1,6 @@
 # X-VC
 
-**文件邊界：**本頁負責 X-VC 固定 profile、CLI、資產與輸出契約；本機安裝、CUDA WAV 與 LIVE 狀態只看[後端驗證](../../docs/backend-install-test-latest.md)及[LIVE gate](../../docs/live-gate.md)。
+**文件邊界：**本頁負責 X-VC 固定 profile、CLI、資產與輸出契約；本機安裝、CUDA WAV 與 LIVE 狀態只看[後端驗證](../../docs/verification/backends/backend-install-test-latest.md)及[LIVE gate](../../docs/specs/live-gate.md)。
 
 官方程式碼：[Jerrister/X-VC](https://github.com/Jerrister/X-VC)，code revision `49df8c591eafc48b096e466d96f9839f9c0dd739`；主模型：[chenxie95/X-VC](https://huggingface.co/chenxie95/X-VC)，snapshot `9e54747d8c4d1ef544b903e2300a4ba040dcc126`。code 與 model card 標示 MIT；GLM tokenizer 有自己的 LICENSE，不能把所有 helper 的用途都視為同一授權。
 
@@ -12,4 +12,4 @@
 
 來源與 reference 為可解碼 WAV；輸出為 16 kHz WAV 與 `run-evidence.json`。預設 `current=160ms / chunk=2400ms / future=80ms / smooth=20ms`，`--current 0` 為 offline（本輪使用 streaming）。output directory 必須沒有舊 WAV。
 
-本 profile 的入口是 CLI；是否有 GUI 或常駐 web server 應依當次 source 與驗證確認。實際執行命令、hash 與限制見[後端驗證](../../docs/backend-install-test-latest.md)。
+本 profile 的入口是 CLI；是否有 GUI 或常駐 web server 應依當次 source 與驗證確認。實際執行命令、hash 與限制見[後端驗證](../../docs/verification/backends/backend-install-test-latest.md)。

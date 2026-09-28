@@ -15,4 +15,4 @@
 1. 固定 fork revision 與 source hash。
 2. 確認 upstream code/model license 與 reference voice provenance。
 3. 建立獨立 environment，不修改 RVC `.venv` 或既有 Seed-VC venv。
-4. 以 `docs/live-gate.md` 的 schema 測量 bypass/full-chain、60 秒 screening 與 600 秒 stability。
+4. 以 `docs/specs/live-gate.md` 的 schema 測量 bypass/full-chain、60 秒 screening 與 600 秒 stability。

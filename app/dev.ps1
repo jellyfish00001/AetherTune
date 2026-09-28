@@ -9,7 +9,7 @@ if (Test-Path -LiteralPath (Join-Path $cargo 'bin/cargo.exe')) {
     $env:RUSTUP_HOME=Join-Path $root 'artifacts/desktop-toolchain/rustup'
     $env:PATH="$(Join-Path $cargo 'bin');$env:PATH"
 }
-if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {throw '缺少 Rust MSVC toolchain；請依 docs/app-architecture.md 準備。'}
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {throw '缺少 Rust MSVC toolchain；請依 docs/specs/app-architecture.md 準備。'}
 Push-Location $PSScriptRoot
 try {
     if ($Test) {

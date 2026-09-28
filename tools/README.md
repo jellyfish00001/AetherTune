@@ -2,9 +2,9 @@
 
 放置 AetherTune 自有的小工具與外部工具的啟動/驗證腳本。
 
-Agent 先用[快速地圖](../docs/agent-quick-map.md)找 owner；單一工具的用途在[逐檔索引](../docs/project-file-map.md)搜尋檔名。Desktop 操作讀[快速使用說明](../docs/quick-start.md)或[詳細手冊](../docs/desktop-user-guide.md)，跨 UI／service／runner 的除錯讀[維護手冊](../docs/agent-maintenance-guide.md)。本文保留工具的詳細背景。
+Agent 先用[快速地圖](../.agent/reference/agent-quick-map.md)找 owner；單一工具的用途在[逐檔索引](../.agent/reference/project-file-map.md)搜尋檔名。Desktop 操作讀[快速使用說明](../docs/guides/quick-start.md)或[詳細手冊](../docs/guides/desktop-user-guide.md)，跨 UI／service／runner 的除錯讀[維護手冊](../.agent/reference/agent-maintenance-guide.md)。本文保留工具的詳細背景。
 
-第三方原始碼、預編譯包與模型不要直接提交到此目錄；請在 `docs/source-audit.md` 登記上游 URL、revision、授權與本機安裝位置。
+第三方原始碼、預編譯包與模型不要直接提交到此目錄；請在 `docs/reference/source-audit.md` 登記上游 URL、revision、授權與本機安裝位置。
 
 目前工具：
 
@@ -50,5 +50,5 @@ Agent 先用[快速地圖](../docs/agent-quick-map.md)找 owner；單一工具�
 
 ```powershell
 Set-Location D:\AetherTune
-& .\tools\verify_wiring.ps1 -RunInferenceProbes -OutFile .\docs\wiring-verification-latest.md
+& .\tools\verify_wiring.ps1 -RunInferenceProbes -OutFile .\docs\verification\audio\wiring-verification-latest.md
 ```

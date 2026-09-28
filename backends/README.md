@@ -11,4 +11,4 @@
 | [`xvc/`](xvc/README.md) | codec-space zero-shot streaming VC | 否 | X-VC runner 契約 |
 | [`speech-reconstruction/`](speech-reconstruction/README.md) | STT → TTS 重建文字與聲線 | 否，可用 reference | CosyVoice／Breeze 入口 |
 
-每個 backend/profile 都要分開記錄 source/revision、license、隔離環境、model/reference、實際 provider、輸出 hash 和人工聽測；具體 handoff 欄位由[多後端契約](../docs/voice-conversion-architecture.md)擁有。候選文件不代表已安裝或已通過。
+每個 backend/profile 都要分開記錄 source/revision、license、隔離環境、model/reference、實際 provider、輸出 hash 和人工聽測；具體 handoff 欄位由[多後端契約](../docs/specs/voice-conversion-architecture.md)擁有。候選文件不代表已安裝或已通過。

@@ -1,6 +1,6 @@
 # 語音重建：STT → TTS
 
-**文件邊界：**本頁負責 STT → TTS wrapper、CosyVoice／Breeze 特有 CLI 參數、reference transcript 與輸出契約；目前 CUDA、RTF 與品質結果由[CosyVoice 驗證](../../docs/cosyvoice-verification-latest.md)、[Breeze 驗證](../../docs/breeze-tts2-verification-latest.md)及[Manual TTS 驗證](../../docs/manual-tts-verification-latest.md)分別負責。Desktop 按鈕操作看[使用手冊](../../docs/desktop-user-guide.md)。
+**文件邊界：**本頁負責 STT → TTS wrapper、CosyVoice／Breeze 特有 CLI 參數、reference transcript 與輸出契約；目前 CUDA、RTF 與品質結果由[CosyVoice 驗證](../../docs/verification/backends/cosyvoice-verification-latest.md)、[Breeze 驗證](../../docs/verification/backends/breeze-tts2-verification-latest.md)及[Manual TTS 驗證](../../docs/verification/desktop/manual-tts-verification-latest.md)分別負責。Desktop 按鈕操作看[使用手冊](../../docs/guides/desktop-user-guide.md)。
 
 這條路線是：
 
@@ -12,7 +12,7 @@
 
 ## 組件與隔離環境
 
-Faster-Whisper 提供 STT draft；CosyVoice2 與 Breeze TTS 2 由各自 runtime 合成文字。Fun-CosyVoice3 只是研究候選，完成 source、model／license intake 前不加入可執行 profile；候選決策見[決策紀錄](../../docs/decision-log.md)。
+Faster-Whisper 提供 STT draft；CosyVoice2 與 Breeze TTS 2 由各自 runtime 合成文字。Fun-CosyVoice3 只是研究候選，完成 source、model／license intake 前不加入可執行 profile；候選決策見[決策紀錄](../../docs/reference/decision-log.md)。
 
 模型與環境分開保存：
 
@@ -103,7 +103,7 @@ Voice Design 不需要 reference（也可直接使用上面的 `speech-reconstru
 & .\tools\breeze-tts2-setup.ps1 -DownloadModel
 ```
 
-Breeze 官方 source revision、model snapshot 與 license 證據見 [`docs/breeze-tts2-verification-latest.md`](../../docs/breeze-tts2-verification-latest.md)。Breeze model weights、derivatives 與 self-hosted outputs 只限 research/non-commercial；不可當成商用授權。
+Breeze 官方 source revision、model snapshot 與 license 證據見 [`docs/verification/backends/breeze-tts2-verification-latest.md`](../../docs/verification/backends/breeze-tts2-verification-latest.md)。Breeze model weights、derivatives 與 self-hosted outputs 只限 research/non-commercial；不可當成商用授權。
 
 ## Transcript 規則
 
@@ -111,6 +111,6 @@ Faster-Whisper 的輸出是 `STT draft`，voice clone 前仍應人工核對 refe
 
 ## Runtime 邊界與已知限制
 
-- Breeze `-FastAll`、attention implementation 與 SoX 路徑必須按本機 runtime preflight 選用；不要從其他 GPU 的 RTF 推論本機表現。可用性與數字看[Breeze 驗證](../../docs/breeze-tts2-verification-latest.md)。
-- CosyVoice 的主模型、speech tokenizer 與 CampPlus 是不同計算階段；`available_providers` 不能證明整個 frontend 都用 CUDA。實際 Node provider 看[CosyVoice 驗證](../../docs/cosyvoice-verification-latest.md)。
+- Breeze `-FastAll`、attention implementation 與 SoX 路徑必須按本機 runtime preflight 選用；不要從其他 GPU 的 RTF 推論本機表現。可用性與數字看[Breeze 驗證](../../docs/verification/backends/breeze-tts2-verification-latest.md)。
+- CosyVoice 的主模型、speech tokenizer 與 CampPlus 是不同計算階段；`available_providers` 不能證明整個 frontend 都用 CUDA。實際 Node provider 看[CosyVoice 驗證](../../docs/verification/backends/cosyvoice-verification-latest.md)。
 - Fun-CosyVoice3 在獨立環境、模型來源／license、固定 corpus、RTF／TTFA 與人工聽測完成前，只保留為候選，不宣稱本機品質。

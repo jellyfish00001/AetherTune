@@ -38,4 +38,4 @@ if ($DownloadModel) {
 }
 
 Write-Output "CosyVoice environment/model setup finished. Runtime requires PYTHONPATH to include tools/external/CosyVoice and tools/external/CosyVoice/third_party/Matcha-TTS."
-Write-Output "Use tools/cosyvoice-infer.py for zero-shot inference; see docs/cosyvoice-verification-latest.md."
+Write-Output "Use tools/cosyvoice-infer.py for zero-shot inference; see docs/verification/backends/cosyvoice-verification-latest.md."

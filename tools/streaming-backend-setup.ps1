@@ -138,4 +138,4 @@ if ($LASTEXITCODE -ne 0) { throw '推論 dependencies 安裝失敗' }
 if ($LASTEXITCODE -ne 0) { throw 'dependencies 檢查失敗' }
 & $runtime $downloadScript --backend $Backend
 if ($LASTEXITCODE -ne 0) { throw '資產下載／完整性檢查失敗' }
-Write-Output "PASS：$Backend 安裝／資產檢查。請依 docs/backend-install-test-latest.md 執行實際音訊推論。"
+Write-Output "PASS：$Backend 安裝／資產檢查。請依 docs/verification/backends/backend-install-test-latest.md 執行實際音訊推論。"

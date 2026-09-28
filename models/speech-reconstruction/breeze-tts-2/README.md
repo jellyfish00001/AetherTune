@@ -16,4 +16,4 @@
 - `tools/breeze-tts2-setup.ps1`
 - `tools/breeze-tts2-run.ps1`
 - `backends/speech-reconstruction/README.md`
-- `docs/breeze-tts2-verification-latest.md`
+- `docs/verification/backends/breeze-tts2-verification-latest.md`

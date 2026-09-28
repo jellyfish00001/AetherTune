@@ -29,7 +29,7 @@ function Assert-RegisterRejectsUnknown {
             -LicenseOrPermission 'unknown-license' `
             -TrainingEnvironment 'unknown-environment' `
             -Status ready `
-            -VerificationArtifact 'docs/vcclient-rvc-probe-latest.md' `
+            -VerificationArtifact 'docs/verification/backends/vcclient-rvc-probe-latest.md' `
             -DryRun 2>&1
         if ($LASTEXITCODE -ne 0) { $failed = $true }
     } catch {
