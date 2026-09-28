@@ -1,5 +1,7 @@
 # Manual TTS 增量實作與驗證
 
+第一次使用讀[快速使用說明](quick-start.md)，環境與排錯讀[詳細操作手冊](desktop-user-guide.md)；後續修改先用[Agent 快速地圖](agent-quick-map.md)定位，再按需查[維護手冊](agent-maintenance-guide.md)與[逐檔索引](project-file-map.md)。本文保存驗收命令與 evidence，不作為完整操作手冊。
+
 日期：2026-09-27～28（Asia/Taipei）。範圍依使用者「Manual TTS 與 Agent Reply Extension」規格：實作 Manual Text、統一 Request／Queue／Orchestrator、完成播放後的 Transcript，以及 Full／Compact／Mini 快速輸入。Agent API、Personality、Auto Reply、Phrase Hotkeys 停用且 PLANNED。
 
 本輪沿用已安裝的 CosyVoice2／Breeze WSL runtime、Seed Windows Python 的 sounddevice／soundfile 與既有 reference／VB-CABLE，不新增模型下載、套件安裝或改變 Windows 預設音訊裝置。各種 PASS 僅代表本表明列的範圍；完整 physical Mic／Post-FX／LIVE 驗收仍獨立。

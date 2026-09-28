@@ -1,8 +1,20 @@
 # AetherTune
 
+## 操作與維護入口
+
+| 想做的事 | 先讀 |
+|---|---|
+| 第一次使用 Desktop 文字發聲 | [一頁式快速使用說明](docs/quick-start.md) |
+| Desktop 建置、Queue、Overlay、Output、結果與常見錯誤 | [Desktop／Manual TTS 詳細操作手冊](docs/desktop-user-guide.md) |
+| Seed／RVC／離線 STT → TTS 的操作與路線選擇 | [完整人類操作手冊](docs/user-guide.md) |
+| Agent 快速找到模組 owner 與最低必要文件 | [Agent 快速地圖](docs/agent-quick-map.md) |
+| 依模組逐檔追用途、依賴與檢核位置 | [逐檔用途索引](docs/project-file-map.md) |
+| Agent 修功能、調參、追 ACK／WSL／播放／Transcript 問題 | [Agent 維護與除錯手冊](docs/agent-maintenance-guide.md) |
+| 核對實際完成範圍、hash 與未驗收項目 | [Manual TTS 驗證](docs/manual-tts-verification-latest.md)、[集中狀態](docs/agent-implementation-status-latest.md) |
+
 Desktop App 第一輪（M0 + M1 + M2 skeleton）：規格見 [app-requirements](docs/app-requirements.md)，架構／啟動命令見 [app-architecture](docs/app-architecture.md)，分項結果見 [app-verification-latest](docs/app-verification-latest.md)。開發入口 `app/dev.ps1`，本機 build 為 `app/src-tauri/target/debug/aethertune-desktop.exe`；三個 migration Adapter 不代表完整即時音訊 MVP。舊 Tk 控制台繼續保留。
 
-Manual TTS 增量：Speech Reconstruction／Text → Voice 共用文字 Composer、SpeechQueue、取消與成功播放後的 ME Transcript；沿用 CosyVoice2／Breeze 與外部 Audio Rack／VB-CABLE。Mic STT runtime 仍 WAITING，Agent Reply／Phrase Hotkeys PLANNED；實際測試範圍與操作見 [manual-tts-verification-latest](docs/manual-tts-verification-latest.md)。
+Manual TTS 增量：Speech Reconstruction／Text → Voice 共用文字 Composer、SpeechQueue、取消與成功播放後的 ME Transcript；沿用 CosyVoice2／Breeze 與 VB-CABLE，外部 Audio Rack 完整鏈路仍待驗證。Mic STT runtime 仍 WAITING，Agent Reply／Phrase Hotkeys PLANNED；先讀[快速使用說明](docs/quick-start.md)，詳細環境與排錯讀 [desktop-user-guide](docs/desktop-user-guide.md)，實際測試範圍見 [manual-tts-verification-latest](docs/manual-tts-verification-latest.md)。
 
 2026-09-27：**realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效 callback WAV 與同期 CABLE loopback `WAITING`**。獨立 synthetic VB-CABLE smoke 為 `PASS`，但不代表 GUI 有效變聲。安裝測試見 [`docs/backend-install-test-latest.md`](docs/backend-install-test-latest.md)；Python 統一與操作入口見 [`docs/python-ui-verification-latest.md`](docs/python-ui-verification-latest.md)。人工聽評與完整 LIVE 驗收另外進行。
 

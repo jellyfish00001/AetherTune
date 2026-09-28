@@ -45,7 +45,7 @@ Windows Job 開啟 `KILL_ON_JOB_CLOSE`；service 以 suspended 狀態建立，�
 
 App → bridge：
 
-```json
+```jsonl
 {"command":"start"}
 {"command":"status"}
 {"command":"set_parameter","name":"diffusion_steps","value":10}
@@ -92,7 +92,8 @@ npm run test:ui
 node tests/engines.mjs
 # UI 檢核會 hide 視窗；用 Tray 或 Ctrl+Alt+A 重新顯示
 node tests/exit-running.mjs
-.\tests\cleanup.ps1 -AppProcessId <本次測試 App PID>
+# 需先取得本輪啟動的 App PID；下行的佔位值不可直接執行。
+# .\tests\cleanup.ps1 -AppProcessId <本次測試 App PID>
 ```
 
 畫面／reports：`artifacts/desktop/ui/`；integration／cleanup：`artifacts/desktop/integration/`。Computer Use／內建 Browser 作獨立目視複核，不能僅依 Playwright。
@@ -106,6 +107,8 @@ M4 的常駐 STT 不掛在 EngineManager job 下；Mic self 與 Remote loopback 
 M5 VoiceProfile 與 M6 TTS 共用 Mode → Engine；M7 只接既有 Audio Rack。M8 才處理 bundle resources、backend detection、installer／portable／auto update／startup／settings migration。任何超出此分層的改動先說明，不自行形成平行架構。
 
 ## Manual TTS 增量架構
+
+外部操作先讀[快速使用說明](quick-start.md)；開發先用[Agent 快速地圖](agent-quick-map.md)定位 owner，再按需讀[詳細操作](desktop-user-guide.md)、[維護與除錯](agent-maintenance-guide.md)或[逐檔索引](project-file-map.md)。以下保留架構概覽，實測以對應 verification 為準。
 
 新增服務留在 `services/tts/`，原生 bridge 留在 `app/src-tauri/src/speech_manager/`。`speech_status` 懶啟動受 Windows Job 管理的 Python JSONL service；`speech_action` 傳入 allowlist 動作，每次 command_id 都要收到 accepted／error ACK，拒絕新 request 不能被 UI 當成送出成功。IPC／WebView 仍不傳 PCM。
 

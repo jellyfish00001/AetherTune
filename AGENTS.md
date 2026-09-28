@@ -1,6 +1,6 @@
 # AetherTune Agent Reference
 
-這是 AetherTune 專案的 Agent 導航與邊界。人類先讀根目錄 `README.md`；Agent 先讀本檔，再讀與任務直接相關的 `docs/` 或 `backends/` 文件。
+這是 AetherTune 專案的 Agent 邊界。人類先讀根目錄 `README.md` 與 `docs/quick-start.md`；Agent 先讀本檔，再用 `docs/agent-quick-map.md` 定位 owner，只展開任務相關的契約、檔案與證據。
 
 ## 1. 專案目的
 
@@ -21,7 +21,7 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 ## 2. 讀取順序與 source of truth
 
 1. `README.md`：人類快速入口、選路線與目前缺口。
-2. `docs/user-guide.md`：完整人類操作順序。
+2. `docs/quick-start.md`：對外的一頁式 Desktop 文字發聲說明；`docs/user-guide.md` 是研究路線與後端的完整人類操作順序，Desktop 建置／逐步排錯讀 `docs/desktop-user-guide.md`。
 3. `docs/model-training-guide.md`：RVC 資料與訓練。
 4. `docs/operation-guide.md`：Windows audio-rack、VCClient/VST/虛擬路由操作。
 5. `docs/live-gate.md`：`LIVE`／`OFFLINE`／`WAITING`／`BLOCKED` 分類。
@@ -32,8 +32,9 @@ AetherTune 管理兩個研究分組與多個 backend/profile：Streaming VC（�
 10. `models/*-register.csv`、`dataset/manifests/*`：模型、音訊、來源與 hash 的結構化紀錄。
 11. `docs/agent-implementation-status-latest.md`：本輪 Agent 工作的集中狀態表；它不能取代各驗證文件。
 12. `docs/python-ui-verification-latest.md`：Python 3.10.x 統一、`AetherTune.cmd`／Tk 控制台與本機啟停測試。
-13. Desktop App 任務讀 `docs/app-requirements.md` → `docs/app-architecture.md` → `docs/app-verification-latest.md`；新增 orchestration 僅在 `app/`、`contracts/`、`services/`。本輪 M0/M1/M2 skeleton 不代表 headless realtime parity，Seed TEMPORARY GUI／Mean、X WAV migration 必須明列限制。
-14. Manual TTS 增量讀 `docs/manual-tts-verification-latest.md`；共用 `services/tts/` SpeechRequest／Queue／Orchestrator。Mic OFF 不得阻止 manual，completed playback 才寫 `manual_text` Transcript；STT physical capture／外部 Rack／Agent Reply 仍依各自 evidence 分類。
+13. Desktop App 任務先讀 `docs/agent-quick-map.md` 定位 owner，再只讀對應 source／contract／verification；跨層修改才讀 `docs/agent-maintenance-guide.md`，逐檔查詢時在 `docs/project-file-map.md` 搜尋路徑，不先載入整份索引。另核對 `docs/app-requirements.md`／`docs/app-architecture.md` 的相關段落；新增 orchestration 僅在 `app/`、`contracts/`、`services/`。首次 M0/M1/M2 skeleton 不代表 headless realtime parity，Seed TEMPORARY GUI／Mean、X WAV migration 必須明列限制。
+14. Manual TTS 增量的操作讀 `docs/quick-start.md`／`docs/desktop-user-guide.md`，調適讀快速地圖與維護手冊，實測讀 `docs/manual-tts-verification-latest.md`；共用 `services/tts/` SpeechRequest／Queue／Orchestrator。Mic OFF 不得阻止 manual，completed playback 才寫 `manual_text` Transcript；STT physical capture／外部 Rack／Agent Reply 仍依各自 evidence 分類。
+15. `docs/project-file-map.md` 按目錄逐檔說明 tracked source／config／fixture／register／文件的用途；新增／刪除／更名檔案時同步索引。它是按需查詢的參考，不是 runtime readiness 表，不把 ignored 模型／音訊／artifacts 列作可刪除項目。
 
 若文件與 runtime 證據衝突，以最新可重跑 artifact、實際命令輸出與 verifier 為準，並修正文檔；不要用「模型檔存在」覆蓋 runtime WAITING。
 

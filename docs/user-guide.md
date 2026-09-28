@@ -1,8 +1,12 @@
 # AetherTune 人類操作手冊
 
-這份文件回答兩件事：我該選哪一種方法，以及選好後要放什麼檔案、執行什麼命令。若只想快速開始，先讀根目錄 `README.md`；若要理解訓練與模型登錄，再讀 [`model-training-guide.md`](model-training-guide.md)。
+這份文件回答路線選擇、要放什麼檔案及 backend 命令。Desktop 文字發聲先讀[快速使用說明](quick-start.md)，建置、Queue、Overlay、結果位置與排錯再讀 [desktop-user-guide.md](desktop-user-guide.md)；後續 Agent 先用[快速地圖](agent-quick-map.md)定位，再按需查[維護手冊](agent-maintenance-guide.md)與[逐檔索引](project-file-map.md)。訓練與模型登錄讀 [model-training-guide.md](model-training-guide.md)。
 
 ## 1. 先選路線
+
+### Manual Text → TTS
+
+要精確控制文字、避開 STT 誤判或不開 Mic 時，開 Tauri Desktop，Mode 選 Text → Voice／Speech Reconstruction、Input 選 manual_text，再選既有 Engine／Voice／Output 後按 Speak。它直接從文字生成聲音，不執行 STT；現階段完整 WAV／每句重載模型，屬 offline。操作細節見 [Desktop／Manual TTS 操作手冊](desktop-user-guide.md)，不要把根目錄 `AetherTune.cmd` 的舊 Tk 控制台當作新的 Composer。
 
 ### Seed-VC／Zero-Shot VC
 
