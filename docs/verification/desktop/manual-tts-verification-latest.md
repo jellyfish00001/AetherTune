@@ -1,5 +1,7 @@
 # Manual TTS 增量實作與驗證
 
+> **入口更新（2026-09-30）：**本頁下方 2026-09-28 的命令與測試結果為當時紀錄；目前圖形入口是根目錄 `AetherTune.exe`，舊 Tk 控制台已移除。新的啟動修復見[App 驗證](app-verification-latest.md)。
+
 **文件邊界：**本報告只保存 2026-09-27～28 Desktop Manual TTS 的 service／Queue／生成／播放／Transcript 驗收命令與 evidence，不作完整操作手冊、產品需求或 LIVE 結論。第一次使用讀[快速說明](../../guides/quick-start.md)，建置與排錯讀[Desktop 手冊](../../guides/desktop-user-guide.md)，跨層維護讀[Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
 
 日期：2026-09-27～28（Asia/Taipei）。範圍依使用者「Manual TTS 與 Agent Reply Extension」規格：實作 Manual Text、統一 Request／Queue／Orchestrator、完成播放後的 Transcript，以及 Full／Compact／Mini 快速輸入。Agent API、Personality、Auto Reply、Phrase Hotkeys 停用且 PLANNED。

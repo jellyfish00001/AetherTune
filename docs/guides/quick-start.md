@@ -4,7 +4,7 @@
 
 ## 開始前
 
-- 開啟 **AetherTune Desktop**。文字發聲功能在 Desktop 視窗，不在 `AetherTune.cmd` 控制台。
+- 在已準備的 Windows 工作目錄，開啟根目錄的 **`AetherTune.exe`**；這是 Desktop 的單一圖形入口。
 - 確認提供者已備妥 CosyVoice2 或 Breeze TTS 2、聲線所需的參考音訊，以及要使用的輸出裝置。
 - 這個版本會**先生成整段語音再播放**；依文字長度和電腦狀況，可能需要一至數分鐘。送出後先看佇列狀態，避免重複提交。
 

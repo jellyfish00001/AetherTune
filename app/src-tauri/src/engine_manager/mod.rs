@@ -3,8 +3,14 @@ use serde_json::{json, Value};
 use crate::process_manager::{Process, Sink};
 
 pub fn root() -> PathBuf {
-    std::env::var_os("AETHERTUNE_ROOT").map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_owned())
+    if let Some(configured)=std::env::var_os("AETHERTUNE_ROOT") { return PathBuf::from(configured); }
+    // 讓根目錄的 AetherTune.exe 和 target/debug 內的開發版使用同一份專案資源。
+    if let Ok(exe)=std::env::current_exe() {
+        if let Some(project)=exe.ancestors().skip(1).find(|path|path.join("contracts/engines").is_dir() && path.join("app/src-tauri").is_dir()) {
+            return project.to_owned();
+        }
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_owned()
 }
 pub fn discover() -> Result<Vec<Value>, String> {
     ["seed-vc", "meanvc2", "xvc", "rvc", "cosyvoice", "breeze"].iter().map(|id| {

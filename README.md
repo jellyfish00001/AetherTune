@@ -14,7 +14,7 @@ AetherTune 是 Windows 本地的語音轉換與語音重建研究工作台。現
 | 按任務找文件、狀態與驗證 | [文件入口](docs/README.md) |
 | Agent 尋找規則與修改位置 | [Agent 控制中心](.agent/README.md) → [Agent 快速地圖](.agent/reference/agent-quick-map.md) |
 
-目前僅有開發版 Desktop 執行檔，沒有正式 installer／portable 發行包。模型、reference 音訊、第三方 source、Python 環境及執行證據不隨 Git 提供；新電腦須按[詳細操作手冊](docs/guides/desktop-user-guide.md)與對應[backend 文件](backends/README.md)準備。`AetherTune.cmd` 是另一個既有 Tk 控制台，用於 Seed-VC GUI 與 MeanVC2／X-VC WAV 操作，**不包含**新的 Desktop 文字 Composer。
+在已準備的 Windows 工作目錄，從根目錄開啟 **`AetherTune.exe`**。執行 `app/dev.ps1 -Build` 會把新的 Desktop build 複製到這個入口；舊 Tk 控制台已移除。這仍是依賴完整 checkout 與本機模型／runtime 的開發版，沒有正式 installer／portable 發行包。新電腦須按[詳細操作手冊](docs/guides/desktop-user-guide.md)與對應[backend 文件](backends/README.md)準備。
 
 ## 路線與目前邊界
 

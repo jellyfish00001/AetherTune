@@ -186,17 +186,20 @@ UI 改動用兩個終端：第一個 `Set-Location D:\AetherTune\app` 後 `npm r
 原生 WebView2 測試需當次 App PID，不能拿舊 PID 或只依瀏覽器預覽。只在測試 shell 設定 CDP port；啟動時隱藏視窗，測試後用受控 Exit 回收本輪程序：
 
 ```powershell
-Set-Location D:\AetherTune\app
+Set-Location D:\AetherTune
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9223'
-$appProcess = Start-Process .\src-tauri\target\debug\aethertune-desktop.exe -WindowStyle Hidden -PassThru
+$appProcess = Start-Process .\AetherTune.exe -WindowStyle Hidden -PassThru
 $env:AETHERTUNE_CDP = 'http://127.0.0.1:9223'
+Push-Location app
 npm run test:ui
 node tests/engines.mjs
-if (-not $appProcess.HasExited) { .\tests\cleanup.ps1 -AppProcessId $appProcess.Id }
+Pop-Location
+if (-not $appProcess.HasExited) { .\app\tests\cleanup.ps1 -AppProcessId $appProcess.Id }
 Remove-Item Env:AETHERTUNE_CDP,Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
 ```
 
 `cleanup.ps1` 只接受本專案 Desktop build 的 PID，並核對其 owned process tree；每輪重取 PID，不能拿上一輪的值。CDP／Playwright、內建 Browser／Chrome 的測試範圍要分開回報，沒有實際 native 畫面及音訊 evidence 就保持相應 `WAITING`。
+啟動當下的 CDP 截圖可能早於 WebView2 第一幀而呈黑色；視覺複核需等畫面繪製後重拍並檢視圖片。根目錄 `AetherTune.exe` 的一般可見啟動另核對視窗回應與實際渲染，不能只用隱藏啟動的 DOM／IPC 結果代替。
 
 ### 正式 Rust manager → 真實模型 → CABLE
 

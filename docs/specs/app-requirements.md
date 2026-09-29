@@ -119,7 +119,7 @@ Settings：General（Windows startup、start minimized、overlay、opacity、hot
 
 驗收須分開列：三種 UI、置頂、半透明、drag、click-through、Tray／遊戲滑鼠；三個 engine 的實際啟停、crash／AppExit cleanup；schema forms／presets；ME／REMOTE 即時轉文字、crash durability／exports；canonical device、PCM datapath；既有 verification 相容性。每個 milestone 要有可重跑檢核及 PASS／WAITING／BLOCKED 證據，UI 可開與音訊可用不能合併為整體 PASS。
 
-第一輪不做：模型／音訊算法重寫、Tk UI 刪除、TTS integration、Audio Rack rewrite、Diarization、Installer。其他 non-goals：cloud account／DB、手機／macOS／Linux UI、同時 preload 五個模型、合併 Python venv。舊 `AetherTune.cmd`／`tools/aethertune-ui.py` 保留為 legacy engineering console；只有 Desktop 的 launch／stop／params／devices／results 全 parity 才 deprecated。
+第一輪原本不做模型／音訊算法重寫、Tk UI 刪除、TTS integration、Audio Rack rewrite、Diarization、Installer。其他 non-goals：cloud account／DB、手機／macOS／Linux UI、同時 preload 五個模型、合併 Python venv。2026-09-29 使用者決定移除舊 Tk 控制台，並以根目錄 `AetherTune.exe` 作為單一圖形入口；這項入口決定不代表 Desktop 的 VC params／devices／results 已達到舊控制台的功能完整度，缺口仍依 M3／後續驗收處理。
 
 第一輪驗收報告見 [app-verification-latest.md](../verification/desktop/app-verification-latest.md)。
 

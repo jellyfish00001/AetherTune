@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 use aethertune_desktop::engine_manager::{self, EngineManager};
 use aethertune_desktop::speech_manager::SpeechManager;
 use serde::{Deserialize, Serialize};
@@ -31,11 +31,16 @@ fn start_diagnostics(app:tauri::AppHandle) {
     std::thread::spawn(move||loop {
         if app.get_webview_window("main").is_none(){break;}
         let d=app.state::<Desktop>();
-        if let (Ok(engine),Ok(shell),Ok(window))=(d.engine.try_lock(),d.shell.try_lock(),window_status(app.clone())) {
-            let snapshot=json!({"unix_ms":SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis(),"pid":std::process::id(),"engine":engine.status(),"shell":*shell,"window":window});
-            let folder=engine_manager::root().join("artifacts/desktop");let _=fs::create_dir_all(&folder);
-            let temp=folder.join("native-state.tmp");
-            if fs::write(&temp,serde_json::to_vec(&snapshot).unwrap()).is_ok(){let _=fs::rename(temp,folder.join("native-state.json"));}
+        // 視窗查詢可能切回 UI 執行緒；先複製狀態並釋放鎖，避免 UI command 等鎖時互相卡住。
+        let engine=d.engine.try_lock().ok().map(|guard|guard.status());
+        let shell=d.shell.try_lock().ok().map(|guard|guard.clone());
+        if let (Some(engine),Some(shell))=(engine,shell) {
+            if let Ok(window)=window_status(app.clone()) {
+                let snapshot=json!({"unix_ms":SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis(),"pid":std::process::id(),"engine":engine,"shell":shell,"window":window});
+                let folder=engine_manager::root().join("artifacts/desktop");let _=fs::create_dir_all(&folder);
+                let temp=folder.join("native-state.tmp");
+                if fs::write(&temp,serde_json::to_vec(&snapshot).unwrap()).is_ok(){let _=fs::rename(temp,folder.join("native-state.json"));}
+            }
         }
         std::thread::sleep(Duration::from_millis(250));
     });

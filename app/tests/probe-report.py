@@ -32,7 +32,7 @@ for engine in ('seed-vc','meanvc2','xvc'):
     assert final['value']=='OFFLINE' and not final['service_alive'] and not survivors
     blocked=any(e.get('type')=='state' and e.get('value')=='ERROR' for e in events)
     results.append(dict(engine=engine,process_control='PASS',scope='preflight ERROR + service cleanup' if blocked else 'existing WAV runner start/stop',upstream_start='BLOCKED' if blocked else 'PASS (process only)',realtime_audio='WAITING',pids=pids,survivors=survivors,final=final,log=str(path.relative_to(ROOT))))
-paths=['tools/aethertune-ui.py','tools/meanvc2-run.py','tools/xvc-run.py','tools/seed-vc-gui-run.ps1','tools/seed-vc-run.ps1']
+paths=['tools/meanvc2-run.py','tools/xvc-run.py','tools/seed-vc-gui-run.ps1','tools/seed-vc-run.ps1']
 baseline=[]
 for path in paths:
     old=subprocess.check_output(['git','show',f'HEAD:{path}'],cwd=ROOT)

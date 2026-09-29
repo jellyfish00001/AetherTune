@@ -2,6 +2,14 @@
 
 本文件保留 M0/M1/M2 首次交付與封存基線。Manual TTS 增量的最新程式、命令與分項結果改讀 [manual-tts-verification-latest.md](manual-tts-verification-latest.md)；不能將歷史 planned TTS／未接 Transcript 的描述套用到增量版本，也不能將增量控制測試當成舊 LIVE 缺口已完成。
 
+## 2026-09-30：啟動卡住修復與根目錄入口
+
+使用者回報舊 Tk 與 Desktop 入口都會卡住。2026-09-29 23:47 的 Desktop debug exe（PID `31476`）由 Windows Error Reporting 記錄 `AppHangTransient`／event `1001`；`Responding=False`，最後的 `native-state.json` 顯示 engine 仍為 `OFFLINE`。依 `start_diagnostics` 持有 engine／shell 鎖再查視窗、React 啟動時同步讀同一狀態的程式路徑，判斷有 UI 執行緒互等風險；此處是程式與事件證據支持的原因推論，沒有執行執行緒 dump。
+
+修正後背景診斷先複製狀態並釋放鎖，才查原生視窗。使用者決定移除 `AetherTune.cmd`、Tk 控制台與其專用測試腳本；Desktop 的 `app/dev.ps1 -Build` 會把 exe 複製成根目錄 `AetherTune.exe` 並核對 hash。最終 exe 的 SHA-256 為 `99880BCCE4EA57A16CF9CB4E849FEF7D1E2EB8F5779C768078BDE949816FB25D`，與內部 debug build 一致；PE subsystem `2`（Windows GUI），雙擊不需命令列視窗。
+
+驗證：`app/dev.ps1 -Build` exit `0`；根目錄 exe 的首次短測 PID `44548` 共 18／18 秒 `Responding=True`，`native-state.json` 的 PID 與時間戳持續更新。最終 Windows GUI build PID `44632` 再觀察 10／10 秒 `Responding=True`、engine `OFFLINE`，其子程序只有 WebView2，沒有 console host。一般啟動的最終版 PID `5804` 在 `http://tauri.localhost/` 顯示 Full 畫面、`data-native=true`，`shell_status`／`window_status` IPC 與 Seed-VC → MeanVC2 → Seed-VC 選單切換均有回應；[實際畫面](../../../output/playwright/startup-20260930-visible-after.png)已目視複核，測試後用 App 的 Exit 關閉。此輪未開始模型／TTS、未檢查麥克風、播放、CABLE、Audio Rack 或 LIVE；這些音訊狀態不因啟動成功改成 PASS。
+
 本輪範圍：M0 + M1 + M2 skeleton。實作在現有 `D:\AetherTune` 主工作樹；開始時 HEAD `cb15ff0`、工作樹乾淨。**整體 PARTIAL；尚非日常即時音訊 MVP。** 以下保留首次交付的驗證基線；階段性 Git 發布及後續補測另列於本文件後續更新與當次回報。
 
 ## 目前版本封存與後續合併測試
@@ -76,7 +84,7 @@ npm ci
 .\dev.ps1           # Tauri dev
 ```
 
-此 exe 依賴目前完整 checkout，不能拿 build 成功推導另一台 PC 已就緒。舊 `AetherTune.cmd`／Tk engineering console 保留。
+此 exe 依賴目前完整 checkout，不能拿 build 成功推導另一台 PC 已就緒。2026-09-29 後的使用者入口與啟動修復見[Desktop 手冊](../../guides/desktop-user-guide.md)；舊 Tk 控制台已移除。本頁其餘結果保留當時的驗證範圍。
 
 ## UI 與原生視窗驗證
 

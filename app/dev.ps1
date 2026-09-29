@@ -26,6 +26,17 @@ try {
         } finally {Pop-Location}
         Push-Location src-tauri
         try { & cargo test --lib; if ($LASTEXITCODE -ne 0) {throw 'Rust process tests failed'} } finally {Pop-Location}
-    } elseif ($Build) { & npm.cmd run tauri -- build --debug --no-bundle; if ($LASTEXITCODE -ne 0) {throw 'Desktop build failed'} }
+    } elseif ($Build) {
+        & npm.cmd run tauri -- build --debug --no-bundle
+        if ($LASTEXITCODE -ne 0) {throw 'Desktop build failed'}
+        $builtExe=Join-Path $PSScriptRoot 'src-tauri/target/debug/aethertune-desktop.exe'
+        $entryExe=Join-Path $root 'AetherTune.exe'
+        if (-not (Test-Path -LiteralPath $builtExe -PathType Leaf)) {throw "找不到 Desktop build 輸出：$builtExe"}
+        Copy-Item -LiteralPath $builtExe -Destination $entryExe -Force
+        if ((Get-FileHash -LiteralPath $builtExe -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $entryExe -Algorithm SHA256).Hash) {
+            throw '根目錄 AetherTune.exe 與 build 輸出 hash 不一致'
+        }
+        Write-Host "Desktop 入口：$entryExe"
+    }
     else { & npm.cmd run tauri dev; if ($LASTEXITCODE -ne 0) {throw 'Desktop dev failed'} }
 } finally {Pop-Location}

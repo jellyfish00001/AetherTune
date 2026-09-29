@@ -4,7 +4,7 @@
 
 ## 導覽規則
 
-- 根目錄保存使用入口、Agent 邊界與啟動器；`app/` 是 Tauri/React Desktop orchestration，`services/` 是既有 runner 與 Manual TTS service，`contracts/` 是 engine、voice、request、state 與 transcript 的資料契約。
+- 根目錄保存使用入口與 Agent 邊界；本機 `AetherTune.exe` 由 `app/dev.ps1 -Build` 產生且不進 Git。`app/` 是 Tauri/React Desktop orchestration，`services/` 是既有 runner 與 Manual TTS service，`contracts/` 是 engine、voice、request、state 與 transcript 的資料契約。
 - `audio-rack/` 與 `benchmarks/` 是跨 backend 的後製、路由與驗收基礎設施；`backends/`、`models/`、`dataset/`、`tools/` 和 `docs/` 分別保存後端契約、模型登錄、素材 provenance、可重跑工具與證據文件。
 - 修改程式或契約時，先讀本表列出的主要同步文件，再用對應的 test、regression、validator 或 verification 命令核對；不要以檔案存在取代 runtime 或音訊證據。
 - 逐步載入原則：先以 `AGENTS.md` 確認邊界，從 `.agent/reference/agent-quick-map.md` 找 owner，再用 `rg -n` 查直接相依；不要為單一修改載入整庫或整份本表。
@@ -41,10 +41,9 @@
 
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
-| [.gitignore](../../.gitignore) | 排除 venv、模型權重、音訊、第三方 upstream、artifacts、前端 build 與本機 secrets，並保留必要 README。 | 新增生成路徑前檢查是否誤把證據或敏感資料納入 Git；與本表的 ignored-folder 索引同步。 |
+| [.gitignore](../../.gitignore) | 排除根目錄 `AetherTune.exe`、venv、模型權重、音訊、第三方 upstream、artifacts、前端 build 與本機 secrets，並保留必要 README。 | 新增生成路徑前檢查是否誤把證據或敏感資料納入 Git；與本表的 ignored-folder 索引同步。 |
 | [.python-version](../../.python-version) | pyenv 類工具使用的專案 Python minor version，內容固定為 `3.10`。 | 變更時同步各隔離 runtime、`tools/python-runtime-check.ps1` 與環境文件。 |
 | [AGENTS.md](../../AGENTS.md) | Codex 薄入口，指向 `.agent/` 的共用規則與路由。 | `.agent/` 入口變更時核對連結。 |
-| [AetherTune.cmd](../../AetherTune.cmd) | Windows 日常控制台啟動器，解析專案 root 後呼叫 `tools/venvs/seed-vc` 的 Python 與 `tools/aethertune-ui.py`。 | 同步 `tools/aethertune-ui.py`、Seed runtime 路徑與 `docs/verification/desktop/python-ui-verification-latest.md`。 |
 | [README.md](../../README.md) | 對外快速定位與操作文件入口；不複製詳細命令或當次測試表。 | 路線或文件入口變更時同步對應手冊、`AGENTS.md` 與本表。 |
 | [start_vcclient.bat](../../start_vcclient.bat) | 以 `%~dp0` 為 root，切到被忽略的 `tools/external/VCClient/2.1.4-alpha/dist/main`，開啟 `http://127.0.0.1:18000/` 後執行 `main.exe start --https false`。 | VCClient 版本、dist 路徑、port 或啟動參數變更時同步 `docs/specs/vcclient-runtime-gate.md`；不可將 HTTP 200 當作音訊 PASS。 |
 
@@ -68,7 +67,7 @@
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
 | [app/app-icon.svg](../../app/app-icon.svg) | 前端 favicon 與原生 icon 的向量來源，繪製 AetherTune 波形標誌。 | 同步 `app/index.html` favicon 與 Tauri icon 產物；視覺變更需重建 app icon。 |
-| [app/dev.ps1](../../app/dev.ps1) | Desktop 開發入口；為本次 process 設定 portable Cargo/toolchain，支援 build/test 參數，不改系統 PATH。 | 同步 `app/package.json`、Tauri toolchain 與 `.agent/reference/agent-maintenance-guide.md` 的開發命令。 |
+| [app/dev.ps1](../../app/dev.ps1) | Desktop 開發入口；為本次 process 設定 portable Cargo/toolchain，`-Build` 成功後複製根目錄 `AetherTune.exe` 並核對 hash，不改系統 PATH。 | 同步 `app/package.json`、Tauri toolchain 與 `.agent/reference/agent-maintenance-guide.md` 的開發命令。 |
 | [app/index.html](../../app/index.html) | Vite HTML shell，設定 `zh-Hant`、favicon、title 與 `src/main.tsx` module entry。 | 同步 React root、favicon 與 `app/src/main.tsx`。 |
 | [app/package-lock.json](../../app/package-lock.json) | npm lockfile，固定 Vite、React、Tauri API、Playwright、AJV 等前端依賴解析結果。 | 只由 `npm install`/依賴變更更新，與 `app/package.json` 一起跑 build/test。 |
 | [app/package.json](../../app/package.json) | Desktop frontend package metadata 與 `dev`、`build`、`test:contracts`、`test:ui`、`test:manual-tts-ui` scripts。 | 依賴或命令變更同步 lockfile、`app/dev.ps1` 與驗證文件。 |
@@ -290,8 +289,6 @@
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
 | [tools/README.md](../../tools/README.md) | 工具目錄 policy、主要 setup/runner/probe/evidence 入口和禁止把匯入/檔案存在寫成 PASS 的規則。 | 新增或改工具時補列用途、source/license 位置，並同步相關 `docs/*verification*.md`。 |
-| [tools/aethertune-ui-userflow-test.py](../../tools/aethertune-ui-userflow-test.py) | 以真 Tk 按鈕和 backend subprocess 驗證控制台 user flow；不使用 fake model。 | UI 按鈕、subprocess protocol 或 launcher 變更時與 `tools/aethertune-ui.py`、`docs/verification/desktop/python-ui-verification-latest.md` 一起檢核。 |
-| [tools/aethertune-ui.py](../../tools/aethertune-ui.py) | 標準庫 Tkinter Windows control UI，管理隔離 Python runtime、start/stop/config/log/output folder。 | 控制台欄位或命令變更同步 `AetherTune.cmd`、`docs/verification/desktop/python-ui-verification-latest.md` 與 user guide。 |
 | [tools/powershell-setup.ps1](../../tools/powershell-setup.ps1) | 安裝/準備 portable project PowerShell，處理安全 execution policy 與前置檢核。 | setup prerequisite 變更同步根目錄啟動命令、runtime docs。 |
 | [tools/python-runtime-check.ps1](../../tools/python-runtime-check.ps1) | 稽核七組 runtime、Python 3.10、CUDA、pip check 與保留的 WSL runtime；是環境檢核，不是 audio E2E。 | runtime matrix 變更同步 `tools/python-runtime-probe.py`、`docs/verification/desktop/python-ui-verification-latest.md`。 |
 | [tools/python-runtime-probe.py](../../tools/python-runtime-probe.py) | read-only isolated Python 3.10/dependency/CUDA probe，輸出環境證據。 | probe 欄位或 provider 判定變更同步 runtime-check 和 docs，不能以 provider list 代替 GPU/audio proof。 |
@@ -425,7 +422,7 @@
 |---|---|---|
 | [docs/verification/desktop/manual-tts-verification-latest.md](../../docs/verification/desktop/manual-tts-verification-latest.md) | Manual TTS service/queue/generation/playback/transcript 的命令、實際 evidence、限制與剩餘 boundary；TTS UI/native 維護者讀取。 | `services/tts`、Rust speech bridge、`app/src` 或 contract 改動後重跑對應 service/UI/native checks。 |
 | [docs/verification/desktop/app-verification-latest.md](../../docs/verification/desktop/app-verification-latest.md) | M0/M1/M2 Desktop baseline、歷史檢核與 caveats；Manual TTS 最新證據另見 dedicated report。 | app launch/IPC/contract 或 UI test 變更同步 app architecture/requirements。 |
-| [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 統一 Python 3.10 runtime、`AetherTune.cmd`/Tk control UI 與本機 start/stop verification。 | runtime/launcher/control UI 變更同步 `AetherTune.cmd`、`tools/aethertune-ui*`、runtime check。 |
+| [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 2026-09-27 Python 3.10 runtime 與已移除 Tk 控制台的歷史驗證；不能作為目前 UI 操作入口。 | runtime 變更看現行 runtime check；Desktop 操作以 user guide 與當輪 app verification 為準。 |
 | [docs/status.md](../../docs/status.md) | 本輪 Agent implementation/test status 集中表，標示 PASS/WAITING/PLANNED 邊界；不能取代各 verifier。 | 每輪實作或驗證後同步相關詳細 report，維持狀態詞彙一致。 |
 | [docs/archive/local-environment.md](../../docs/archive/local-environment.md) | 歷史本機 runtime/device/environment inventory，並指向現行 Python UI verification。 | 本機環境證據改動同步 current verification，不以歷史 inventory 覆蓋新 artifact。 |
 | [docs/reference/parameter-matrix-template.csv](../../docs/reference/parameter-matrix-template.csv) | backend 比較用的 parameter/result template，供 reproducible run 填寫輸入、裝置、route、metrics 與 status。 | 欄位或 backend 增刪同步 benchmark README、quality/live evidence schema。 |

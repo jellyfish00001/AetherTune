@@ -2,16 +2,15 @@
 
 **文件邊界：**本頁擁有 Desktop／Manual TTS 的建置、逐步 UI 操作、Queue、Output、結果位置與使用者排錯。第一次使用先讀[一頁式快速使用說明](quick-start.md)；跨層修改查[Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md)，實測 hash 與 PASS 範圍查[Manual TTS 驗證](../verification/desktop/manual-tts-verification-latest.md)。本頁不定義產品需求、後端模型參數或 LIVE 分類。
 
-## 1. 先選正確入口
+## 1. 開啟 Desktop
 
 | 入口 | 用途 | 本機啟動方式 |
 |---|---|---|
-| 舊 Tk 控制台 | Seed 官方 GUI、MeanVC2／X-VC WAV 轉換、參數及日誌 | 根目錄 `AetherTune.cmd` |
-| Tauri Desktop | Full／Compact／Mini 視窗、受管制 VC runner、Manual TTS／Queue／Transcript | `app/src-tauri/target/debug/aethertune-desktop.exe` |
+| Tauri Desktop | Full／Compact／Mini 視窗、受管制 VC runner、Manual TTS／Queue／Transcript | 根目錄 `AetherTune.exe` |
 | 瀏覽器預覽 | 檢查版面、輸入與 UI；沒有真實 backend／視窗控制 | `app/` 下 `npm run dev`，開 `http://127.0.0.1:1420/` |
 | 離線腳本 | 直接執行單一 backend 或 STT → TTS WAV 流程 | [user-guide.md](user-guide.md)、[tools/README.md](../../tools/README.md) |
 
-要使用文字發聲，請開 **Tauri Desktop**。`AetherTune.cmd` 尚未整合新的 Manual Composer；瀏覽器的 Speak／Queue 停用是預期行為。
+要使用文字發聲，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue 停用是預期行為。舊 Tk 控制台已移除；Seed 官方 GUI 與 MeanVC2／X-VC 的獨立 CLI 仍可依[後端手冊](user-guide.md)操作。Desktop 的 VC 參數與裝置控制仍在開發中，不能把舊控制台的欄位當成已完整移植。
 
 目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；排隊還會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
 
@@ -21,8 +20,8 @@
 
 ```powershell
 Set-Location D:\AetherTune
-Test-Path .\app\src-tauri\target\debug\aethertune-desktop.exe
-& .\app\src-tauri\target\debug\aethertune-desktop.exe
+Test-Path .\AetherTune.exe
+& .\AetherTune.exe
 ```
 
 若回傳 `False`，需要建置 Desktop。這是開發版 exe，尚無 installer／完整 portable 包：
@@ -32,13 +31,13 @@ Set-Location D:\AetherTune\app
 # 首次取得專案或 package-lock.json 更新後，安裝 lockfile 所列 UI 依賴。
 npm ci
 .\dev.ps1 -Build
-# build 成功後再啟動。
-.\src-tauri\target\debug\aethertune-desktop.exe
+# build 成功後，腳本會把 Desktop exe 複製到專案根目錄。
+& ..\AetherTune.exe
 ```
 
 建置需要 Node/npm、Rust MSVC、Visual Studio C++ Build Tools 與 WebView2。`dev.ps1` 優先使用本機 `artifacts/desktop-toolchain/` 的 Rust，只設定當次 process 環境；開發／測試命令與環境說明見 [Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md)。不要同時開著 exe 又覆蓋它，以免 Windows file lock 讓 build 失敗。
 
-Git 只包含程式／契約／文件，不包含模型、reference WAV、venv、第三方 source 或 build。新機還要按 [local-environment.md](../archive/local-environment.md)、[backends/speech-reconstruction/README.md](../../backends/speech-reconstruction/README.md) 準備 Windows Seed Python、WSL `Ubuntu`、CosyVoice／Breeze 環境與資產。只 clone repository 不等於可以發聲。Desktop 預設 root 是建置時的 checkout；移動位置需重新建置，或在啟動前明確設定 `AETHERTUNE_ROOT` 指向完整專案。
+Git 只包含程式／契約／文件；根目錄的 `AetherTune.exe`、模型、reference WAV、venv、第三方 source 與 build 都是本機產物。新機還要按 [local-environment.md](../archive/local-environment.md)、[backends/speech-reconstruction/README.md](../../backends/speech-reconstruction/README.md) 準備 Windows Seed Python、WSL `Ubuntu`、CosyVoice／Breeze 環境與資產。只 clone repository 不等於可以發聲。Desktop 會從 exe 所在位置向上找完整專案；若 exe 與專案分開放置，啟動前須設定 `AETHERTUNE_ROOT` 指向完整專案。
 
 已有環境的唯讀盤點：
 

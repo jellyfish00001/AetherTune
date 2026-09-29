@@ -28,12 +28,12 @@
 
 | 範圍 | 報告 |
 |---|---|
-| Desktop 與本機入口 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[App 首輪](verification/desktop/app-verification-latest.md)、[Python／Tk UI](verification/desktop/python-ui-verification-latest.md) |
+| Desktop 與本機入口 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[App 首輪](verification/desktop/app-verification-latest.md) |
 | Streaming VC／模型 | [Backend 安裝與基本音訊](verification/backends/backend-install-test-latest.md)、[Seed readiness](verification/backends/seed-vc-readiness-latest.md)、[Seed GUI 音訊](verification/backends/seed-vc-verification-latest.md)、[RVC 模型 audit](verification/backends/rvc-model-audit-latest.md) |
 | Speech Reconstruction | [CosyVoice](verification/backends/cosyvoice-verification-latest.md)、[Breeze TTS 2](verification/backends/breeze-tts2-verification-latest.md) |
 | VCClient／音訊線路 | [packaged repair](verification/backends/vcclient-packaged-repair-latest.md)、[RVC probe](verification/backends/vcclient-rvc-probe-latest.md)、[latency matrix](verification/backends/vcclient-rvc-latency-matrix-latest.md)、[wiring](verification/audio/wiring-verification-latest.md)、[客觀 WAV 比較](verification/audio/audio-quality-comparison-latest.md) |
 
-歷史快照：[本機環境](archive/local-environment.md)、[初次線路部署](archive/wiring-deployment-report.md)、[Seed 2026-09-26](archive/seed-vc-readiness-2026-09-26.md)、[候選 intake 2026-09-26](archive/streaming-vc-candidate-intake-2026-09-26.md)、[架構審查 2026-09-27](archive/project-architecture-review-report-2026-09-27.md)。檔名含 `latest` 也要看內文日期，不能推論今天重新驗證。
+歷史快照：[本機環境](archive/local-environment.md)、[初次線路部署](archive/wiring-deployment-report.md)、[Seed 2026-09-26](archive/seed-vc-readiness-2026-09-26.md)、[候選 intake 2026-09-26](archive/streaming-vc-candidate-intake-2026-09-26.md)、[架構審查 2026-09-27](archive/project-architecture-review-report-2026-09-27.md)、[已移除的 Python／Tk 控制台驗證](verification/desktop/python-ui-verification-latest.md)。檔名含 `latest` 也要看內文日期，不能推論今天重新驗證。
 
 ## 一般使用者：從操作開始
 

@@ -30,7 +30,7 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 | Windows 播放與輸出裝置 | `services/tts/playback.py` | Output endpoint、CABLE capture、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |
 | Session、Favorites、SQLite、exports | `services/tts/storage.py` | storage tests、`app/tests/verify-speech-artifacts.mjs` |
 | Seed／Mean／X 的 runner 與 CLI | `services/engines/`、對應 `backends/<name>/README.md` | [backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
-| 舊 Tk 控制台與腳本 | `AetherTune.cmd`、`tools/` | [工具入口](../../tools/README.md)、[Python/UI 實測](../../docs/verification/desktop/python-ui-verification-latest.md) |
+| Desktop 圖形入口與建置 | 根目錄 `AetherTune.exe`（build 產物）、`app/dev.ps1` | [Desktop 手冊](../../docs/guides/desktop-user-guide.md)、[App 實測](../../docs/verification/desktop/app-verification-latest.md) |
 | Audio Rack、路由、LIVE 分類 | `audio-rack/`、`benchmarks/`、[LIVE gate](../../docs/specs/live-gate.md) | 對應實際 artifact；不要由檔案存在推論 PASS |
 | 未來 Mic／Agent Reply 擴充 | [需求](../../docs/specs/app-requirements.md)、[架構](../../docs/specs/app-architecture.md)、`contracts/` | 先定輸入權限／來源證據；現況 `WAITING`／`PLANNED` |
 

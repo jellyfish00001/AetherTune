@@ -1,5 +1,7 @@
 # Python 統一與操作入口驗證
 
+> **歷史驗證（2026-09-27）：**本頁的 Tk 控制台、`AetherTune.cmd` 與專用 userflow 腳本已於 2026-09-29 依使用者決定移除。下列命令與結果只保留當時的 Python／音訊證據；目前圖形入口見[Desktop 手冊](../../guides/desktop-user-guide.md)的根目錄 `AetherTune.exe`。
+
 更新：2026-09-27（Asia/Taipei）；Windows／RTX 5060 Ti 16GB。
 
 Seed-VC callback 狀態補充（2026-09-27）：本頁較早的 `python-ui-final` run 曾得到非零 callback WAV／CABLE loopback；後續官方 GUI callback 重跑的兩份報告未通過 finite/non-zero gate，整體最新狀態維持 `WAITING`。前一結果只代表其特定 run，不覆蓋後續缺口；詳見 [`seed-vc-verification-latest.md`](../backends/seed-vc-verification-latest.md)。

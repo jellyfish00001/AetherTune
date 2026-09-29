@@ -2,6 +2,14 @@
 
 本文件不是永久綁定；每個模組都可替換，但替換時要重新做相容性、授權、延遲與音質驗證。
 
+## 2026-09-29：Desktop 單一圖形入口
+
+決定：移除舊 `AetherTune.cmd`、Tk 控制台及其專用操作腳本；在已準備的 Windows checkout，以根目錄 `AetherTune.exe` 作為圖形入口。`app/dev.ps1 -Build` 從 Tauri build 複製 exe 到根目錄並核對 SHA-256；生成的 exe 不進 Git。
+
+理由：兩個舊／新入口同時存在造成操作混淆，使用者也回報兩者啟動後會卡住。Desktop 啟動診斷持有狀態鎖查詢原生視窗，有 UI 執行緒互等風險；2026-09-30 的修復與啟動證據見 [App 驗證](../verification/desktop/app-verification-latest.md)。
+
+限制：獨立的 Seed／MeanVC2／X-VC CLI 與歷史音訊證據保留；舊控制台的 VC 進階參數、裝置選單及結果操作尚未完整移植到 Desktop，依 M3／後續驗收追蹤。入口統一及視窗可回應不表示 realtime 音訊或 LIVE 通過。
+
 ## 2026-09-22：從 RVC-centric 改為 Research Workbench
 
 決定：將 AetherTune 的核心定義改為「本地 Streaming VC 與 Speech Reconstruction 比較工作台」，以完整端到端 `<= 5 秒` 作為 `LIVE` 分類門檻；`> 5 秒` 只列為 `OFFLINE`，不與 Live 混排。

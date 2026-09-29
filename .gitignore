@@ -58,6 +58,7 @@ Thumbs.db
 .idea/
 
 # Desktop orchestration build/cache
+/AetherTune.exe
 app/node_modules/
 app/dist/
 app/src-tauri/target/

@@ -5,7 +5,10 @@ $ErrorActionPreference='Stop'
 $root=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $inventory=@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CreationDate,ExecutablePath)
 $owned=@($inventory | Where-Object ProcessId -eq $AppProcessId)
-if ($owned.Count -ne 1 -or $owned[0].ExecutablePath -notlike "$root\app\src-tauri\target\*\aethertune-desktop.exe") {throw '不是本次 Desktop build 的 App PID'}
+$entryExe=Join-Path $root 'AetherTune.exe'
+$isRootEntry=$owned.Count -eq 1 -and $owned[0].ExecutablePath -ieq $entryExe
+$isBuild=$owned.Count -eq 1 -and $owned[0].ExecutablePath -like "$root\app\src-tauri\target\*\aethertune-desktop.exe"
+if (-not ($isRootEntry -or $isBuild)) {throw '不是本次 Desktop build 的 App PID'}
 do {
     $ids=@($owned.ProcessId)
     $next=@($inventory | Where-Object {$_.ParentProcessId -in $ids -and $_.ProcessId -notin $ids})
