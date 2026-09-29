@@ -9,6 +9,9 @@
 .speech-main-column>.speech-composer{order:-1}.speech-main-column>.speech-controls{order:0}.speech-main-column>.speech-error{order:1}
 .favorite-phrases{display:flex;flex-direction:column;gap:5px;margin-top:10px}.favorite-heading{font-size:9px;letter-spacing:1px;color:#d7b16e;text-transform:uppercase}
 .compact .speech-control-grid .profile-meta small{display:none}
+
+.device-fields>.text-button,.device-fields>.error,.speech-control-grid>.text-button{grid-column:1/-1;justify-self:start}
+.composer-output{display:flex;align-items:end;gap:10px;margin-top:10px}.composer-output label{flex:1;min-width:0;margin:0}.composer-output .text-button{flex:0 0 auto}.compact .composer-output{margin-top:5px}.compact .composer-output select{padding:6px 7px}
 .compact .speech-queue{max-height:360px;overflow:auto}.compact .speech-queue .queue-pending{display:flex}.compact .speech-queue .queue-history{display:block}.compact .speech-queue .queue-item-actions{display:flex}
 .compact .speech-queue .queue-item-actions button:nth-child(2),.compact .speech-queue .queue-item-actions button:nth-child(3){display:inline-block}
 .speech-quick-popup{bottom:0;height:auto;min-height:0;max-height:calc(100% - 74px);overflow:hidden;padding:8px}.speech-quick-popup .speech-quick-header{margin-bottom:4px}.speech-quick-popup .speech-composer{padding:8px}.speech-quick-popup .speech-composer .speech-panel-title{margin-bottom:4px}.speech-quick-popup .speech-composer textarea{min-height:52px;max-height:52px;padding:7px}.speech-quick-popup .composer-actions{margin-top:6px}.speech-quick-popup .composer-actions button{padding:6px 9px}.speech-quick-popup .preview-note{display:none}

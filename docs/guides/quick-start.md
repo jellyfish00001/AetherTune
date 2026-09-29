@@ -10,12 +10,12 @@
 
 ## 第一次發聲
 
-1. 在 **Full → LIVE** 頁面的 `Mode` 選 **Text → Voice**，或選 **Speech Reconstruction**。兩者目前共用文字發聲畫面。
-2. 選擇 `Engine`、`Voice profile`、`Host API` 和 `Output`；`Input` 保持 **manual_text**。
-3. 在文字框輸入想說的內容，按一次 **Speak**。需要依序播放多段文字時，使用 **Add to Queue**。
-4. 查看 **Speech Queue** 的 `GENERATING → BUFFERING → PLAYING` 狀態；播放完成後，記錄會出現在 **Transcript**。
+1. 在 **Full → WORKSPACE** 頁面的 `Mode` 選 **Text → Voice**，或選 **Speech Reconstruction**。兩者目前共用文字發聲畫面。
+2. 選擇 `Engine`、`Voice profile` 和「輸出裝置」。下拉選單預選本機系統預設播放端；「文字來源」目前固定為手動輸入，麥克風轉文字仍為 `WAITING`。
+3. 在文字框輸入想說的內容，按一次 **Speak**。看到 `CURRENT · generating` 代表已開始生成完整 WAV，這時還不會出聲；請等到 `playing`／`completed`，不要重複送出。需要依序播放多段文字時，使用 **Add to Queue**。
+4. 查看 **Speech Queue** 的 `GENERATING → BUFFERING → PLAYING` 狀態；播放完成後，記錄會出現在 WORKSPACE 內的 **Transcript** 區塊。
 
-目前已有音訊擷取證據的設定是 `Host API = Windows DirectSound`、`Output = CABLE Input (VB-Audio Virtual Cable)`。請在要接收聲音的程式選 **CABLE Output**；這種設定下，電腦喇叭沒有直接出聲是正常的。若想直接從喇叭聽，請選列出的實體播放裝置及相符的 Host API，並另做播放測試。
+目前已有音訊擷取證據的虛擬線路是 `CABLE Input (VB-Audio Virtual Cable) · Windows DirectSound`。選它時請在接收程式選 **CABLE Output**；電腦喇叭沒有直接出聲是正常的。若想直接聽，請在下拉選單選實體喇叭；清單會同時顯示 Host API，送出時使用該精確配對。
 
 ## 常用操作
 

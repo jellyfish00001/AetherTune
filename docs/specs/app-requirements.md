@@ -30,6 +30,8 @@ Rust 負責 window／overlay／tray、程序、global hotkey、single instance�
 | Compact Overlay | 寬 380–450；Mode、Engine／Voice、裝置、Start／Stop、Latency／GPU、Transcript |
 | Mini Overlay | Running、Engine、Latency、Mic、Start／Stop、Expand |
 
+上述 Full 分頁是完整產品目標。2026-09-30 的開發版只顯示 `WORKSPACE` 與 `SETTINGS`；原 `LIVE`／`VOICE`／`TRANSCRIPT` 三個同畫面分頁及尚未完成的 `AUDIO` 頁暫時收起，待各頁有獨立功能與驗證後再開放。`WORKSPACE` 的 TTS 播放裝置與 VC 麥克風／輸出使用 PortAudio 端點下拉選擇；這不代表 Mic STT 或即時音訊鏈已完成。
+
 Overlay 必須支援 frameless、透明、Always on Top、drag、lock position、click-through、可調 opacity、模式切換、show／hide 與 Tray。預設 `Ctrl+Alt+A` 顯示／隱藏，`Ctrl+Alt+V` Start／Stop；快捷鍵可修改。Click-through 必須有快捷鍵／Tray 的解除入口。
 
 關閉主視窗預設收至 Tray。完整產品 Tray：Open、Show Overlay、Start／Stop、Mute、Current Engine、Open Transcript、Exit。第一輪只有可以實際執行的 window／runner／Exit 項目，Mute／Transcript 不作假操作。

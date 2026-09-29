@@ -26,6 +26,7 @@ export type SpeechQueueItem = {
   status: string;
   priority: number;
   metrics?: Record<string, unknown>;
+  route_snapshot?: { output: string; host_api: string };
   error?: string;
 };
 
@@ -75,6 +76,19 @@ export type SpeechSettings = {
   enter_to_send: boolean;
 };
 
+export type AudioDevice = {
+  name: string;
+  host_api: string;
+  channels: number;
+  is_default: boolean;
+  selectable: boolean;
+};
+
+export type AudioDevices = {
+  inputs: AudioDevice[];
+  outputs: AudioDevice[];
+};
+
 export type SpeechCapabilities = {
   microphone: 'WAITING' | string;
   manual_text: 'implemented' | string;
@@ -116,6 +130,7 @@ export type SpeechSubmitRequest = {
 };
 
 export type SpeechAction =
+  | { action: 'audio_devices' }
   | { action: 'submit'; request: SpeechSubmitRequest; enqueue?: boolean }
   | { action: 'stop_speaking' }
   | { action: 'clear_queue' }
@@ -130,6 +145,7 @@ export type SpeechActionAck = {
   accepted: boolean;
   message?: string;
   error?: unknown;
+  result?: unknown;
   snapshot?: Partial<SpeechSnapshot>;
   [key: string]: unknown;
 };
@@ -341,6 +357,16 @@ export function normalizeSpeechSnapshot(value: unknown): SpeechSnapshot {
 export async function getSpeechStatus(): Promise<SpeechSnapshot> {
   if (!native) return cloneDefaultSnapshot();
   return normalizeSpeechSnapshot(await command<unknown>('speech_status'));
+}
+
+export async function getAudioDevices(): Promise<AudioDevices> {
+  if (!native) return { inputs: [], outputs: [] };
+  const acknowledgement = await sendSpeechAction({ action: 'audio_devices' });
+  const result = acknowledgement.result as Partial<AudioDevices> | undefined;
+  if (!result || !Array.isArray(result.inputs) || !Array.isArray(result.outputs)) {
+    throw new Error('Audio device list 回傳格式不正確');
+  }
+  return { inputs: result.inputs, outputs: result.outputs };
 }
 
 /**

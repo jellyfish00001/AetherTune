@@ -67,6 +67,54 @@ def resolve_route(route: Any) -> dict[str, str]:
     }
 
 
+def list_audio_devices(*, timeout_seconds: float = 3.0) -> dict[str, list[dict[str, Any]]]:
+    """列出 PortAudio 端點，供 UI 選擇與播放路由相同的精確名稱／Host API。"""
+
+    done = Event()
+    outcome: dict[str, Any] = {"value": None, "error": None}
+
+    def enumerate_devices() -> None:
+        try:
+            import sounddevice as sd
+
+            hostapis = sd.query_hostapis()
+            devices = sd.query_devices()
+            defaults = sd.default.device
+            default_input = int(defaults[0])
+            default_output = int(defaults[1])
+            inputs: list[dict[str, Any]] = []
+            outputs: list[dict[str, Any]] = []
+            for index, device in enumerate(devices):
+                host_api = str(hostapis[int(device["hostapi"])]["name"])
+                name = str(device["name"])
+                input_channels = int(device.get("max_input_channels", 0))
+                output_channels = int(device.get("max_output_channels", 0))
+                if input_channels >= 1:
+                    inputs.append({"name": name, "host_api": host_api, "channels": input_channels, "is_default": index == default_input})
+                if output_channels >= 2:
+                    outputs.append({"name": name, "host_api": host_api, "channels": output_channels, "is_default": index == default_output})
+            for items in (inputs, outputs):
+                counts: dict[tuple[str, str], int] = {}
+                for item in items:
+                    key = (item["host_api"], item["name"])
+                    counts[key] = counts.get(key, 0) + 1
+                for item in items:
+                    item["selectable"] = counts[(item["host_api"], item["name"])] == 1
+            outcome["value"] = {"inputs": inputs, "outputs": outputs}
+        except BaseException as exc:
+            outcome["error"] = exc
+        finally:
+            done.set()
+
+    probe = Thread(target=enumerate_devices, name="aethertune-device-list", daemon=True)
+    probe.start()
+    if not done.wait(timeout=max(0.1, float(timeout_seconds))):
+        raise PlaybackError("DEVICE_INIT_TIMEOUT: PortAudio 裝置列舉逾時")
+    if outcome["error"] is not None:
+        raise PlaybackError(f"DEVICE_NOT_FOUND: 無法讀取 audio endpoints：{outcome['error']}") from outcome["error"]
+    return outcome["value"]
+
+
 class SoundDevicePlayback:
     """以 soundfile + sounddevice OutputStream 播放明確的 endpoint。"""
 

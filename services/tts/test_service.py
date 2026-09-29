@@ -21,7 +21,7 @@ import wave
 from pathlib import Path
 
 from .adapters import GenerationCancelled, GenerationResult
-from .playback import NullPlayback, PlaybackCancelled, PlaybackError, SoundDevicePlayback
+from .playback import NullPlayback, PlaybackCancelled, PlaybackError, SoundDevicePlayback, list_audio_devices
 from .service import SpeechService
 from .wsl_job import WslJob, to_wsl_path
 
@@ -33,6 +33,35 @@ ROUTE = {
     "rack_profile_id": "seed-vc-neutral",
     "route_profile_id": "seed-vc-virtual-route",
 }
+
+
+class DeviceListTests(unittest.TestCase):
+    def test_endpoint_list_keeps_host_api_default_and_duplicate_safety(self) -> None:
+        fake_sounddevice = types.SimpleNamespace(
+            query_hostapis=lambda: [{"name": "MME"}, {"name": "Windows DirectSound"}],
+            query_devices=lambda: [
+                {"name": "Mic", "hostapi": 0, "max_input_channels": 1, "max_output_channels": 0},
+                {"name": "Speaker", "hostapi": 0, "max_input_channels": 0, "max_output_channels": 2},
+                {"name": "Speaker", "hostapi": 1, "max_input_channels": 0, "max_output_channels": 2},
+                {"name": "Speaker", "hostapi": 1, "max_input_channels": 0, "max_output_channels": 2},
+            ],
+            default=types.SimpleNamespace(device=(0, 1)),
+        )
+        previous = sys.modules.get("sounddevice")
+        sys.modules["sounddevice"] = fake_sounddevice
+        try:
+            devices = list_audio_devices()
+        finally:
+            if previous is None:
+                sys.modules.pop("sounddevice", None)
+            else:
+                sys.modules["sounddevice"] = previous
+        self.assertEqual(len(devices["inputs"]), 1)
+        self.assertEqual(len(devices["outputs"]), 3)
+        self.assertTrue(devices["outputs"][0]["is_default"])
+        self.assertTrue(devices["outputs"][0]["selectable"])
+        self.assertFalse(devices["outputs"][1]["selectable"])
+        self.assertFalse(devices["outputs"][2]["selectable"])
 
 
 class FakeGenerationAdapter:

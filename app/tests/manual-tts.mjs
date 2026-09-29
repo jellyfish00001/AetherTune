@@ -22,7 +22,7 @@ async function selectTtsMode(page, expectedProfiles) {
   await mode.selectOption('speech_reconstruction');
   await page.waitForFunction(() => document.querySelector('[data-speech-mode="speech_reconstruction"]') !== null);
   assert.deepEqual(await page.getByLabel('Engine', { exact: true }).locator('option').allTextContents(), ['CosyVoice', 'Breeze TTS 2']);
-  assert.deepEqual(await page.getByLabel('Input', { exact: true }).locator('option').allTextContents(), ['microphone', 'manual_text', 'agent_reply · PLANNED']);
+  assert.deepEqual(await page.getByLabel('Input', { exact: true }).locator('option').allTextContents(), ['手動輸入文字', '麥克風轉文字 · WAITING', 'Agent Reply · PLANNED']);
   if (expectedProfiles) assert.deepEqual(await page.getByLabel('Voice profile').locator('option').allTextContents(), expectedProfiles);
 }
 
@@ -36,7 +36,7 @@ async function previewPass() {
   await selectTtsMode(page, ['Reference Female', 'Reference Male', 'Official CosyVoice Sample']);
   assert.equal(await page.getByRole('button', { name: 'Speak', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: 'Add to Queue', exact: true }).isDisabled(), true);
-  assert.equal(await page.getByLabel('Input', { exact: true }).locator('option:disabled').textContent(), 'agent_reply · PLANNED');
+  assert.equal(await page.getByLabel('Input', { exact: true }).locator('option:disabled').count(), 2);
   assert.ok(await page.getByText('CosyVoice3 · PLANNED', { exact: true }).isVisible());
   assert.ok(await page.getByText('Mic WAITING', { exact: false }).first().isVisible());
 
@@ -73,14 +73,13 @@ async function previewPass() {
   await page.getByRole('button', { name: '展開 Compact' }).click();
   await page.getByRole('button', { name: 'Full', exact: true }).click();
   await page.setViewportSize({ width: 1040, height: 740 });
-  await page.getByRole('button', { name: 'VOICE', exact: true }).click();
-  await page.waitForSelector('.speech-workspace');
-  await page.getByRole('button', { name: 'TRANSCRIPT', exact: true }).click();
-  await page.waitForSelector('.speech-workspace');
+  assert.equal(await page.getByRole('button', { name: 'VOICE', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'TRANSCRIPT', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'AUDIO', exact: true }).count(), 0);
   assert.ok(await page.getByText('completed playback only', { exact: true }).isVisible());
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   assert.equal(await page.getByLabel('Enter to send').isDisabled(), true);
-  await page.getByRole('button', { name: 'LIVE', exact: true }).click();
+  await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
   assert.deepEqual(diagnostics.errors, []);
   assert.deepEqual(diagnostics.network, []);
   await page.screenshot({ path: new URL('manual-tts-preview-full.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
@@ -109,6 +108,7 @@ async function mockTauri(page) {
       { id: 'cosyvoice', name: 'CosyVoice', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
       { id: 'breeze', name: 'Breeze TTS 2', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
     ];
+    const devices = { inputs: [{ name: '麥克風 (HyperX QuadCast S)', host_api: 'Windows DirectSound', channels: 1, is_default: true, selectable: true }], outputs: [{ name: 'CABLE Input (VB-Audio Virtual Cable)', host_api: 'Windows DirectSound', channels: 2, is_default: false, selectable: true }, { name: '喇叭 (HyperX QuadCast S)', host_api: 'MME', channels: 2, is_default: true, selectable: true }] };
     const invoke = async (command, args = {}) => {
       if (command === 'discover') return manifests;
       if (command === 'shell_status') return shell;
@@ -120,6 +120,7 @@ async function mockTauri(page) {
       if (command === 'speech_action') {
         window.__speechMockActions.push(args);
         if (window.__speechMockReject) throw new Error('MOCK_REJECT');
+        if (args.action?.action === 'audio_devices') return { accepted: true, result: devices };
         if (args.action?.action === 'settings') Object.assign(snapshot.settings, args.action.settings);
         return { accepted: true };
       }
@@ -142,7 +143,12 @@ async function mockPass() {
   await mockTauri(page);
   await page.goto(baseUrl);
   await page.waitForSelector('main[data-native="true"]');
+  await page.getByLabel('Input device').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelector('select[aria-label="Input device"]')?.querySelectorAll('option').length > 1);
+  assert.equal(await page.getByLabel('Input device').inputValue(), '麥克風 (HyperX QuadCast S)');
   await selectTtsMode(page, ['Reference Male']);
+  await page.waitForFunction(() => document.querySelector('select[aria-label="TTS Output"]')?.value === '1');
+  assert.ok((await page.getByLabel('TTS Output').locator('option:checked').textContent()).includes('系統預設'));
   const composer = page.getByLabel('Speech composer');
 
   await composer.fill('enter sends through speech action');
@@ -153,6 +159,8 @@ async function mockPass() {
   assert.equal(enterAction.action.action, 'submit');
   assert.equal(enterAction.action.enqueue, false);
   assert.equal(enterAction.action.request.source, 'manual');
+  assert.equal(enterAction.action.request.metadata.route.output, '喇叭 (HyperX QuadCast S)');
+  assert.equal(enterAction.action.request.metadata.route.host_api, 'MME');
   assert.equal(enterAction.action.request.metadata.route.rack_profile_id, 'seed-vc-neutral');
 
   await composer.fill('explicit queue action');

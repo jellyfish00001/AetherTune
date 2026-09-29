@@ -14,6 +14,7 @@ import {
   type SpeechSnapshot,
   type SpeechState,
   type VoiceProfile,
+  type AudioDevices,
 } from '../services/speech';
 
 export type ShellWithQuickInput = Shell & { quick_input?: boolean };
@@ -26,10 +27,12 @@ type SpeechWorkspaceProps = {
   shell: ShellWithQuickInput;
   onShellPatch: (patch: Partial<ShellWithQuickInput>) => Promise<void>;
   onError: (message: string) => void;
-  output: string;
-  hostApi: string;
-  onOutputChange: (value: string) => void;
-  onHostApiChange: (value: string) => void;
+  route: { output: string; host_api: string };
+  onRouteChange: (route: { output: string; host_api: string }) => void;
+  audioDevices: AudioDevices | null;
+  audioDeviceError: string;
+  audioDeviceBusy: boolean;
+  onReloadAudioDevices: () => Promise<void>;
   settingsOnly?: boolean;
   quickOnly?: boolean;
 };
@@ -151,20 +154,23 @@ export function SpeechWorkspace({
   shell,
   onShellPatch,
   onError,
-  output,
-  hostApi,
-  onOutputChange,
-  onHostApiChange,
+  route,
+  onRouteChange,
+  audioDevices,
+  audioDeviceError,
+  audioDeviceBusy,
+  onReloadAudioDevices,
   settingsOnly = false,
   quickOnly = false,
 }: SpeechWorkspaceProps) {
   const [snapshot, setSnapshot] = useState<SpeechSnapshot>(defaultSpeechSnapshot);
-  const [inputSource, setInputSource] = useState<SpeechInputSource>(() => readSessionValue<SpeechInputSource>('input-source', 'manual_text'));
+  const [inputSource, setInputSource] = useState<SpeechInputSource>('manual_text');
   const [profileId, setProfileId] = useState(() => readSessionValue('profile-id', defaultSpeechSnapshot.profiles[0]?.id ?? ''));
   const [text, setText] = useState(() => readSessionValue('composer', ''));
   const [settings, setSettings] = useState<SpeechSettings>(defaultSpeechSnapshot.settings);
   const [actionBusy, setActionBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [localNotice, setLocalNotice] = useState('');
   const composing = useRef(false);
   const mounted = useRef(true);
 
@@ -218,6 +224,13 @@ export function SpeechWorkspace({
   const ttsEngine = supportedEngines.find((engine) => engine.id === engineId) ?? supportedEngines[0];
   const profileIsDraft = !selectedProfile || (selectedProfile.status ?? 'draft').toLowerCase() !== 'ready';
   const isMicInput = inputSource === 'microphone';
+  const outputIndex = (audioDevices?.outputs ?? []).findIndex((device) => device.selectable && device.name === route.output && device.host_api === route.host_api);
+  const routeReady = outputIndex >= 0;
+  const routeIsVirtual = /CABLE|Voicemeeter/i.test(route.output);
+  const generationStart = current?.metrics?.generation_started_at;
+  const generationSeconds = current?.status === 'generating' && typeof generationStart === 'string'
+    ? Math.max(0, Math.floor((Date.now() - Date.parse(generationStart)) / 1000))
+    : null;
   const inputStatus = inputSource === 'microphone'
     ? `Mic ${snapshot.capabilities.microphone === 'implemented' && snapshot.mic_enabled ? 'ON' : 'WAITING'}`
     : inputSource === 'manual_text' ? 'Manual text implemented' : 'PLANNED';
@@ -231,6 +244,7 @@ export function SpeechWorkspace({
     }
     setActionBusy(true);
     setLocalError('');
+    setLocalNotice('');
     try {
       const acknowledgement = await sendSpeechAction(action, enqueue);
       if (acknowledgement.snapshot) setSnapshot((previous) => normalizeSpeechSnapshot({ ...previous, ...acknowledgement.snapshot }));
@@ -256,6 +270,10 @@ export function SpeechWorkspace({
       setLocalError('Voice profile 尚未讀取；目前不能建立 submit request。');
       return false;
     }
+    if (!routeReady) {
+      setLocalError('請先從下拉選單選擇目前可用的輸出裝置。');
+      return false;
+    }
     const accepted = await runAction({
       action: 'submit',
       request: {
@@ -266,8 +284,8 @@ export function SpeechWorkspace({
         metadata: {
           input_source: inputSource,
           route: {
-            output,
-            host_api: hostApi,
+            output: route.output,
+            host_api: route.host_api,
             rack_profile_id: 'seed-vc-neutral',
             route_profile_id: 'seed-vc-virtual-route',
           },
@@ -276,10 +294,11 @@ export function SpeechWorkspace({
     }, enqueue);
     if (accepted) {
       setText('');
+      setLocalNotice(`已加入 Speech Queue；${ttsEngine.name} 會先產生完整 WAV，生成中不會立即出聲。`);
       if (quickOnly) await onShellPatch({ quick_input: false });
     }
     return accepted;
-  }, [hostApi, inputSource, onShellPatch, output, quickOnly, runAction, selectedProfile, text, ttsEngine.id]);
+  }, [inputSource, onShellPatch, quickOnly, route, routeReady, runAction, selectedProfile, text, ttsEngine.id, ttsEngine.name]);
 
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || !settings.enter_to_send || composing.current || event.nativeEvent.isComposing) return;
@@ -308,6 +327,11 @@ export function SpeechWorkspace({
 
   if (settingsOnly) return <div className="speech-settings-page"><span className="eyebrow">TEXT → VOICE</span><h1>Speech settings</h1>{settingsPanel}</div>;
 
+  const outputSelector = <div className="composer-output">
+    <label>輸出裝置<select aria-label="TTS Output" value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ output: device.name, host_api: device.host_api }); }}><option value="">{audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置'}</option>{audioDevices?.outputs.map((device, index) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{device.name} · {device.host_api}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label>
+    <button type="button" className="text-button" disabled={!native || audioDeviceBusy} onClick={() => void onReloadAudioDevices()}>重新掃描裝置</button>
+  </div>;
+
   const composer = <section className="panel speech-composer">
     <div className="speech-panel-title"><h2>{quickOnly ? 'Quick input' : 'Manual composer'} <span>{text.length} characters</span></h2><span className="speech-input-status">{inputStatus}</span></div>
     <textarea
@@ -320,13 +344,16 @@ export function SpeechWorkspace({
       onCompositionEnd={() => { composing.current = false; }}
       rows={quickOnly ? 2 : 5}
     />
-    <div className="composer-footer"><span className="hint">{isMicInput ? 'Mic capture / real STT 尚未實作（WAITING）；manual composer 仍可使用。' : '不會把 PCM 經由 frontend IPC 傳送。'}</span><span className="speech-route-label">AUDIO WAITING</span></div>
+    {!quickOnly && outputSelector}
+    {audioDeviceError && <p role="alert" className="error">裝置清單讀取失敗：{audioDeviceError}</p>}
+    <div className="composer-footer"><span className="hint">{current?.status === 'generating' ? `正在生成完整 WAV${generationSeconds === null ? '' : ` · 已等待 ${generationSeconds} 秒`}；完成後才開始播放。` : routeReady ? (routeIsVirtual ? `輸出：${route.output}（虛擬線路；喇叭不會直接出聲）` : `輸出：${route.output}（${route.host_api}）`) : '請先選擇輸出裝置。'}</span><span className="speech-route-label">{current?.status === 'generating' ? 'GENERATING' : 'AUDIO WAITING'}</span></div>
     <div className="composer-actions">
-      <button type="button" className="start" disabled={!native || !text.trim() || actionBusy} onClick={() => void submit(false)}>Speak</button>
-      {!quickOnly && <button type="button" disabled={!native || !text.trim() || actionBusy} onClick={() => void submit(true)}>Add to Queue</button>}
+      <button type="button" className="start" disabled={!native || !routeReady || !text.trim() || actionBusy} onClick={() => void submit(false)}>Speak</button>
+      {!quickOnly && <button type="button" disabled={!native || !routeReady || !text.trim() || actionBusy} onClick={() => void submit(true)}>Add to Queue</button>}
       {!quickOnly && <button type="button" disabled={!text} onClick={() => setText('')}>Clear</button>}
     </div>
     {!native && <p className="preview-note">瀏覽器預覽：editor 可用，send disabled；不會假造 TTS accepted。</p>}
+    {localNotice && <p role="status" className="hint">{localNotice}</p>}
   </section>;
 
   if (quickOnly) return <section className="speech-quick-popup" data-testid="speech-quick-popup">
@@ -344,9 +371,7 @@ export function SpeechWorkspace({
           <div className="speech-control-grid">
             <label>Mode<select aria-label="Mode" value={mode} onChange={(event) => onModeChange(event.target.value)}><option value="speech_reconstruction">Speech Reconstruction</option><option value="text_to_speech">Text → Voice</option><option value="streaming_vc">Streaming VC</option></select></label>
             <label>Engine<select aria-label="Engine" value={ttsEngine.id} onChange={(event) => onEngineChange(event.target.value)}>{supportedEngines.map((engine) => <option key={engine.id} value={engine.id}>{engine.name}</option>)}</select></label>
-            <label>Input<select aria-label="Input" value={inputSource} onChange={(event) => setInputSource(event.target.value as SpeechInputSource)}><option value="microphone">microphone</option><option value="manual_text">manual_text</option><option value="agent_reply" disabled>agent_reply · PLANNED</option></select></label>
-            <label>Host API<input aria-label="TTS Host API" value={hostApi} onChange={(event) => onHostApiChange(event.target.value)}/></label>
-            <label>Output<input aria-label="TTS Output" value={output} onChange={(event) => onOutputChange(event.target.value)}/></label>
+            <label>文字來源<select aria-label="Input" value={inputSource} onChange={(event) => setInputSource(event.target.value as SpeechInputSource)}><option value="manual_text">手動輸入文字</option><option value="microphone" disabled>麥克風轉文字 · WAITING</option><option value="agent_reply" disabled>Agent Reply · PLANNED</option></select></label>
             <VoiceProfileSelect profiles={profiles} profileId={profileId} engineId={ttsEngine.id} onChange={setProfileId}/>
           </div>
           <div className="speech-engine-notes"><span>{ttsEngine.detail}</span><span className="planned-badge">CosyVoice3 · PLANNED</span></div>
@@ -362,7 +387,7 @@ export function SpeechWorkspace({
       <aside className="speech-side-column">
         <section className="panel speech-queue">
           <div className="speech-panel-title"><h2>Speech Queue <span>{activeQueueCount} active · {history.length} history</span></h2><button type="button" disabled={!native || actionBusy || activeQueueCount === 0} onClick={() => void runAction({ action: 'clear_queue' })}>Clear Queue</button></div>
-          {current ? <div className="queue-current"><div className="queue-item-heading"><span className="queue-status">CURRENT · {current.status}</span><button type="button" disabled={!native || actionBusy} onClick={() => void runAction({ action: 'stop_speaking' })}>Stop Speaking</button></div><p>{current.text}</p><small>{current.engine_id} · {current.voice_profile_id}</small></div> : <div className="queue-empty-action"><p className="empty-state">No current speech. TTS audio remains WAITING until backend evidence arrives.</p><button type="button" disabled>Stop Speaking</button></div>}
+          {current ? <div className="queue-current"><div className="queue-item-heading"><span className="queue-status">CURRENT · {current.status}{generationSeconds === null ? '' : ` · ${generationSeconds} 秒`}</span><button type="button" disabled={!native || actionBusy} onClick={() => void runAction({ action: 'stop_speaking' })}>Stop Speaking</button></div><p>{current.text}</p><small>{current.engine_id} · {current.voice_profile_id} · {current.route_snapshot?.output ?? '未記錄輸出裝置'}</small>{current.status === 'generating' && <p className="hint">正在載入模型並產生完整語音；播放尚未開始。請勿重複送出。</p>}</div> : <div className="queue-empty-action"><p className="empty-state">No current speech. TTS audio remains WAITING until backend evidence arrives.</p><button type="button" disabled>Stop Speaking</button></div>}
           <div className="queue-pending">{pending.map((item) => <div className="queue-item" key={item.id}><div><span className="queue-status">PENDING · {item.status}</span><p>{queueLabel(item)}</p></div><QueueItemActions item={item} busy={!native || actionBusy} onAction={(action) => void runAction(action)}/></div>)}</div>
           {history.length > 0 && <details className="queue-history" open><summary>Queue history ({history.length})</summary>{history.map((item) => <div className="queue-history-row" key={item.id}><span>{item.status}</span><span>{queueLabel(item)}</span>{item.error && <small>{item.error}</small>}</div>)}</details>}
         </section>

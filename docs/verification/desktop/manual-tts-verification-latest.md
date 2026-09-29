@@ -1,8 +1,18 @@
 # Manual TTS 增量實作與驗證
 
+## 2026-09-30：首次使用回報、裝置選擇與原生單句複核
+
+使用者回報 Speak 送出後看似無作用、裝置須手填，且 `LIVE`／`VOICE`／`TRANSCRIPT` 三個分頁沒有差別。當時 session `3e218dfc-40f0-4d30-bcf2-8e046b159fb7` 的三筆 request 都已被 Queue 接受，但 evidence 均為 `cancelled`，沒有完成 WAV／播放；畫面當時的 `CURRENT · generating` 是尚在生成完整 WAV。舊 UI 沒有顯示等待時間，且輸出預設為 `CABLE Input`，不會由實體喇叭直接發聲。不能把這三筆紀錄稱為生成失敗，也不能稱為音訊成功。
+
+修正：PortAudio 以有界查詢列出實際 input/output 與 Host API，同 Host API 重名端點不供選取。Streaming VC 的麥克風、輸出與 Host API 改為下拉選單；Manual TTS 在 Composer 旁顯示輸出下拉選單，預選系統預設播放端並提供重掃。Mic STT 尚未實作，文字來源的麥克風選項停用。Queue 顯示生成已等待秒數與該 request 的輸出路由；重複／空白分頁暫收起，只顯示 `WORKSPACE`／`SETTINGS`。
+
+本輪命令與結果：`app/dev.ps1 -Build` exit `0`，根目錄 `AetherTune.exe` SHA-256 `EF9E36FF7085EF4D8C872F2C956600CE255E746C016E4F6590EB08CFD4686786`；`app/dev.ps1 -Test` exit `0`（contract／engine／cache／TTS 24 tests／Rust 4 tests）；`npm run test:manual-tts-ui` 和 `npm run test:ui` 均 `PASS`（browser preview／mock IPC）。原生 WebView2 以 `AETHERTUNE_NATIVE_AUDIO_SMOKE=1` 執行 `node tests/manual-tts-native-smoke.mjs`，最終版 session `7a094b60-74a7-4643-8107-be05cd2a8cab`、request `25e2b112-9023-4407-b7e3-b85df562f257` 走過 `queued → generating → playing → completed`，console error `0`，Transcript 為 `completed`。另在原生 VC 畫面看到 5 組 Host API、DirectSound 下 12 個輸入與 16 個輸出選項；[TTS 選擇畫面](../../../output/playwright/manual-tts-native-smoke.png)、[VC 裝置畫面](../../../output/playwright/native-vc-device-dropdowns.png)已目視複核。
+
+這筆原生 request 的 route 是 `喇叭 (HyperX QuadCast S)`／`MME`，生成延遲 `79071.506 ms`，播放 callback 首音時間 `2026-09-29T16:34:26Z`，播放長度 `4.44 s`。生成 WAV 為 `106560` frames、`24000 Hz` mono、finite、RMS `0.0381664559`、peak `0.2388000488`；檔案 SHA-256 `de92565e57687dee6610b54a604a7e4d51dc4a5e378a4f698d4533fb374b988e` 與 evidence 相符。report 在 `artifacts/desktop/ui/manual-tts-native-smoke.json`，request evidence 在 `artifacts/sessions/7a094b60-74a7-4643-8107-be05cd2a8cab/25e2b112-9023-4407-b7e3-b85df562f257.evidence.json`。這證明本機文字生成非零 WAV 與指定實體端點的播放 callback 完成；未做喇叭實際聲壓／人耳聽評或物理 loopback，`route_status`／`playback_verified` 仍為 `WAITING`／`false`。實體 Mic、VC 即時音訊、外部 Rack、LIVE gate 亦未在本輪通過。
+
 > **入口更新（2026-09-30）：**本頁下方 2026-09-28 的命令與測試結果為當時紀錄；目前圖形入口是根目錄 `AetherTune.exe`，舊 Tk 控制台已移除。新的啟動修復見[App 驗證](app-verification-latest.md)。
 
-**文件邊界：**本報告只保存 2026-09-27～28 Desktop Manual TTS 的 service／Queue／生成／播放／Transcript 驗收命令與 evidence，不作完整操作手冊、產品需求或 LIVE 結論。第一次使用讀[快速說明](../../guides/quick-start.md)，建置與排錯讀[Desktop 手冊](../../guides/desktop-user-guide.md)，跨層維護讀[Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
+**文件邊界：**本報告保存 2026-09-27～28 與 2026-09-30 Desktop Manual TTS 的 service／Queue／生成／播放／Transcript 驗收命令與 evidence，不作完整操作手冊、產品需求或 LIVE 結論。第一次使用讀[快速說明](../../guides/quick-start.md)，建置與排錯讀[Desktop 手冊](../../guides/desktop-user-guide.md)，跨層維護讀[Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
 
 日期：2026-09-27～28（Asia/Taipei）。範圍依使用者「Manual TTS 與 Agent Reply Extension」規格：實作 Manual Text、統一 Request／Queue／Orchestrator、完成播放後的 Transcript，以及 Full／Compact／Mini 快速輸入。Agent API、Personality、Auto Reply、Phrase Hotkeys 停用且 PLANNED。
 

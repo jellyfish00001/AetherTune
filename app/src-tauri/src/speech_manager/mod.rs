@@ -76,7 +76,7 @@ impl SpeechManager {
     }
     pub fn action(&mut self, mut action: Value, external: Sink) -> Result<Value, String> {
         let name=action["action"].as_str().ok_or("缺少 speech action")?;
-        if !["submit","stop_speaking","clear_queue","remove","move_up","move_down","speak_now","settings","favorite","status"].contains(&name) {
+        if !["audio_devices","submit","stop_speaking","clear_queue","remove","move_up","move_down","speak_now","settings","favorite","status"].contains(&name) {
             return Err("不支援的 speech action".into());
         }
         self.ensure(external)?;

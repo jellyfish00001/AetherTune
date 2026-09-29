@@ -10,6 +10,7 @@ import {
   type Status,
 } from './services/desktop';
 import { SpeechWorkspace, type ShellWithQuickInput } from './components/SpeechWorkspace';
+import { getAudioDevices, type AudioDevices } from './services/speech';
 import './style.css';
 
 const initial: Status = {
@@ -46,6 +47,10 @@ function App() {
   const [input, setInput] = useState('麥克風 (HyperX QuadCast S)');
   const [output, setOutput] = useState('CABLE Input (VB-Audio Virtual Cable)');
   const [host, setHost] = useState('Windows DirectSound');
+  const [speechRoute, setSpeechRoute] = useState({ output: '', host_api: '' });
+  const [audioDevices, setAudioDevices] = useState<AudioDevices | null>(null);
+  const [audioDeviceError, setAudioDeviceError] = useState('');
+  const [audioDeviceBusy, setAudioDeviceBusy] = useState(false);
   const [log, setLog] = useState<Record<string, unknown>[]>([]);
   const [hotkeys, setHotkeys] = useState({
     visibility_hotkey: defaultShell.visibility_hotkey,
@@ -91,6 +96,33 @@ function App() {
   const locked = active || busy;
   const implemented = selected.implementation === 'skeleton';
   const request = { reference, source, input, output, host_api: host, parameters: {} };
+  const hostApis = Array.from(new Set([...(audioDevices?.inputs ?? []), ...(audioDevices?.outputs ?? [])].map((device) => device.host_api)));
+  const inputDevices = (audioDevices?.inputs ?? []).filter((device) => device.host_api === host);
+  const outputDevices = (audioDevices?.outputs ?? []).filter((device) => device.host_api === host);
+  const vcRouteValid = selected.adapter !== 'temporary_gui' || (
+    inputDevices.some((device) => device.name === input && device.selectable)
+    && outputDevices.some((device) => device.name === output && device.selectable)
+  );
+
+  async function reloadAudioDevices() {
+    setAudioDeviceBusy(true);
+    setAudioDeviceError('');
+    try {
+      const next = await getAudioDevices();
+      setAudioDevices(next);
+      setSpeechRoute((previous) => {
+        if (next.outputs.some((device) => device.selectable && device.name === previous.output && device.host_api === previous.host_api)) return previous;
+        const preferred = next.outputs.find((device) => device.selectable && device.is_default)
+          ?? next.outputs.find((device) => device.selectable);
+        return preferred ? { output: preferred.name, host_api: preferred.host_api } : { output: '', host_api: '' };
+      });
+    } catch (reason) {
+      setAudioDevices(null);
+      setAudioDeviceError(String(reason));
+    } finally {
+      setAudioDeviceBusy(false);
+    }
+  }
 
   async function act(fn: () => Promise<unknown>) {
     setError('');
@@ -167,8 +199,12 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (native) void reloadAudioDevices();
+  }, []);
+
   const modes = <div className="window-modes" aria-label="視窗模式">{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini'}</button>)}</div>;
-  const controls = <div className="actions"><button className="start" disabled={!native || !implemented || active || busy} onClick={() => void start()}>▶ START</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>■ STOP</button></div>;
+  const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>▶ START</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>■ STOP</button></div>;
   const meters = <div className="metrics"><div><span>LATENCY</span><strong>N/A <small>ms</small></strong></div><div><span>GPU</span><strong>N/A</strong></div><div><span>MIC / OUTPUT</span><strong className="waiting">WAITING</strong></div><div><span>STT</span><strong>OFFLINE</strong></div></div>;
 
   const speechProps = isSpeechMode ? {
@@ -179,10 +215,12 @@ function App() {
     shell,
     onShellPatch: changeShell,
     onError: setError,
-    output,
-    hostApi: host,
-    onOutputChange: setOutput,
-    onHostApiChange: setHost,
+    route: speechRoute,
+    onRouteChange: setSpeechRoute,
+    audioDevices,
+    audioDeviceError,
+    audioDeviceBusy,
+    onReloadAudioDevices: reloadAudioDevices,
   } : null;
   const speechWorkspace = speechProps ? <SpeechWorkspace {...speechProps} /> : null;
   const speechSettings = speechProps ? <SpeechWorkspace {...speechProps} settingsOnly /> : null;
@@ -197,24 +235,24 @@ function App() {
       {error && <div role="alert" className="error">{error}</div>}
     </> : <>
       <div className="topline"><span className="tag">{native ? 'LOCAL DESKTOP' : '瀏覽器預覽 · 無程序控制'}</span>{modes}</div>
-      {shell.mode === 'full' && <nav>{['LIVE', 'VOICE', 'TRANSCRIPT', 'AUDIO', 'SETTINGS'].map((tab) => <button key={tab} className={page === tab ? 'selected' : ''} onClick={() => setPage(tab)}>{tab}</button>)}</nav>}
+      {shell.mode === 'full' && <nav>{[{ id: 'LIVE', label: 'WORKSPACE' }, { id: 'SETTINGS', label: 'SETTINGS' }].map((tab) => <button key={tab.id} className={page === tab.id ? 'selected' : ''} onClick={() => setPage(tab.id)}>{tab.label}</button>)}</nav>}
       <div className="content">
-        {(page === 'LIVE' || page === 'VOICE' || page === 'TRANSCRIPT' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
+        {(page === 'LIVE' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
           <div className="headline"><div><span className="eyebrow">VOICE WORKSPACE</span><h1>{shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode]}</h1></div><span className="state"><i className="dot"/>{status.value}</span></div>
           <div className="live-grid"><section className="panel setup"><h2>Quick controls <span>M2 skeleton</span></h2>
             <label>Mode<select aria-label="Mode" disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
             <label>Engine <span className="classification">{selected.classification}</span><select aria-label="Engine" disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(''); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
             {shell.mode === 'full' && <>
               <label>Voice / Reference WAV<input aria-label="Reference WAV" disabled={locked} value={reference} onChange={(event) => setReference(event.target.value)}/></label>
-              {selected.adapter === 'file_runner' ? <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label> : selected.adapter === 'temporary_gui' ? <div className="device-fields"><label>Host API<input aria-label="Host API" disabled={locked} value={host} onChange={(event) => setHost(event.target.value)}/></label><label>Input<input aria-label="Input" disabled={locked} value={input} onChange={(event) => setInput(event.target.value)}/></label><label>Output<input aria-label="Output" disabled={locked} value={output} onChange={(event) => setOutput(event.target.value)}/></label></div> : null}
+              {selected.adapter === 'file_runner' ? <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label> : selected.adapter === 'temporary_gui' ? <div className="device-fields"><label>Host API<select aria-label="Host API" disabled={locked || !audioDevices} value={hostApis.includes(host) ? host : ''} onChange={(event) => { setHost(event.target.value); setInput(''); setOutput(''); }}><option value="">選擇 Host API</option>{hostApis.map((api) => <option key={api} value={api}>{api}</option>)}</select></label><label>麥克風／輸入裝置<select aria-label="Input device" disabled={locked || !audioDevices} value={inputDevices.some((device) => device.name === input && device.selectable) ? input : ''} onChange={(event) => setInput(event.target.value)}><option value="">選擇輸入裝置</option>{inputDevices.map((device, index) => <option key={`${device.name}-${index}`} value={device.name} disabled={!device.selectable}>{device.name}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label><label>輸出裝置<select aria-label="Output device" disabled={locked || !audioDevices} value={outputDevices.some((device) => device.name === output && device.selectable) ? output : ''} onChange={(event) => setOutput(event.target.value)}><option value="">選擇輸出裝置</option>{outputDevices.map((device, index) => <option key={`${device.name}-${index}`} value={device.name} disabled={!device.selectable}>{device.name}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label><button type="button" className="text-button" disabled={audioDeviceBusy || !native} onClick={() => void reloadAudioDevices()}>重新掃描裝置</button>{audioDeviceError && <p role="alert" className="error">裝置清單讀取失敗：{audioDeviceError}</p>}</div> : null}
             </>}
             <p className="adapter-label">{selected.adapter === 'temporary_gui' ? 'TEMPORARY · 官方 GUI；請在該 GUI 開啟音訊' : selected.adapter === 'file_runner' ? 'WAV runner · 即時音訊整合 WAITING' : 'PLANNED · 本輪僅描述契約'}</p>
             {controls}
-            {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation(`${result.valid ? '預檢 PASS · ' : '預檢 BLOCKED · '}${result.events.at(-1)?.reason ?? ''}`); })}>檢查啟動條件</button>}
+            {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || !vcRouteValid || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation(`${result.valid ? '預檢 PASS · ' : '預檢 BLOCKED · '}${result.events.at(-1)?.reason ?? ''}`); })}>檢查啟動條件</button>}
             {validation && <p role="status" className="hint">{validation}</p>}
           </section><section className="panel monitoring"><h2>狀態監控 <span>AUDIO WAITING</span></h2>{meters}<p className="hint">{status.reason}</p><div className="route"><span>INPUT</span><b>{selected.adapter === 'file_runner' ? 'Source WAV' : input}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>OUTPUT</span><b>{selected.adapter === 'file_runner' ? 'artifacts/desktop/runs/' : output}</b></div><p className="hint">{selected.limitations.join(' ')}</p></section></div>
           <section className="panel transcript"><div><h2>Transcript</h2><span className="waiting">M4 · WAITING</span></div><p>ME / REMOTE 語音紀錄尚未啟用。切換 Engine 的流程預留獨立 STT service。</p></section>
-        </> : page === 'SETTINGS' ? <>{isSpeechMode && speechSettings}{overlaySettings}</> : <section className="panel placeholder"><span className="eyebrow">{page}</span><h1>{page === 'VOICE' ? 'Voice Library' : page === 'AUDIO' ? 'Audio Device Registry' : 'Transcript History'}</h1><p>{page === 'VOICE' ? 'M5 · WAITING：VoiceProfile 尚未整合。' : page === 'AUDIO' ? 'WAITING：canonical Windows endpoint registry 尚未實作；Seed migration 使用現有 runner 核對 PortAudio 名稱。' : 'M4 · WAITING：SQLite、Mic／Remote VAD + STT 與匯出尚未啟用。'}</p></section>}
+        </> : <>{isSpeechMode && speechSettings}{overlaySettings}</>}
         {error && <div role="alert" className="error">{error}</div>}
       </div>
       <footer><span>ENGINE {selected.name} · {status.value}</span><span>音訊 WAITING</span><button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{shell.locked ? '解鎖位置' : '鎖定位置'}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>Click-through</button>}</footer>

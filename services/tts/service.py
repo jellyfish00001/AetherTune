@@ -34,7 +34,7 @@ if __package__ in (None, ""):
         GenerationResult,
         default_adapters,
     )
-    from services.tts.playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, resolve_route
+    from services.tts.playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, list_audio_devices, resolve_route
     from services.tts.storage import TranscriptStore, utc_now
 else:
     from .adapters import (
@@ -44,7 +44,7 @@ else:
         GenerationResult,
         default_adapters,
     )
-    from .playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, resolve_route
+    from .playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, list_audio_devices, resolve_route
     from .storage import TranscriptStore, utc_now
 
 
@@ -309,6 +309,8 @@ class SpeechService:
     # ---------- command implementations ----------
 
     def _dispatch(self, action: str, command: Mapping[str, Any]) -> dict[str, Any]:
+        if action == "audio_devices":
+            return list_audio_devices()
         if action == "submit":
             return self._submit(command)
         if action == "stop_speaking":

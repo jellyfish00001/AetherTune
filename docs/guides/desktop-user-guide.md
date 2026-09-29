@@ -52,20 +52,20 @@ wsl.exe --list --quiet
 
 ## 3. 第一次讓文字發聲
 
-1. 開啟 Desktop，選 **Full** 與 **LIVE** 頁。在 `Mode` 選 `Text → Voice` 或 `Speech Reconstruction`。這兩種模式目前共用 Manual TTS workspace。
+1. 開啟 Desktop，選 **Full** 與 **WORKSPACE** 頁。在 `Mode` 選 `Text → Voice` 或 `Speech Reconstruction`。這兩種模式目前共用 Manual TTS workspace。
 2. 如果已有 VC runner，先在 Streaming VC 模式按 `STOP`。VC 與 TTS 不可同時爭用 Output／GPU；Mic STT 的未來共存是另一件事。
 3. `Engine` 選 **CosyVoice**（目前實際使用 CosyVoice2）或 **Breeze TTS 2**。CosyVoice3 尚未接入。
-4. `Input` 選 **manual_text**。`microphone` 尚未有常駐實體 Mic/STT；選它仍能打字，但不會開始收音。`agent_reply` 停用。
+4. 「文字來源」目前是**手動輸入文字**。`microphone` 尚未有常駐實體 Mic/STT，選項停用；`agent_reply` 也尚未開放。
 5. 明確選 `Voice profile`，核對畫面顯示的 reference WAV／文字路徑。
-6. 設定 `Host API` 與 `Output`。本機已驗證組合如下，字串需完整一致：
+6. 在「輸出裝置」下拉選單選要聽的實體喇叭或虛擬線路；選單顯示 PortAudio 的裝置名稱與 Host API，預選系統預設播放端。可用「重新掃描裝置」更新清單。先前已有音訊擷取證據的虛擬線路組合如下：
 
    | 欄位 | 值 |
    |---|---|
    | Host API | `Windows DirectSound` |
    | Output | `CABLE Input (VB-Audio Virtual Cable)` |
 
-7. Composer 輸入 `今天先測試文字模式。`，按 **Speak** 一次。接受後 Composer 會清空；不是音訊已播完。
-8. 在 Speech Queue 看 `CURRENT` 與狀態：`GENERATING → BUFFERING → PLAYING`。完成後移入 `history`，Transcript 出現 `ME · manual_text` 和原文。
+7. Composer 輸入 `今天先測試文字模式。`，按 **Speak** 一次。接受後 Composer 會清空並顯示已加入 Queue；不是音訊已播完。
+8. 在 Speech Queue 看 `CURRENT` 與狀態：`GENERATING → BUFFERING → PLAYING`。`GENERATING` 期間畫面顯示已等待秒數與該筆 request 的輸出裝置；完整 WAV 未產生前不會出聲。完成後移入 `history`，Transcript 出現 `ME · manual_text` 和原文。
 9. 如果 Output 是 CABLE，需在接收程式選 **CABLE Output** 才會收得到。電腦喇叭沒有直接出聲不代表生成失敗，先看第 5 節路由。
 
 | Voice profile | 可用 Engine | 用途／限制 |
@@ -76,7 +76,7 @@ wsl.exe --list --quiet
 
 `WAITING`／`DRAFT` 表示 reference metadata、人工審核或完整 route 的狀態，不等於這次生成已失敗。可以跑已準備的測試 profile，但不能將它當成正式批准或聲線品質通過。自訂聲線由 Agent 修改 `contracts/voices/`，目前沒有 UI 的新增 Voice Library 功能。
 
-目前 TTS UI 可改文字、Engine、Voice、Input、Output／Host API、interrupt policy 與 Enter 行為；manifest 的進階參數不等於畫面已有可用控制項。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
+目前 TTS UI 可改文字、Engine、Voice、輸出裝置、interrupt policy 與 Enter 行為；文字來源只提供手動輸入。Streaming VC 的 Host API、麥克風輸入及輸出改用列舉下拉選單，但即時音訊仍須獨立驗收。manifest 的進階參數不等於畫面已有可用控制項。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
 
 ## 4. Speak、Queue 與取消
 
@@ -117,14 +117,14 @@ Manual Text → CosyVoice2／Breeze → Windows playback
 
 **CABLE Input 是 App 寫入的播放端；CABLE Output 是下游讀取的錄音端。** 不要反過來填。Desktop 不會替使用者更改 Windows 預設裝置，也不會自動插入 VST。
 
-Output 與 Host API 必須是 PortAudio 列舉的精確配對，且至少支援 2 output channels；adapter 播放為 48 kHz stereo。列出本機可選播放端點：
+輸出裝置下拉選單使用 PortAudio 列舉的精確名稱與 Host API 配對，只提供至少 2 output channels 且名稱在同一 Host API 中唯一的端點；adapter 播放為 48 kHz stereo。命令列也能唯讀列出本機播放端點：
 
 ```powershell
 Set-Location D:\AetherTune
 & .\tools\venvs\seed-vc\Scripts\python.exe -c "import json,sounddevice as sd; tts_apis=sd.query_hostapis(); print(json.dumps([{'name':d['name'],'host_api':tts_apis[d['hostapi']]['name'],'output_channels':d['max_output_channels']} for d in sd.query_devices() if d['max_output_channels']>=2],ensure_ascii=False,indent=2))"
 ```
 
-不同 Host API 可能有同名裝置；不能只看 Windows 顯示名稱。若想直接聽喇叭，需填該實體播放端點與正確 Host API，並另做實測；本輪 PASS 是明確的 CABLE／DirectSound 配對，不能推廣成所有裝置都通過。
+不同 Host API 可能有同名裝置；不能只看 Windows 顯示名稱。若想直接聽喇叭，請選清單中的實體播放端點；先前的 CABLE／DirectSound 擷取結果不能推廣成所有裝置都通過。
 
 接 Discord／OBS 或 VST 的步驟見 [operation-guide.md](operation-guide.md) 與 [audio-rack/README.md](../../audio-rack/README.md)。`seed-vc-neutral`／`seed-vc-virtual-route` 是共用外部設定身分，不是已在 App 內執行 Post-FX 的證據。未來 Self STT 必須讀實體 Mic，不能讀 CABLE Output 或最後混音，避免 TTS→STT→TTS 迴圈。
 
@@ -136,8 +136,7 @@ Set-Location D:\AetherTune
 | Compact（420×490） | 快速打字與 Queue；內容可捲動，下方 history／設定可能需要捲動 |
 | Mini（420×74） | 簡略狀態與 `[T]`；先在 Full／Compact 選 TTS Mode |
 | Mini `[T]`（展開至 420×260） | Quick Input → Speak；ACK accepted 後自動收起，失敗保留草稿。Popup 的 × 只收 popup |
-| `LIVE`／`VOICE`／`TRANSCRIPT` | TTS Mode 下目前顯示同一個 workspace；不是獨立的歷史 session browser／正式 Voice Library |
-| `AUDIO` | canonical 裝置 registry 仍為 placeholder；TTS 的 Output／Host API 在 workspace 填 |
+| `WORKSPACE` | 目前的 VC／TTS 操作畫面；舊 `LIVE`、`VOICE`、`TRANSCRIPT`、`AUDIO` 分頁尚未各自完成，因此暫不顯示重複或空白頁 |
 | `SETTINGS` | Speech settings（TTS Mode）與 Overlay／快捷鍵／Exit |
 
 Mini 的 `[T]` 停用時，按 `↗` 回 Compact，先將 Mode 改為 Text → Voice。Mini 不能做完整 Queue 管理；停止 current 請回 Compact／Full 用 Stop Speaking。`N/A ms` 不是實測延遲，完整 metrics 在 request exports。
@@ -159,9 +158,9 @@ Mini 的 `[T]` 停用時，按 `↗` 回 Compact，先將 Mode 改為 Text → V
 | `artifacts/desktop/shell.json` | Overlay mode／opacity／位置鎖定／快捷鍵；不保存所有 TTS 選擇 |
 | `artifacts/desktop/logs/` | VC runner logs；TTS 的模型錯誤主要讀 session job logs |
 
-service 首次進入 TTS 懶啟動，一次 App 執行可共用同一 TTS session。改 Engine／Voice／Input 或切頁不會重建服務；Exit 後再開是新 session，不自動續播舊 pending。GUI Transcript 顯示目前 session，尚無選舊 session 的操作；過去記錄仍在 SQLite／exports。
+service 在首次讀取音訊裝置時啟動，一次 App 執行可共用同一 TTS session。改 Engine／Voice 或切頁不會重建服務；Exit 後再開是新 session，不自動續播舊 pending。GUI Transcript 顯示目前 session，尚無選舊 session 的操作；過去記錄仍在 SQLite／exports。
 
-Composer／Input／profile 的 UI 暫存使用 WebView sessionStorage，切 layout 可保留，但不能當作退出後的可靠備份。Mode／Engine／Output 不保證重啟恢復，重開時重新核對。要備份歷史與常用語，先正常 Exit，再備份 `artifacts/tts/` 與需要的 `artifacts/sessions/`；不要只複製執行中的 SQLite 主檔而漏掉 WAL／SHM。這些資料可能含個人文字／聲音，不提交 Git。
+Composer／profile 的 UI 暫存使用 WebView sessionStorage，切 layout 可保留，但不能當作退出後的可靠備份。Mode／Engine／輸出裝置不保證重啟恢復，重開時重新核對。要備份歷史與常用語，先正常 Exit，再備份 `artifacts/tts/` 與需要的 `artifacts/sessions/`；不要只複製執行中的 SQLite 主檔而漏掉 WAL／SHM。這些資料可能含個人文字／聲音，不提交 Git。
 
 ## 8. 常見現象與下一步
 
@@ -169,6 +168,7 @@ Composer／Input／profile 的 UI 暫存使用 WebView sessionStorage，切 layo
 |---|---|
 | Browser 的 Speak 灰色 | 改開 Desktop exe；不是 backend 故障 |
 | TTS 的 START 灰色 | 使用 Speak／Add to Queue |
+| Speak 已接受但仍在 `generating` | runner 先產生完整 WAV；看已等待秒數，勿反覆送出。若轉為 failed，查看該筆 error／job evidence |
 | GENERATING 很久 | 看 current 與 job stdout／stderr；已有實測一至數分鐘，不重複提交 |
 | completed，但本機沒聽見 | 核對 Output，若用 CABLE 檢查下游是否讀 CABLE Output／監聽；不要把 completed 當 Discord／rack 驗收 |
 | rejected／QUEUE_BUSY | 查看 policy；草稿還在，等 current 完成或改新 request 的 policy |
