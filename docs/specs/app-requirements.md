@@ -51,6 +51,8 @@ Manifest canonical location：`contracts/engines/*.json`。參數控制項包含
 
 Manifest 只宣告現有 runner 真正接受的參數；Seed launcher 固定 realtime-tiny／FP32／CUDA 0，不將未支援 FP16／length adjust 誤呈為可修改。其他 upstream 選項需完成 runner support 才加入。
 
+RVC 已提供四個登錄角色的 `model_id`、Mic／來源 WAV、FCPE／RMVPE、pitch、index rate、chunk、crossfade 與 extra context 控制。`.pth/.index` 由 register 配對及驗 hash，不使用 zero-shot reference WAV。自己監聽預設關閉，可另選實體播放端；參數／監聽在執行時鎖定，Stop 後再啟動套用。實作存在與 callback 驗證不改變 CANDIDATE／LIVE 分類。
+
 Preset 保存 Mode、Engine、參數、reference、model、Audio Rack、input／output 與 STT settings。範例：Gaming Fast、VTuber Natural、Female Soft、Seed Low Latency／Quality、MeanVC2 40ms、CosyVoice Natural。
 
 VoiceProfile 獨立於模型：共用 reference audio／text，加 `engineOverrides` 的 Seed／Mean／Cosy 參數，或 RVC `.pth`／`.index`／pitch。選聲音取代每次找權重與 WAV。
@@ -66,6 +68,10 @@ Engine 切換採 Stop old → 釋放 GPU／audio → Load new → Ready → Star
 第一版控制協定是 JSON Lines over stdio，之後才評估 Named Pipe／Local Socket。已有 runner 不符合協定時由外層 Adapter 包裝；不修改 upstream 行為。開發期可標示 TEMPORARY 啟動 upstream GUI，最終日常產品必須是 headless runner。
 
 AudioDeviceRegistry 的 canonical device：`id/name/direction/host_api/channels/sample_rate/is_default`。Adapter 映射成 PortAudio name／index 或 WASAPI endpoint；不能讓不同 backend 形成不同 UI 身分。
+
+Manual TTS 的輸出選單預設每個裝置只顯示一項，收起重複 Host API、系統音效對應表、WDM-KS 與額外虛擬通道；進階選項保留完整 PortAudio 清單。MME 截短名稱只能在唯一符合完整名稱時合併；目前選中的 exact name／Host API 必須保留，切換顯示模式不得改變播放路由。這是顯示層篩選，不卸載系統裝置。
+
+Manual TTS 提供預設關閉的「自己監聽」與獨立耳機／喇叭選擇。提交時在 `metadata.route.monitor` 保存 `enabled`、精確 `output`／`host_api`，已接受的 queue request 保留快照，切 layout 不重設、完整重啟關閉。停播同時停止主輸出與監聽；監聽失敗只記錄獨立警告，不重播、改送或取消已完成主輸出。同名實體主輸出只開一條 stream，禁止將已知 CABLE／Voicemeeter 虛擬線路當監聽回送。主輸出為實體裝置時不受額外監聽開關影響。音訊仍在 Python playback 處理，不經 WebView／IPC 傳 PCM；本機 callback 不升格 Discord、聽評或 LIVE。
 
 Audio Rack 跨 backend 共用：EQ、De-Esser、Compressor、Saturation、Pitch Correction、Ambience、Limiter。MVP 只接既有 Light Host／Graillon／VB-CABLE／Voicemeeter；無法程式控制的效果標示 **External / Manual**，提供 Open Rack。不得自行寫完整 VST3 host或假稱已套用。
 

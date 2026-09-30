@@ -2,7 +2,7 @@
 // it verifies request shape and UI rejection behavior, and is not live audio evidence.
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const baseUrl = process.env.AETHERTUNE_URL ?? 'http://127.0.0.1:1420/';
 const artifactDir = new URL('../../artifacts/desktop/ui/', import.meta.url);
@@ -95,7 +95,8 @@ async function previewPass() {
 }
 
 async function mockTauri(page) {
-  await page.addInitScript(() => {
+  const rvc = JSON.parse(await readFile(new URL('../../contracts/engines/rvc.json', import.meta.url), 'utf8'));
+  await page.addInitScript(({ rvc }) => {
     window.isTauri = true;
     const callbacks = new Map();
     let nextCallback = 1;
@@ -105,7 +106,11 @@ async function mockTauri(page) {
     window.__speechMockReject = false;
     window.__speechMockBuffering = false;
     window.__speechMockQueueError = false;
+    window.__speechMockMonitorError = false;
+    window.__rvcMockStarts = [];
+    let runnerStatus = { value: 'OFFLINE', engine_id: null, reason: 'mock', audio_verified: false, service_alive: false };
     const speechStatus = () => {
+      if (window.__speechMockMonitorError) return { ...snapshot, queue: [{ id: 'monitor-warning', session_id: snapshot.session_id, source: 'manual', text: 'primary completed with monitor warning', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-30T00:00:00Z', status: 'completed', priority: 0, metrics: { monitor_status: 'failed', monitor_error: 'DEVICE_NOT_FOUND: mock headphones' } }] };
       if (window.__speechMockBuffering) return { ...snapshot, state: 'BUFFERING', current_request_id: 'current-ready', queue: [{ id: 'current-ready', session_id: snapshot.session_id, source: 'manual', text: 'buffering current item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'ready', priority: 0 }, { id: 'queued-1', session_id: snapshot.session_id, source: 'manual', text: 'queued pending item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'queued', priority: 0 }] };
       if (window.__speechMockQueueError) return { ...snapshot, queue: [{ id: 'queued-1', session_id: snapshot.session_id, source: 'manual', text: 'queued pending item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'queued', priority: 0 }, { id: 'failed-1', session_id: snapshot.session_id, source: 'manual', text: 'failed queue item', engine_id: 'cosyvoice', voice_profile_id: 'reference-male', created_at: '2026-09-27T00:00:00Z', status: 'failed', priority: 0, error: { code: 'TTS_FAILED', message: 'mock backend failure' } }] };
       return snapshot;
@@ -114,13 +119,24 @@ async function mockTauri(page) {
       { id: 'seed-vc', name: 'Seed-VC', capabilities: ['realtime_vc'], classification: 'CANDIDATE', adapter: 'temporary_gui', implementation: 'skeleton', limitations: [], parameters: [] },
       { id: 'cosyvoice', name: 'CosyVoice', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
       { id: 'breeze', name: 'Breeze TTS 2', capabilities: ['speech_reconstruction', 'text_to_speech'], classification: 'WAITING', adapter: 'planned', implementation: 'planned', limitations: [], parameters: [] },
+      rvc,
     ];
     const devices = { inputs: [{ name: '麥克風 (HyperX QuadCast S)', host_api: 'Windows DirectSound', channels: 1, is_default: true, selectable: true }], outputs: [{ name: 'CABLE Input (VB-Audio Virtual Cable)', host_api: 'Windows DirectSound', channels: 2, is_default: false, selectable: true }, { name: '喇叭 (HyperX QuadCast S)', host_api: 'MME', channels: 2, is_default: true, selectable: true }] };
+    devices.outputs.push(
+      { name: '喇叭 (HyperX QuadCast S)', host_api: 'Windows WASAPI', channels: 2, is_default: false, selectable: true },
+      { name: 'CABLE Input (VB-Audio Virtual C', host_api: 'MME', channels: 2, is_default: false, selectable: true },
+      { name: 'Microsoft 音效對應表 - Output', host_api: 'MME', channels: 2, is_default: false, selectable: true },
+      { name: 'Output (Voicemeeter Point 1)', host_api: 'Windows WDM-KS', channels: 8, is_default: false, selectable: true },
+      { name: 'Voicemeeter In 1 (VB-Audio Voicemeeter VAIO)', host_api: 'Windows DirectSound', channels: 8, is_default: false, selectable: true },
+      { name: 'CABLE In 16ch (VB-Audio Virtual Cable)', host_api: 'Windows DirectSound', channels: 16, is_default: false, selectable: true },
+    );
     const invoke = async (command, args = {}) => {
       if (command === 'discover') return manifests;
       if (command === 'shell_status') return shell;
       if (command === 'set_shell') { shell = args.shell; return null; }
-      if (command === 'status') return { value: 'OFFLINE', engine_id: null, reason: 'mock', audio_verified: false, service_alive: false };
+      if (command === 'status') return runnerStatus;
+      if (command === 'start') { window.__rvcMockStarts.push(args); runnerStatus = { ...runnerStatus, value: 'RUNNING', engine_id: args.engine, service_alive: true }; return runnerStatus; }
+      if (command === 'stop') { runnerStatus = { ...runnerStatus, value: 'OFFLINE', service_alive: false }; return runnerStatus; }
       if (command === 'logs') return [];
       if (command === 'window_status') return { size: { width: 1040, height: 740 }, position: { x: 0, y: 0 }, scale_factor: 1, visible: true, always_on_top: false, decorated: false, native_click_through: false, tray_registered: true };
       if (command === 'speech_status') return speechStatus();
@@ -140,7 +156,7 @@ async function mockTauri(page) {
       runCallback: (id, payload) => callbacks.get(id)?.(payload),
     };
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
-  });
+  }, { rvc });
 }
 
 async function mockPass() {
@@ -156,6 +172,63 @@ async function mockPass() {
   await selectTtsMode(page, ['Reference Male']);
   await page.waitForFunction(() => document.querySelector('select[aria-label="TTS Output"]')?.value === '1');
   assert.ok((await page.getByLabel('TTS Output').locator('option:checked').textContent()).includes('系統預設'));
+  // 同一裝置只列一次；展開／收起進階選項不能改掉使用者選中的 Host API。
+  const outputSelect = page.getByLabel('TTS Output');
+  assert.equal(await outputSelect.locator('option').count(), 3);
+  assert.equal((await outputSelect.locator('option').allTextContents()).some((label) => /WASAPI|WDM-KS|16ch|音效對應表/.test(label)), false);
+  await page.getByLabel('顯示進階輸出裝置').check();
+  assert.equal(await outputSelect.locator('option').count(), 9);
+  await outputSelect.selectOption('2');
+  await page.getByLabel('顯示進階輸出裝置').uncheck();
+  assert.equal(await outputSelect.inputValue(), '2');
+  await page.getByRole('button', { name: '重新掃描裝置', exact: true }).click();
+  assert.equal(await outputSelect.inputValue(), '2');
+  const routeComposer = page.getByLabel('Speech composer');
+  await routeComposer.fill('selected output remains explicit');
+  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  const selectedRoute = await page.evaluate(() => window.__speechMockActions.at(-1).action.request.metadata.route);
+  assert.equal(selectedRoute.host_api, 'Windows WASAPI');
+  assert.equal(selectedRoute.output, '喇叭 (HyperX QuadCast S)');
+  await outputSelect.selectOption('0');
+  assert.equal(await outputSelect.locator('option:checked').textContent(), 'CABLE Input (VB-Audio Virtual Cable)');
+  // 監聽預設關閉；啟用只加入獨立實體 route，不改掉 CABLE 主輸出。
+  const selfMonitor = page.getByLabel('自己監聽', { exact: true });
+  assert.equal(await selfMonitor.isChecked(), false);
+  assert.equal(selectedRoute.monitor.enabled, false);
+  await selfMonitor.check();
+  const monitorSelect = page.getByLabel('監聽裝置', { exact: true });
+  assert.equal(await monitorSelect.locator('option').count(), 2);
+  assert.equal((await monitorSelect.locator('option').allTextContents()).some((label) => /CABLE|Voicemeeter|WASAPI/.test(label)), false);
+  await routeComposer.fill('send and monitor separately');
+  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  const monitoredRoute = await page.evaluate(() => window.__speechMockActions.at(-1).action.request.metadata.route);
+  assert.equal(monitoredRoute.output, 'CABLE Input (VB-Audio Virtual Cable)');
+  assert.deepEqual(monitoredRoute.monitor, { enabled: true, output: '喇叭 (HyperX QuadCast S)', host_api: 'MME' });
+  await page.getByRole('button', { name: '重新掃描裝置', exact: true }).click();
+  assert.equal(await selfMonitor.isChecked(), true);
+  assert.equal(await monitorSelect.inputValue(), '1');
+  await page.getByRole('button', { name: 'Compact', exact: true }).click();
+  await page.setViewportSize({ width: 420, height: 490 });
+  assert.equal(await selfMonitor.isChecked(), true);
+  await monitorSelect.scrollIntoViewIfNeeded();
+  assert.ok((await monitorSelect.boundingBox()).width > 100);
+  await page.screenshot({ path: new URL('../../output/playwright/self-monitor-compact-mock.png', import.meta.url).pathname.replace(/^\/(\w:)/, '$1') });
+  await page.getByRole('button', { name: 'Full', exact: true }).click();
+  await page.setViewportSize({ width: 1040, height: 740 });
+  await page.locator('.speech-composer').screenshot({ path: new URL('../../output/playwright/self-monitor-mock.png', import.meta.url).pathname.replace(/^\/(\w:)/, '$1') });
+  await selfMonitor.uncheck();
+  await routeComposer.fill('send without monitor');
+  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  assert.equal((await page.evaluate(() => window.__speechMockActions.at(-1).action.request.metadata.route)).monitor.enabled, false);
+  await page.evaluate(() => { window.__speechMockMonitorError = true; });
+  await page.getByText('主輸出已完成，自己監聽失敗：DEVICE_NOT_FOUND: mock headphones', { exact: true }).waitFor();
+  await page.evaluate(() => { window.__speechMockMonitorError = false; });
+  await page.getByLabel('顯示進階輸出裝置').check();
+  await outputSelect.selectOption('1');
+  await page.getByLabel('顯示進階輸出裝置').uncheck();
+  await page.evaluate(() => { window.__speechMockActions = []; });
+  await mkdir(new URL('../../output/playwright/', import.meta.url), { recursive: true });
+  await page.locator('.composer-output').screenshot({ path: new URL('../../output/playwright/output-device-cleanup-mock.png', import.meta.url).pathname.replace(/^\/(\w:)/, '$1') });
   const composer = page.getByLabel('Speech composer');
 
   await composer.fill('enter sends through speech action');
@@ -235,8 +308,40 @@ async function mockPass() {
   await page.screenshot({ path: new URL('manual-tts-mock-mini.png', artifactDir).pathname.replace(/^\/(\w:)/, '$1') });
   const actions = await page.evaluate(() => window.__speechMockActions);
   await writeFile(new URL('manual-tts-mock-actions.json', artifactDir), JSON.stringify(actions, null, 2));
+  await page.getByRole('button', { name: '展開 Compact', exact: true }).click();
+  await page.getByRole('button', { name: 'Full', exact: true }).click();
+  await page.setViewportSize({ width: 1040, height: 740 });
+  await page.getByLabel('Mode', { exact: true }).selectOption('streaming_vc');
+  await page.getByLabel('Engine', { exact: true }).selectOption('rvc');
+  assert.equal(await page.getByLabel('Reference WAV').count(), 0);
+  assert.equal(await page.getByLabel('RVC model_id').inputValue(), 'Sage_CN_HeroicFemale');
+  assert.equal(await page.getByLabel('RVC f0_method').inputValue(), 'fcpe');
+  assert.equal(await page.getByLabel('RVC source_mode').inputValue(), 'microphone');
+  assert.ok(await page.getByRole('button', { name: '▶ START', exact: true }).isEnabled());
+  await page.getByLabel('RVC model_id').selectOption('Wukong_HeroicMale');
+  await page.getByLabel('RVC source_mode').selectOption('file');
+  assert.ok(await page.getByLabel('Source WAV').isVisible());
+  assert.equal(await page.getByLabel('Input device').count(), 0);
+  await page.getByLabel('RVC pitch').fill('3');
+  await page.getByLabel('RVC 自己監聽').check();
+  await page.getByRole('button', { name: '▶ START', exact: true }).click();
+  await page.waitForFunction(() => window.__rvcMockStarts.length === 1);
+  const rvcRequest = await page.evaluate(() => window.__rvcMockStarts[0]);
+  assert.equal(rvcRequest.engine, 'rvc');
+  assert.equal(rvcRequest.request.parameters.model_id, 'Wukong_HeroicMale');
+  assert.equal(rvcRequest.request.parameters.source_mode, 'file');
+  assert.equal(rvcRequest.request.parameters.pitch, 3);
+  assert.equal(rvcRequest.request.monitor.enabled, true);
+  assert.equal(rvcRequest.request.output, 'CABLE Input (VB-Audio Virtual Cable)');
+  assert.ok(await page.getByLabel('RVC model_id').isDisabled());
+  await page.getByRole('button', { name: '■ STOP', exact: true }).click();
+  assert.ok(await page.getByLabel('RVC model_id').isEnabled());
+  await mkdir(new URL('../../output/playwright/', import.meta.url), { recursive: true });
+  await page.screenshot({ path: new URL('../../output/playwright/rvc-controls-mock.png', import.meta.url).pathname.replace(/^\/(\w:)/, '$1') });
+  assert.deepEqual(diagnostics.errors, []);
+  assert.deepEqual(diagnostics.network, []);
   await browser.close();
-  return { status: 'PASS', consoleErrors: diagnostics.errors, networkErrors: diagnostics.network, actionCount: actions.length };
+  return { status: 'PASS', consoleErrors: diagnostics.errors, networkErrors: diagnostics.network, actionCount: actions.length, rvc: 'model/source/F0/pitch/monitor/start/stop payload PASS' };
 }
 
 const report = { status: 'PASS', preview: await previewPass(), mock: await mockPass(), note: 'Mock IPC validates DOM/request/rejection behavior only; it is not native TTS or audio evidence.' };

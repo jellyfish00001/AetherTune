@@ -1,5 +1,36 @@
 # Manual TTS 增量實作與驗證
 
+2026-10-01 共用輸出／監聽與 RVC 整合後，TTS 的完整 35 項 service regression、contracts、preview／mock UI 及 Desktop build 再次 PASS；前一日真實 TTS 監聽音訊 artifact 保留。最新版根目錄 exe 與重啟方式見 [RVC 整合報告](../backends/vcclient-rvc-probe-latest.md)，以下 exe hash 是各輪歷史 build。
+
+## 2026-09-30：獨立自己監聽
+
+Manual TTS 新增預設關閉的「自己監聽」，開啟後選獨立耳機／喇叭。主輸出與監聽在 Python 各開一條 callback stream，不經 WebView 傳 PCM；監聽裝置失敗僅回報警告，主輸出完成不重播。Stop 同時取消兩條路徑；已接受的 request 保存監聽快照，開關套用下次提交。相同實體名稱不重複播放，監聽排除已知 CABLE／Voicemeeter 虛擬線路。一般主輸出仍為 8 項、監聽為 4 項，進階主輸出保留 58 項。Discord 沒有新增專用控制，僅在[線路操作手冊](../../guides/operation-guide.md#直接接-discord)補上輸入／輸出設定說明。
+
+`python -m unittest services.tts.test_service` 的 34 項與後續新增的 monitor-open-blocked 單項均 PASS（合計 35 項）；涵蓋監聽 off／on、並行、不改主 route、同名裝置去重、失敗警告、Stop、driver timeout 有界／禁止重疊及 request／evidence 持久化。`npm run test:contracts`、`npm run test:manual-tts-ui`、TypeScript／Vite 與 `npm run tauri -- build --debug --no-bundle` 均 PASS。UI 以 Edge headless 在 `http://127.0.0.1:1420/` 檢查 Full `1040×740`、Compact `420×490`、Mini／Quick；監聽預設 off、選項排除虛擬線路、精確 submit route、重掃／切 layout 保留、失敗警告與 preview 禁止 send 均通過，console／page／network error 為 0。內建 Browser `1280×720` 複核實際 preview 的開關與說明版面；preview 不含原生裝置。截圖為 `output/playwright/self-monitor-mock.png` 與 `self-monitor-compact-mock.png`，只代表 mock UI。
+
+音訊實測使用已生成的 1.76 秒 Breeze WAV，SHA-256 `2ed22842bf02ac7b2ecd7fe91b7af57cfa29cbcf3dab89e8b3102ed814722784`；此輪不重新載入模型。`app/tests/manual-playback-diagnostic.py` 將主輸出送至 `CABLE Input / Windows DirectSound`，另在 `CABLE Output / Windows DirectSound` 擷取。關閉監聽的擷取 RMS `0.037683`、開啟為 `0.041401`，皆 finite／nonzero、capture error 0。兩次主輸出各寫入 `84480` frames，underrun 0；開啟時 `喇叭 (HyperX QuadCast S) / MME` 監聽亦寫入完整 `84480` frames、underrun 0，首次 callback 與主輸出差 2 ms。report／capture／child log 保存在 `artifacts/desktop/self-monitor-off-20260930/`、`self-monitor-on-20260930/`，包括來源與擷取 hash。這是實際 CABLE 接收及 HyperX callback 證據，**不是原生新版 UI、耳機人耳聽評、Discord 接收或 LIVE PASS**。
+
+可重跑同一組有限播放（第二個命令會把短語音送至 HyperX）：
+
+```powershell
+Set-Location D:\AetherTune
+$ttsWav = 'artifacts/sessions/breeze-switch-check-b6ff37a14e23477bb53e25bc2b0570ab/jobs/0c3ddca3-26c8-4b25-ad30-063d149fd68e/0c3ddca3-26c8-4b25-ad30-063d149fd68e.wav'
+& .\tools\venvs\seed-vc\Scripts\python.exe app/tests/manual-playback-diagnostic.py $ttsWav --output artifacts/desktop/self-monitor-off-recheck
+& .\tools\venvs\seed-vc\Scripts\python.exe app/tests/manual-playback-diagnostic.py $ttsWav --output artifacts/desktop/self-monitor-on-recheck --monitor-output '喇叭 (HyperX QuadCast S)' --monitor-host-api MME
+```
+
+根目錄 `AetherTune.exe` 已更新並與此輪 debug build 核對 SHA-256：`5D242BD44C7AB166B23CFF93CDA95C859705E77B3452C46B5D00D20C43FF6434`；前一個清單精簡版備份為 `artifacts/desktop/AetherTune-before-self-monitor-20260930.exe`。PID `37876` 仍是舊 App 的已載入映像，沒有強制停止或重啟既有 Breeze。**須 Tray → Exit，再重新開啟根目錄 exe**，才看得到精簡清單與監聽開關；關閉視窗只收進 Tray。當前工具未提供可用的原生視窗控制，因此新版 WebView2 操作、重啟預設與 Discord 通話接收保持 `WAITING`；下節 exe hash 是前一版歷史紀錄。
+
+## 2026-09-30：輸出裝置清單精簡
+
+本機 PortAudio 原始清單有 58 個 output；主要是 14 個 Windows 播放端點經不同 Host API 重複列出，另外含系統音效對應表與 WDM-KS 原始端點。Voicemeeter 額外輸入與 CABLE 16ch 是驅動內建端點，沒有證據顯示為 AetherTune 測試建立。一般 Manual TTS 選單縮為 8 個裝置，進階選項保留完整 58 項；沒有卸載／停用 Windows 音訊裝置或更動預設播放端。選中的進階 route 收起後仍保留 exact name／Host API。
+
+`npm run build`、`npm run test:manual-tts-ui` 與 `npm run tauri -- build --debug --no-bundle` 均 PASS。實際 inventory 對照結果保存在 `artifacts/desktop/output-device-cleanup.json`，8 個一般選項包含 HyperX、螢幕音訊、Realtek 喇叭／數位輸出、VB-CABLE 與 Voicemeeter 的主／AUX／VAIO3 輸入。所有 selectable 原始 route 都通過保留檢核；有歧義的 MME prefix 不合併、僅有 WDM-KS 或未知 API 時仍保留裝置。
+
+Playwright 使用 Edge headless，`http://127.0.0.1:1420/`，Full `1040×740`、Compact `420×490`、Mini／Quick `420×74`／`420×260`；preview／mock IPC PASS，console/page error 與 request failure 均 0。mock 驗證一般清單去重、進階展開／收起、重新掃描與 submit payload 的 exact route；內建 Browser 複核文字發聲頁的輸出控制與進階選項版面。此輪未重新驗證原生 WebView2 的實體播放，不將 UI PASS 升格音訊或 LIVE。
+
+根目錄 `AetherTune.exe` 已更新，與 debug build SHA-256 相同：`D76C5B5FFF0CBE04FFB6DBBFC2904EF6378D81ABBD1DA7D895BD55C80FB67187`。舊檔備份在 `artifacts/desktop/AetherTune-before-output-cleanup-20260930.exe`；執行中的 App PID `37876` 保持原樣，沒有重啟或中斷已載入的 Breeze。下一次完整 Exit 後重新開啟根目錄 exe，才套用新選單。原生新版裝置選擇仍 `WAITING`；截圖 `output/playwright/output-device-cleanup-mock.png` 只代表 mock UI。
+
 ## 2026-09-30：雙引擎常駐、中文參考聲音與單一設定入口
 
 本輪將 Desktop Manual TTS 的 CosyVoice2／Breeze TTS 2 都改為 service 持有的 WSL worker。第一句載入模型，後續同引擎句子在同一 process 推論；切換引擎或關閉 Desktop service 時清理前一個 worker。這只適用於當前 Desktop service 存活期間；重新啟動程式後仍須首次載入。兩引擎仍先產生完整 WAV 再播放，沒有 chunk streaming。

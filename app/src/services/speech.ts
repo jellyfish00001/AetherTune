@@ -90,6 +90,49 @@ export type AudioDevices = {
   outputs: AudioDevice[];
 };
 
+export type SpeechRoute = {
+  output: string;
+  host_api: string;
+  monitor?: { enabled: boolean; output: string; host_api: string };
+};
+
+export type OutputDeviceChoice = { device: AudioDevice; index: number; label: string; isDefault: boolean };
+
+export function outputDeviceChoices(
+  outputs: AudioDevice[],
+  route?: { output: string; host_api: string },
+  showAll = false,
+): OutputDeviceChoice[] {
+  const choices = outputs.map((device, index) => ({ device, index, label: device.name, isDefault: device.is_default }));
+  if (showAll) return choices;
+  const selected = choices.find(({ device }) => device.selectable && device.name === route?.output && device.host_api === route?.host_api);
+  const usable = choices.filter(({ device }) => device.selectable);
+  const hasStandardApi = usable.some(({ device }) => device.host_api !== 'Windows WDM-KS');
+  const fullNames = [...new Set(usable.filter(({ device }) => ['Windows DirectSound', 'Windows WASAPI'].includes(device.host_api)).map(({ device }) => device.name.trim()))];
+  const groups = new Map<string, OutputDeviceChoice[]>();
+  for (const choice of usable) {
+    const { device } = choice;
+    // MME 會截短名稱；只有唯一符合完整名稱時才合併，避免把不同裝置猜成同一個。
+    const prefix = device.name.trim();
+    const matches = device.host_api === 'MME' ? fullNames.filter((name) => name.startsWith(prefix)) : [];
+    const name = matches.length === 1 ? matches[0] : prefix;
+    const alias = /^(Microsoft (Sound Mapper|音效對應表) - Output|Primary Sound Driver|主要音效驅動程式)$/i.test(name);
+    const extraChannel = /^(Voicemeeter In \d+\b|CABLE In 16\s*ch\b)/i.test(name);
+    if (choice !== selected && (alias || extraChannel || (hasStandardApi && device.host_api === 'Windows WDM-KS'))) continue;
+    const group = groups.get(name) ?? [];
+    group.push({ ...choice, label: name });
+    groups.set(name, group);
+  }
+  const apiRank = (device: AudioDevice) => ['Windows DirectSound', 'MME', 'Windows WASAPI'].indexOf(device.host_api);
+  return [...groups.values()].map((group) => {
+    // 清單精簡不改播放身分：保留目前選中的 exact name + host_api，再優先系統預設。
+    const choice = group.find((item) => item.index === selected?.index)
+      ?? group.find((item) => item.isDefault)
+      ?? [...group].sort((a, b) => (apiRank(a.device) < 0 ? 99 : apiRank(a.device)) - (apiRank(b.device) < 0 ? 99 : apiRank(b.device)))[0];
+    return { ...choice, isDefault: group.some((item) => item.isDefault) };
+  });
+}
+
 export type SpeechCapabilities = {
   microphone: 'WAITING' | string;
   manual_text: 'implemented' | string;
@@ -121,9 +164,7 @@ export type SpeechSubmitRequest = {
   source: 'manual';
   metadata: {
     input_source: SpeechInputSource;
-    route: {
-      output: string;
-      host_api: string;
+    route: SpeechRoute & {
       rack_profile_id: string;
       route_profile_id: string;
     };

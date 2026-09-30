@@ -36,7 +36,9 @@ await page.getByLabel('Mode',{exact:true}).selectOption('streaming_vc');
 await page.getByLabel('Engine',{exact:true}).selectOption('meanvc2');
 assert.ok(await page.getByLabel('Source WAV',{exact:true}).isVisible());
 await page.getByLabel('Engine',{exact:true}).selectOption('rvc');
-assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
+assert.equal(await page.getByLabel('RVC model_id').inputValue(),'Sage_CN_HeroicFemale');
+assert.equal(await page.getByLabel('Reference WAV',{exact:true}).count(),0);
+if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
 await page.getByLabel('Engine',{exact:true}).selectOption('seed-vc');
 if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
 if(native){

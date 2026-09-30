@@ -25,12 +25,12 @@ impl EngineManager {
     pub fn status(&self) -> Value { let mut s = self.snapshot.lock().unwrap().clone(); s["service_alive"] = json!(self.process.as_ref().is_some_and(|p| p.alive())); s }
     pub fn logs(&self) -> Vec<Value> { self.logs.lock().unwrap().iter().cloned().collect() }
     fn command(engine: &str, request: Value) -> Result<Command, String> {
-        if !["seed-vc", "meanvc2", "xvc"].contains(&engine) { return Err("BACKEND_UNAVAILABLE: 此 engine 僅有契約".into()); }
+        if !["seed-vc", "meanvc2", "xvc", "rvc"].contains(&engine) { return Err("BACKEND_UNAVAILABLE: 此 engine 僅有契約".into()); }
         let folder = root().join("artifacts/desktop/control"); fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
         let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
         let path = folder.join(format!("request-{nonce}.json"));
         fs::write(&path, serde_json::to_vec(&request).unwrap()).map_err(|e| e.to_string())?;
-        let python = root().join(format!("tools/venvs/{engine}/Scripts/python.exe"));
+        let python = root().join(if engine=="rvc" {".venv/Scripts/python.exe".to_owned()} else {format!("tools/venvs/{engine}/Scripts/python.exe")});
         if !python.is_file() { return Err(format!("MODEL_NOT_FOUND: {}", python.display())); }
         let mut command = Command::new(python);
         command.args(["-u", "-B"]).arg(root().join("services/engines/runner_service.py"))

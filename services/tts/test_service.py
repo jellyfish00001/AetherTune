@@ -21,7 +21,7 @@ import wave
 from pathlib import Path
 
 from .adapters import GenerationCancelled, GenerationResult
-from .playback import NullPlayback, PlaybackCancelled, PlaybackError, SoundDevicePlayback, list_audio_devices
+from .playback import MonitoredPlayback, NullPlayback, PlaybackCancelled, PlaybackError, SoundDevicePlayback, list_audio_devices, resolve_route
 from .service import SpeechService
 from .wsl_job import WslJob, to_wsl_path
 
@@ -62,6 +62,121 @@ class DeviceListTests(unittest.TestCase):
         self.assertTrue(devices["outputs"][0]["selectable"])
         self.assertFalse(devices["outputs"][1]["selectable"])
         self.assertFalse(devices["outputs"][2]["selectable"])
+
+
+class MonitorPlaybackTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.primary = NullPlayback(seconds=0.01)
+        self.monitor = NullPlayback(seconds=0.01)
+        self.playback = MonitoredPlayback(primary=self.primary, monitor=self.monitor, monitor_join_timeout_seconds=0.1)
+        self.route = {**ROUTE, "monitor": {"enabled": True, "output": "Headphones", "host_api": "MME"}}
+
+    def test_off_does_not_open_monitor(self) -> None:
+        result = self.playback.play(Path("fake.wav"), {**self.route, "monitor": {"enabled": False}}, threading.Event())
+        self.assertEqual(result.monitor_status, "off")
+        self.assertEqual(len(self.primary.calls), 1)
+        self.assertEqual(self.monitor.calls, [])
+
+    def test_monitor_runs_concurrently_without_changing_primary(self) -> None:
+        started = threading.Event()
+
+        class GatedPrimary(NullPlayback):
+            def play(self, audio_path, route, cancel_event):
+                if not started.wait(1):
+                    raise AssertionError("monitor must start before primary finishes")
+                return super().play(audio_path, route, cancel_event)
+
+        class StartingMonitor(NullPlayback):
+            def play(self, audio_path, route, cancel_event):
+                started.set()
+                return super().play(audio_path, route, cancel_event)
+
+        playback = MonitoredPlayback(primary=GatedPrimary(), monitor=StartingMonitor())
+        result = playback.play(Path("fake.wav"), self.route, threading.Event())
+        self.assertEqual(result.output_name, ROUTE["output"])
+        self.assertEqual(result.monitor_output, "Headphones")
+        self.assertEqual(result.monitor_status, "completed")
+        self.assertEqual(result.monitor_frames_written, 1)
+        self.assertFalse(result.playback_verified)
+
+    def test_monitor_failure_does_not_replay_or_fail_primary(self) -> None:
+        class FailedMonitor(NullPlayback):
+            def play(self, *args):
+                raise PlaybackError("DEVICE_NOT_FOUND: headphones removed")
+
+        playback = MonitoredPlayback(primary=self.primary, monitor=FailedMonitor())
+        result = playback.play(Path("fake.wav"), self.route, threading.Event())
+        self.assertEqual(len(self.primary.calls), 1)
+        self.assertEqual(result.monitor_status, "failed")
+        self.assertIn("headphones removed", result.monitor_error)
+
+    def test_same_physical_output_avoids_double_playback_across_apis(self) -> None:
+        route = {**self.route, "output": "Headphones", "host_api": "Windows WASAPI"}
+        result = self.playback.play(Path("fake.wav"), route, threading.Event())
+        self.assertEqual(result.monitor_status, "same_output")
+        self.assertEqual(self.monitor.calls, [])
+
+    def test_monitor_open_blocked_does_not_block_primary_output(self) -> None:
+        self.monitor.open_blocked = True
+        result = self.playback.play(Path("fake.wav"), self.route, threading.Event())
+        self.assertIn("MONITOR_BLOCKED", result.monitor_error)
+        self.assertEqual(len(self.primary.calls), 1)
+        self.assertFalse(self.playback.open_blocked)
+        self.assertEqual(self.monitor.calls, [])
+
+    def test_stop_cancels_both_streams(self) -> None:
+        self.primary.seconds = self.monitor.seconds = 3
+        cancel = threading.Event()
+        errors = []
+
+        def play():
+            try:
+                self.playback.play(Path("fake.wav"), self.route, cancel)
+            except PlaybackCancelled as exc:
+                errors.append(exc)
+
+        thread = threading.Thread(target=play)
+        thread.start()
+        deadline = time.monotonic() + 1
+        while not self.primary.calls and time.monotonic() < deadline:
+            time.sleep(0.005)
+        cancel.set()
+        self.playback.stop()
+        thread.join(timeout=1)
+        self.assertFalse(thread.is_alive())
+        self.assertFalse(self.playback._monitor_thread.is_alive())
+        self.assertEqual(len(errors), 1)
+        self.assertGreaterEqual(self.primary.stop_calls, 1)
+        self.assertGreaterEqual(self.monitor.stop_calls, 1)
+
+    def test_stalled_monitor_is_bounded_and_cannot_overlap_next_request(self) -> None:
+        release = threading.Event()
+
+        class StalledMonitor(NullPlayback):
+            def play(self, *args):
+                self.calls.append({})
+                release.wait(2)
+                raise PlaybackError("fixture released")
+
+        monitor = StalledMonitor()
+        playback = MonitoredPlayback(primary=self.primary, monitor=monitor, monitor_join_timeout_seconds=0.1)
+        try:
+            started = time.monotonic()
+            first = playback.play(Path("fake.wav"), self.route, threading.Event())
+            self.assertLess(time.monotonic() - started, 0.8)
+            self.assertIn("MONITOR_TIMEOUT", first.monitor_error)
+            second = playback.play(Path("fake.wav"), self.route, threading.Event())
+            self.assertIn("MONITOR_BLOCKED", second.monitor_error)
+            self.assertEqual(len(monitor.calls), 1)
+        finally:
+            release.set()
+            playback._monitor_thread.join(timeout=1)
+
+    def test_monitor_route_validation_rejects_virtual_loop_and_missing_target(self) -> None:
+        for target in ({"enabled": "false"}, {"enabled": True}, {"enabled": True, "output": "CABLE Input", "host_api": "MME"}):
+            with self.subTest(target=target), self.assertRaises(PlaybackError):
+                resolve_route({**ROUTE, "monitor": target})
+        self.assertEqual(resolve_route({**ROUTE, "monitor": {"enabled": False}})["monitor"], {"enabled": False})
 
 
 class FakeGenerationAdapter:
@@ -172,6 +287,33 @@ class ServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.service.close()
         self.folder.cleanup()
+
+    def test_monitor_warning_and_route_snapshot_are_persisted_after_primary_completion(self) -> None:
+        class WarningPlayback(NullPlayback):
+            def play(self, audio_path, route, cancel_event):
+                from dataclasses import replace
+                return replace(super().play(audio_path, route, cancel_event), monitor_status="failed",
+                               monitor_output="Headphones", monitor_host_api="MME", monitor_error="DEVICE_NOT_FOUND: fixture")
+
+        self.service.close()
+        self.service = SpeechService(self.root, adapters={"cosyvoice": self.adapter, "breeze": self.adapter}, playback=WarningPlayback())
+        command = self.request("monitor persistence")
+        route = {**ROUTE, "monitor": {"enabled": True, "output": "Headphones", "host_api": "MME"}}
+        command["request"]["metadata"]["route"] = route
+        request_id = self.service.handle_command(command)["result"]["request_id"]
+        # 提交後修改呼叫者物件，不得改掉已接受 request 的監聽快照。
+        route["monitor"]["enabled"] = False
+        completed = self.wait_status(request_id, "completed")
+        self.assertTrue(completed["route_snapshot"]["monitor"]["enabled"])
+        self.assertEqual(completed["metrics"]["monitor_status"], "failed")
+        self.assertIsNone(completed["error"])
+        deadline = time.monotonic() + 1
+        evidence_path = self.root / "artifacts" / "sessions" / self.service.session_id / f"{request_id}.evidence.json"
+        while not evidence_path.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        self.assertEqual(evidence["route_resolution"]["monitor"]["status"], "failed")
+        self.assertEqual(len(self.service.snapshot()["snapshot"]["transcript"]), 1)
 
     def request(self, text: str, *, enqueue: bool = True, policy: str = "queue", profile: str = "reference-male") -> dict:
         return {

@@ -125,6 +125,19 @@ impl Drop for Process { fn drop(&mut self) { let _ = self.stop(); } }
 mod tests {
     use super::*;
     #[test]
+    #[cfg(windows)]
+    fn rvc_native_imports_complete() {
+        // 與正式服務相同的 Job／隱藏視窗條件；防止 DLL 載入只在一般終端成功。
+        let python=crate::engine_manager::root().join(".venv/Scripts/python.exe");
+        let (tx,rx)=std::sync::mpsc::channel();
+        let mut command=Command::new(python);
+        command.args(["-u","-c","import subprocess,sys; p=subprocess.Popen([sys.executable,'-u','-c','import torch; import faiss; print(1,flush=True)'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT); out=p.communicate(timeout=20)[0]; assert p.returncode==0,out; print('{\"type\":\"imports_ready\"}',flush=True)"]);
+        let mut process=Process::spawn(command,Arc::new(move|event|{let _=tx.send(event);})).unwrap();
+        let event=rx.recv_timeout(Duration::from_secs(30)).expect("RVC native DLL imports timed out");
+        assert_eq!(event["type"],"imports_ready");
+        process.stop().unwrap();
+    }
+    #[test]
     fn stop_reaps_owned_process() {
         let mut command = Command::new("cmd.exe"); command.args(["/c", "ping", "-n", "30", "127.0.0.1"]);
         let mut p = Process::spawn(command, Arc::new(|_| {})).unwrap();

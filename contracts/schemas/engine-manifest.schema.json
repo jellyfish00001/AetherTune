@@ -65,6 +65,7 @@
       "enum": [
         "temporary_gui",
         "file_runner",
+        "stream_runner",
         "planned"
       ]
     },

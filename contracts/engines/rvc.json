@@ -1,38 +1,59 @@
 {
+  "id": "rvc",
+  "name": "RVC + FCPE",
   "family": "streaming-vc",
   "capabilities": [
     "realtime_vc"
   ],
-  "referenceVoice": true,
-  "classification": "LEGACY",
-  "implementation": "planned",
-  "requiredPaths": [],
-  "id": "rvc",
-  "name": "RVC + FCPE (Legacy)",
-  "adapter": "planned",
+  "referenceVoice": false,
+  "classification": "CANDIDATE",
+  "implementation": "implemented",
+  "adapter": "stream_runner",
+  "requiredPaths": [
+    ".venv/Scripts/python.exe",
+    "services/engines/rvc_runtime.py",
+    "models/model-register.csv",
+    ".venv/Lib/site-packages/torchfcpe/assets/fcpe_c_v001.pt",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/infer/rtrvc.py",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/infer/fcpe.py",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/assets/hubert_base/config.json",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/assets/hubert_base/preprocessor_config.json",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/assets/hubert_base/pytorch_model.bin",
+    "tools/external/Retrieval-based-Voice-Conversion-WebUI/assets/rmvpe/rmvpe.pt"
+  ],
   "limitations": [
-    "描述契約；第一輪不整合。"
+    "模型來源／授權仍待核對；Mic、人耳聽評、外部 Rack、Discord 與 600 秒 LIVE 分開驗收。"
   ],
   "parameters": [
     {
-      "name": "model",
-      "label": "Model",
-      "type": "file",
+      "name": "model_id",
+      "label": "角色模型",
+      "type": "select",
       "level": "basic",
-      "default": "",
+      "default": "Sage_CN_HeroicFemale",
+      "options": [
+        "Chinese_Narrator_Uncle",
+        "Kafka_CN_Yujie",
+        "Sage_CN_HeroicFemale",
+        "Wukong_HeroicMale"
+      ],
       "runtime": false
     },
     {
-      "name": "index",
-      "label": "Index",
-      "type": "file",
+      "name": "source_mode",
+      "label": "輸入來源",
+      "type": "select",
       "level": "basic",
-      "default": "",
+      "default": "microphone",
+      "options": [
+        "microphone",
+        "file"
+      ],
       "runtime": false
     },
     {
       "name": "f0_method",
-      "label": "F0",
+      "label": "音高擷取",
       "type": "select",
       "level": "basic",
       "default": "fcpe",
@@ -44,9 +65,9 @@
     },
     {
       "name": "pitch",
-      "label": "Pitch",
+      "label": "音高（半音）",
       "type": "number",
-      "level": "advanced",
+      "level": "basic",
       "default": 0,
       "min": -24,
       "max": 24,
@@ -55,7 +76,7 @@
     },
     {
       "name": "index_rate",
-      "label": "Index rate",
+      "label": "Index 比例",
       "type": "number",
       "level": "advanced",
       "default": 0.75,
@@ -66,24 +87,35 @@
     },
     {
       "name": "chunk",
-      "label": "Chunk",
+      "label": "區塊（ms）",
       "type": "number",
       "level": "advanced",
       "default": 160,
-      "min": 1,
-      "max": 5000,
-      "step": 1,
+      "min": 80,
+      "max": 1000,
+      "step": 10,
       "runtime": false
     },
     {
-      "name": "extra_frame",
-      "label": "Extra frame",
+      "name": "crossfade",
+      "label": "交疊（ms）",
       "type": "number",
       "level": "advanced",
-      "default": 0,
-      "min": 0,
-      "max": 5000,
-      "step": 1,
+      "default": 40,
+      "min": 10,
+      "max": 80,
+      "step": 10,
+      "runtime": false
+    },
+    {
+      "name": "extra_time",
+      "label": "歷史上下文（秒）",
+      "type": "number",
+      "level": "advanced",
+      "default": 1,
+      "min": 0.5,
+      "max": 5,
+      "step": 0.1,
       "runtime": false
     }
   ]

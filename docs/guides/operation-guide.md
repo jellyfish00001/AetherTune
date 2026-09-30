@@ -32,6 +32,20 @@ Set-Location D:\AetherTune
 
 可用 `tools/virtual_cable_loopback.py` 先做**合成音**線路 smoke；它不代替本輪 backend、實體麥克風或最終收音。具體 runner 命令由各 backend 文件擁有。
 
+### 直接接 Discord
+
+只需要讓對方聽到 AetherTune 文字生成的語音時，在 Discord 的「使用者設定 → 語音與視訊」指定：
+
+| 位置 | 裝置 |
+|---|---|
+| AetherTune「輸出裝置」 | `CABLE Input (VB-Audio Virtual Cable)` |
+| Discord「輸入裝置」 | `CABLE Output (VB-Audio Virtual Cable)` |
+| Discord「輸出裝置」 | 實際使用的耳機／喇叭 |
+
+不要把 Discord 的輸出也選 CABLE，以免將對方的聲音回送。VB-CABLE 的播放端／錄音端方向見[官方說明](https://vb-audio.com/Cable/VirtualCables.htm)，Discord 裝置選擇見[官方語音指南](https://support.discord.com/hc/en-us/articles/33030151293079-Discord-Voice-Video-Streaming-Guide)。此配置傳送的是 TTS，沒有混入實體麥克風原音；若要直接傳麥克風，在 Discord 改選實體麥克風。
+
+不想聽到自己時，關閉 App 的[自己監聽](desktop-user-guide.md#自己監聽)。若仍有自己的聲音，檢查 CABLE Output 的 Windows「聆聽此裝置」與外部 mixer 的監聽路徑。Discord 的「麥克風測試」會把輸入送回輸出，檢查完請按「停止測試」；見[官方麥克風測試說明](https://support.discord.com/hc/en-us/articles/360020641332-Mic-Testing)。上述設定說明不等於這台機器的 Discord 接收 E2E 已通過。
+
 ## 3. Light Host／VST
 
 本機已登錄的宿主入口在 `tools/external/LightHostModern/app/Light Host Modern.exe`；Graillon Free 3 VST3 的常見安裝位置為 `C:\Program Files\Common Files\VST3\Auburn Sounds Graillon 3.vst3`。實際檔案、版本與授權以[來源審核](../reference/source-audit.md)、[plugin profile](../../audio-rack/plugin-profiles/README.md)及本機檢查為準，不因這些路徑寫在手冊就當成安裝完成。

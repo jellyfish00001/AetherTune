@@ -36,3 +36,5 @@
 RVC 官方倉庫於 2026-09-19 查得 `main` 為 `81eed5e8f68b6bed1789f682fe78cdd324495afc`；AetherTune 已 clone 並 detached 到此 revision。RVC 訓練資產 `lj1995/VoiceConversionWebUI` 本次固定 HF revision `e6d0c1a17da07c33557852f9dfa2bd44cc75737d`，不是浮動的 `main`；下載 metadata 與本機檔案 hash 已保留在外部 repo cache。使用的 RTX 50/Python 3.12 requirements 檔 SHA-256 為 `F68F1CD32868C4EF5D3B22B9C654CF82317DA6B991D166207A5A7AC844DFFCA5`。後續若上游變更，必須重新審核而不是直接更新工作目錄。
 
 本次部署後的可執行檔與下載包都在 `tools/external/`，已由 `.gitignore` 排除；完整路徑、狀態與未完成項目見 `docs/archive/wiring-deployment-report.md`。
+
+2026-10-01 Desktop RVC wrapper：`services/engines/rvc_runtime.py` 的 rolling buffer／SOLA 改寫自上述固定 revision 的 `realtime_gui.py`，保留 MIT 著作權與授權文字，推論重用既有 `infer/rtrvc.py`。本機 checkout 已有先前的 HuBERT／FCPE／CUDA 修正，因此 revision 不等於 clean upstream；本次沒有修改 ignored upstream，run evidence 另存 `infer/rtrvc.py`、`infer/fcpe.py`、`infer/hubert.py` 的實際 SHA-256 及 HuBERT／F0 權重 hash。軟體 MIT 不代表四個角色模型的來源／聲音授權已核准。

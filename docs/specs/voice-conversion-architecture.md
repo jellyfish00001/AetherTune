@@ -29,7 +29,7 @@ RVC 的角色模型採 `.pth/.index` 配對與 f0；Seed-VC、MeanVC2、X-VC 使
 
 | Adapter | 自己負責 | 下游仍需另驗 |
 |---|---|---|
-| RVC + FCPE／RMVPE | `.pth/.index` 配對、f0、已固定角色模型輸出；訓練流程由[訓練手冊](../guides/model-training-guide.md)擁有 | VCClient slot、即時 chunk、Mic、Rack |
+| RVC + FCPE／RMVPE | `.pth/.index` 配對、CUDA f0、rolling block／SOLA、來源 WAV／Mic duplex callback；訓練流程由[訓練手冊](../guides/model-training-guide.md)擁有 | physical Mic、Rack、600 秒；另選 VCClient 時其 slot／chunk 另驗 |
 | Seed-VC upstream | source/reference 的離線或官方 GUI profile；資產由[seed-vc-assets.md](../reference/seed-vc-assets.md)登記 | GUI 有效 callback、physical mic、Rack |
 | MeanVC2／X-VC | 各自 source/reference、固定模型、file-driven streaming runner 輸出 | mic/virtual route／600 秒 |
 | CosyVoice2／Breeze | 文字、prompt/reference、完整 TTS WAV 與 generation evidence | 實際 playback、外部 Post-FX、STT provenance |

@@ -12,9 +12,11 @@ flowchart TB
   B --> S[既有 Seed GUI launcher: TEMPORARY]
   B --> M[既有 MeanVC2 WAV runner]
   B --> X[既有 X-VC WAV runner]
+  B --> V[RVC headless block / duplex runner]
+  V -->|PCM 保留在 Python| R[共用 Audio Rack → Virtual Output]
   UI -. M4 .-> STT[獨立 Transcription Service]
   STT -.-> DB[SQLite + session exports]
-  S -. 未驗證完整鏈路 .-> R[共用 Audio Rack → Virtual Output]
+  S -. 未驗證完整鏈路 .-> R
 ```
 
 ## 責任與依賴
@@ -26,10 +28,11 @@ flowchart TB
 | `app/src-tauri/src/engine_manager/` | discover／validate／start／stop／status／logs，串行切換 |
 | `app/src-tauri/src/process_manager/` | suspended spawn → assign Job → resume；stdout／stderr；crash／cleanup |
 | `services/engines/runner_service.py` | JSONL bridge、參數／reference／端點預檢、受限制的 runner argv |
-| `contracts/engines/` | 六個 manifest；只有 Seed／Mean／X 可啟動 |
+| `services/engines/rvc_runtime.py` | 登錄 `.pth/.index`、固定 RVC core、CUDA F0 warmup、rolling buffer／SOLA、Mic／WAV、PortAudio 與監聽 |
+| `contracts/engines/` | 六個 manifest；VC 可啟動 Seed／Mean／X／RVC，TTS 另走 speech service |
 | `contracts/schemas/` | manifest、state、Transcript、Session 的版本 1 契約 |
 
-沒有把 React 塞到 `tools/`。本輪同一個 Python bridge 接三種 Adapter，避免尚無差異需求時建立三套 service；argv routing 清楚受 engine allowlist 限制，模型仍用各自 venv。之後 headless engine 可以取代對應的 TEMPORARY branch，而不重建 App。
+同一個 Python bridge 接各 VC Adapter；argv routing 受 engine allowlist 限制，模型用各自 venv。RVC 的 UI 參數從 manifest 呈現、JSON request 傳遞，runner 再驗範圍及 register hash。headless RVC 不啟動上游 GUI、不經 IPC 傳 PCM。
 
 ## 程序與狀態語意
 
@@ -40,6 +43,8 @@ Windows Job 開啟 `KILL_ON_JOB_CLOSE`；service 以 suspended 狀態建立，�
 切換先 stop 舊 job，再啟動新 job，reader threads join 後才能復用 snapshot。UI 執行中鎖定 Engine 選擇；沒有無縫 hot swap。
 
 `VALIDATING` = 資產、WAV、參數、Seed PortAudio 端點預檢。預檢 PASS 不是 READY；`LOADING` = runner 初始化。Mean 的既有 `Model load seconds:` 可推進 READY → RUNNING（僅 WAV operation）。Seed GUI 沒有模型 readiness ACK，X 沒有結構化 load ACK，保持 LOADING，不用 PID 假造 RUNNING。完成 file runner 後 OFFLINE，但 bridge 需 Stop 才釋放。`audio_verified` 本輪固定 false；不產生 LIVE 或音訊 PASS。
+
+RVC 必須完成角色模型、HuBERT 及 FCPE／RMVPE CUDA warmup 才發 READY；WAV 處理／duplex stream 開啟後才發 RUNNING。Windows 阻塞 stdin 控制 reader 在 DLL 初始化後啟動，載入 watchdog 120 秒會保留堆疊並退出；載入中 Stop 由 bridge 的 2 秒 grace 與 Rust Job cleanup 回收。證據寫在 run 的 `rvc-evidence.json`，分別記錄模型／F0／HuBERT hash、device、block timing、callback／播放與監聽；不把這些升為 physical Mic 或 LIVE。
 
 ## 控制協定
 
@@ -52,7 +57,7 @@ App → bridge：
 {"command":"stop"}
 ```
 
-非 runtime 可調參數回 `restart_required`，不假稱已套用。完整參數編輯／Presets 留 M3；目前使用 manifest defaults。
+非 runtime 可調參數回 `restart_required`。RVC 已提供 manifest 參數編輯，執行時鎖定，Stop 後重新啟動才套用。其他 VC 使用目前 defaults，完整通用編輯／Presets 留 M3。
 
 bridge → App：state（嚴格七狀態）、validation、artifact、process_started、process_exit、log、error、restart_required。process_started 是程序事件，不是新的 BackendState。非 JSON 行只能作 log。此通道不允許 PCM；STT／Metrics 日後也只傳 metadata。
 

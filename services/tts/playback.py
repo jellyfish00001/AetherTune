@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event, RLock, Thread
@@ -38,9 +38,16 @@ class PlaybackResult:
     source_channels: int | None = None
     rendered_sample_rate: int | None = None
     rendered_channels: int | None = None
+    monitor_status: str = "off"
+    monitor_output: str | None = None
+    monitor_host_api: str | None = None
+    monitor_frames_written: int = 0
+    monitor_underrun_count: int = 0
+    monitor_first_audio_at: str | None = None
+    monitor_error: str | None = None
 
 
-def resolve_route(route: Any) -> dict[str, str]:
+def resolve_route(route: Any) -> dict[str, Any]:
     """驗證 request route，保留 explicit endpoint 身分。"""
 
     if not isinstance(route, dict):
@@ -59,12 +66,24 @@ def resolve_route(route: Any) -> dict[str, str]:
         raise PlaybackError("ROUTE_FAILED: route_profile_id 不可為空")
     if not isinstance(rack_profile_id, str) or not rack_profile_id.strip():
         raise PlaybackError("ROUTE_FAILED: rack_profile_id 不可為空")
-    return {
+    resolved = {
         "output": output.strip(),
         "host_api": host_api.strip(),
         "rack_profile_id": rack_profile_id.strip(),
         "route_profile_id": route_profile_id.strip(),
     }
+    monitor = route.get("monitor")
+    if monitor is not None:
+        if not isinstance(monitor, dict) or not isinstance(monitor.get("enabled"), bool):
+            raise PlaybackError("ROUTE_FAILED: monitor.enabled 必須是 boolean")
+        if monitor["enabled"]:
+            target = resolve_route({"output": monitor.get("output"), "host_api": monitor.get("host_api")})
+            if any(name in target["output"].lower() for name in ("cable", "voicemeeter", "vb-audio")):
+                raise PlaybackError("ROUTE_FAILED: 自己監聽請選耳機或喇叭，不能回送虛擬線路")
+            resolved["monitor"] = {"enabled": True, "output": target["output"], "host_api": target["host_api"]}
+        else:
+            resolved["monitor"] = {"enabled": False}
+    return resolved
 
 
 def list_audio_devices(*, timeout_seconds: float = 3.0) -> dict[str, list[dict[str, Any]]]:
@@ -474,6 +493,89 @@ class SoundDevicePlayback:
         )
 
 
+class MonitoredPlayback:
+    """主輸出與選用的本機監聽各自持有 stream；監聽失敗不重播主輸出。"""
+
+    def __init__(self, *, primary=None, monitor=None, monitor_join_timeout_seconds: float = 4.0) -> None:
+        self.primary = primary if primary is not None else SoundDevicePlayback()
+        self.monitor = monitor if monitor is not None else SoundDevicePlayback()
+        self.monitor_join_timeout_seconds = max(0.1, float(monitor_join_timeout_seconds))
+        self._lock = RLock()
+        self._monitor_thread: Thread | None = None
+        self._monitor_cancel: Event | None = None
+
+    @property
+    def open_blocked(self) -> bool:
+        # 可選監聽的 driver timeout 不封鎖主輸出；它會獨立停止接受新監聽。
+        return bool(getattr(self.primary, "open_blocked", False))
+
+    def prepare(self, *, timeout_seconds: float = 3.0) -> None:
+        self.primary.prepare(timeout_seconds=timeout_seconds)
+
+    def stop(self) -> None:
+        with self._lock:
+            cancel = self._monitor_cancel
+        if cancel is not None:
+            cancel.set()
+        self.primary.stop()
+        self.monitor.stop()
+
+    def play(self, audio_path: Path, route: dict[str, Any], cancel_event: Event) -> PlaybackResult:
+        route = resolve_route(route)
+        target = route.get("monitor", {"enabled": False})
+        if not target["enabled"]:
+            return self.primary.play(audio_path, route, cancel_event)
+        # 同名的實體裝置即使用不同 Host API，也不另開一條監聽造成雙重聲音。
+        if target["output"] == route["output"]:
+            return replace(self.primary.play(audio_path, route, cancel_event), monitor_status="same_output",
+                           monitor_output=target["output"], monitor_host_api=target["host_api"])
+        outcome: dict[str, Any] = {"result": None, "error": None}
+        with self._lock:
+            busy = self._monitor_thread is not None and self._monitor_thread.is_alive()
+        if busy or bool(getattr(self.monitor, "open_blocked", False)):
+            outcome["error"] = "MONITOR_BLOCKED: 上一次監聽 stream 尚未退出；完整退出 App 後再試"
+            thread = None
+        else:
+            monitor_cancel = Event()
+
+            def play_monitor() -> None:
+                try:
+                    outcome["result"] = self.monitor.play(audio_path, target, monitor_cancel)
+                except Exception as exc:
+                    outcome["error"] = str(exc)
+
+            thread = Thread(target=play_monitor, name="aethertune-self-monitor", daemon=True)
+            with self._lock:
+                self._monitor_cancel = monitor_cancel
+                self._monitor_thread = thread
+            thread.start()
+        completed = False
+        try:
+            result = self.primary.play(audio_path, route, cancel_event)
+            completed = True
+            if thread is not None:
+                # 正常播放等監聽尾音；故障 driver 不能讓主輸出永遠卡住。
+                thread.join(timeout=self.monitor_join_timeout_seconds)
+                if thread.is_alive():
+                    outcome["error"] = "MONITOR_TIMEOUT: 監聽未能在主輸出完成後結束"
+            monitored = outcome["result"]
+            return replace(result, monitor_status="failed" if outcome["error"] else "completed",
+                           monitor_output=target["output"], monitor_host_api=target["host_api"],
+                           monitor_frames_written=monitored.frames_written if monitored else 0,
+                           monitor_underrun_count=monitored.underrun_count if monitored else 0,
+                           monitor_first_audio_at=monitored.first_audio_at if monitored else None,
+                           monitor_error=outcome["error"])
+        finally:
+            if thread is not None:
+                if not completed or thread.is_alive():
+                    monitor_cancel.set()
+                    self.monitor.stop()
+                    thread.join(timeout=0.2)
+                with self._lock:
+                    if not thread.is_alive():
+                        self._monitor_cancel = None
+
+
 class NullPlayback:
     """測試用 playback；明示不代表實際 audio route。"""
 
@@ -511,5 +613,6 @@ __all__ = [
     "PlaybackResult",
     "NullPlayback",
     "SoundDevicePlayback",
+    "MonitoredPlayback",
     "resolve_route",
 ]

@@ -10,7 +10,7 @@
 | 瀏覽器預覽 | 檢查版面、輸入與 UI；沒有真實 backend／視窗控制 | `app/` 下 `npm run dev`，開 `http://127.0.0.1:1420/` |
 | 離線腳本 | 直接執行單一 backend 或 STT → TTS WAV 流程 | [user-guide.md](user-guide.md)、[tools/README.md](../../tools/README.md) |
 
-要使用文字發聲，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue 停用是預期行為。舊 Tk 控制台已移除；Seed 官方 GUI 與 MeanVC2／X-VC 的獨立 CLI 仍可依[後端手冊](user-guide.md)操作。Desktop 的 VC 參數與裝置控制仍在開發中，不能把舊控制台的欄位當成已完整移植。
+要使用文字發聲或 RVC，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue／START 停用是預期行為。舊 Tk 控制台已移除；Seed 官方 GUI 與 MeanVC2／X-VC 的獨立 CLI 仍可依[後端手冊](user-guide.md)操作。RVC 已接入角色模型、參數與裝置控制；其他 VC 的完整通用參數編輯仍在開發中。
 
 目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。首次使用某個 Engine 時會載入模型；同一 App session 內連續使用相同 Engine，後續句子重用已載入的模型。切換 Engine、Stop Speaking 取消正在生成的句子、worker 異常或 Exit 後再次使用，會重新載入。前版逐句重載時，CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；這不是新版熱模型的保證時間。排隊也會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
 
@@ -57,7 +57,7 @@ wsl.exe --list --quiet
 3. `Engine` 選 **CosyVoice**（目前實際使用 CosyVoice2）或 **Breeze TTS 2**。CosyVoice3 尚未接入。
 4. 「文字來源」目前是**手動輸入文字**。`microphone` 尚未有常駐實體 Mic/STT，選項停用；`agent_reply` 也尚未開放。
 5. 明確選 `Voice profile`，核對畫面顯示的 reference WAV／文字路徑。中文首次測試預選「中文參考聲音（官方範例）」；若選日語參考聲音，中文可能帶日語發音。Breeze 可選「中文女聲參考（非商用測試）」，該樣本僅供本機非商業測試且仍待人工聽評。
-6. 在「輸出裝置」下拉選單選要聽的實體喇叭或虛擬線路；選單顯示 PortAudio 的裝置名稱與 Host API，預選系統預設播放端。可用「重新掃描裝置」更新清單。先前已有音訊擷取證據的虛擬線路組合如下：
+6. 在「輸出裝置」下拉選單選要聽的實體喇叭或虛擬線路，預選系統預設播放端。一般清單每個裝置只顯示一項，收起系統音效對應表、WDM-KS 與 Voicemeeter 額外通道／CABLE 16ch；需要指定 Host API 或多通道時，勾「顯示進階輸出裝置」。收起進階清單仍保留目前選中的裝置及 Host API，不會偷偷換播放端。可用「重新掃描裝置」更新清單。這是 App 選單整理，沒有移除 Windows 裝置或驅動。先前已有音訊擷取證據的虛擬線路組合如下：
 
    | 欄位 | 值 |
    |---|---|
@@ -127,6 +127,14 @@ Set-Location D:\AetherTune
 
 不同 Host API 可能有同名裝置；不能只看 Windows 顯示名稱。若想直接聽喇叭，請選清單中的實體播放端點；先前的 CABLE／DirectSound 擷取結果不能推廣成所有裝置都通過。
 
+### 自己監聽
+
+「自己監聽」預設關閉。開啟後選耳機／喇叭，同一段 Manual TTS WAV 會同時送到主輸出與監聽裝置；監聽選單只顯示精簡後的播放端，排除 CABLE／Voicemeeter 等已知虛擬線路。同名實體主輸出不另開監聽 stream，避免重複出聲。監聽失敗會在 Queue history 顯示警告，已完成的主輸出不重播、不改送其他裝置。
+
+這個設定套用**下次送出**，已接受／排隊中的 request 保留原有路由快照；目前語音可用「停止播放」一起停止主輸出與監聽。切換 Full／Compact／Mini 保留這次 App 執行期間的設定，完整退出後重新開啟預設關閉。
+
+若不想聽到自己，主輸出要選虛擬線路，例如 `CABLE Input`，並關閉自己監聽。主輸出直接選耳機／喇叭時，仍然會播放，關閉監聽只停止額外的監聽路徑。Discord 的輸入／輸出設定與下游監聽排查見[線路操作手冊](operation-guide.md#直接接-discord)。目前功能適用文字發聲；實體 Mic／即時 VC 監聽另行驗收。
+
 接 Discord／OBS 或 VST 的步驟見 [operation-guide.md](operation-guide.md) 與 [audio-rack/README.md](../../audio-rack/README.md)。`seed-vc-neutral`／`seed-vc-virtual-route` 是共用外部設定身分，不是已在 App 內執行 Post-FX 的證據。未來 Self STT 必須讀實體 Mic，不能讀 CABLE Output 或最後混音，避免 TTS→STT→TTS 迴圈。
 
 ## 6. Full、Compact、Mini 與退出
@@ -188,3 +196,15 @@ Composer／profile 的 UI 暫存使用 WebView sessionStorage，切 layout 可�
 成功應同時看到：request history 為 completed、原文的 ME／manual_text、該 request 的非零 WAV、正確 profile／route evidence；如果要確認 CABLE 確實收到，再用維護手冊的獨立擷取。取消項目留 history、不進已發聲 Transcript。完整 Mic／rack／600 秒／聽評則按 [live-gate.md](../specs/live-gate.md) 另驗。
 
 本手冊補充現有操作，不新增 runtime 或功能。原生 GUI 完整互動、physical Mic 共存、外部 Post-FX 與 LIVE 仍 WAITING；Agent Reply／Auto Reply／Phrase Hotkeys 仍 PLANNED。
+
+## 10. RVC + FCPE 操作
+
+1. 在 Full → WORKSPACE 選 `Streaming VC` → `RVC + FCPE`，先停止正在執行的其他 VC／TTS。
+2. 「角色模型」選登錄角色，音高擷取預設 FCPE，RMVPE 為備用；RVC 不需要 Reference WAV。現有角色仍是 candidate，來源／授權狀態見[模型盤點](../reference/current-rvc-model-inventory.md)。
+3. 第一次可選「來源 WAV 測試」，填 Source WAV；要即時變聲則選「麥克風即時變聲」，輸入選 `麥克風 (HyperX QuadCast S)`。
+4. Host API 可先選 `Windows DirectSound`，主輸出選 `CABLE Input (VB-Audio Virtual Cable)`。接收程式讀 CABLE Output；Discord 的輸入／輸出操作見[接線說明](operation-guide.md)。
+5. 不想聽見自己時，保持「自己監聽」關閉；想聽變聲結果則勾選並選實體耳機／喇叭。主輸出若已是實體喇叭，即使關閉額外監聽仍會聽見主輸出。硬體麥克風本身的直通監聽須在硬體控制中處理。
+6. 視需要改音高或展開 RVC 進階參數，按「檢查啟動條件」後 START 一次。載入／warmup 後進入 RUNNING；預檢 PASS 或 RUNNING 都不代表外部程式已收音。
+7. 改角色、參數、裝置或監聽前先按 STOP；結束使用也按 STOP。WAV 完成後仍按 STOP 釋放 service。run 結果與錯誤位於 `artifacts/desktop/runs/<uuid>/rvc-evidence.json`，log 在 `artifacts/desktop/logs/`。
+
+目前已驗證的範圍與可重跑命令見[RVC 音訊報告](../verification/backends/vcclient-rvc-probe-latest.md)。實體麥克風、人耳聽評、Discord、外部 Rack 與 600 秒 LIVE 分開驗收。

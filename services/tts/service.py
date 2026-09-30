@@ -34,7 +34,7 @@ if __package__ in (None, ""):
         GenerationResult,
         default_adapters,
     )
-    from services.tts.playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, list_audio_devices, resolve_route
+    from services.tts.playback import PlaybackCancelled, PlaybackError, PlaybackResult, MonitoredPlayback, list_audio_devices, resolve_route
     from services.tts.storage import TranscriptStore, utc_now
 else:
     from .adapters import (
@@ -44,7 +44,7 @@ else:
         GenerationResult,
         default_adapters,
     )
-    from .playback import PlaybackCancelled, PlaybackError, PlaybackResult, SoundDevicePlayback, list_audio_devices, resolve_route
+    from .playback import PlaybackCancelled, PlaybackError, PlaybackResult, MonitoredPlayback, list_audio_devices, resolve_route
     from .storage import TranscriptStore, utc_now
 
 
@@ -147,7 +147,7 @@ class SpeechService:
         self._settings = {"interrupt_policy": "queue", "enter_to_send": True}
         self._profiles, self._profiles_by_id = _load_profiles(self.root)
         self._adapters = dict(adapters or default_adapters(self.root))
-        self._playback = playback or SoundDevicePlayback()
+        self._playback = playback or MonitoredPlayback()
         self._playback_startup_error: dict[str, str] | None = None
         prepare = getattr(self._playback, "prepare", None)
         if callable(prepare):
@@ -714,6 +714,8 @@ class SpeechService:
                     "source_channels": playback_result.source_channels,
                     "rendered_sample_rate": playback_result.rendered_sample_rate,
                     "rendered_channels": playback_result.rendered_channels,
+                    "monitor_status": playback_result.monitor_status,
+                    "monitor_error": playback_result.monitor_error,
                     "completed_at": ended_at,
                     "playback_completed_at": ended_at,
                 }
@@ -736,6 +738,15 @@ class SpeechService:
                 "source_channels": playback_result.source_channels,
                 "rendered_sample_rate": playback_result.rendered_sample_rate,
                 "rendered_channels": playback_result.rendered_channels,
+                "monitor": {
+                    "status": playback_result.monitor_status,
+                    "output": playback_result.monitor_output,
+                    "host_api": playback_result.monitor_host_api,
+                    "frames_written": playback_result.monitor_frames_written,
+                    "underrun_count": playback_result.monitor_underrun_count,
+                    "first_audio_at": playback_result.monitor_first_audio_at,
+                    "error": playback_result.monitor_error,
+                },
             }
             try:
                 transcript = self._store.record_completed(

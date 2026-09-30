@@ -38,7 +38,7 @@ def validate(root: Path, engine: str, request: dict) -> tuple[dict, dict]:
     for key in ("reference", "source", "input", "output", "host_api"):
         if key in request and not isinstance(request[key], str):
             raise ValueError(f"PARAMETER_INVALID: {key} 必須是字串")
-    if engine not in ("seed-vc", "meanvc2", "xvc"):
+    if engine not in ("seed-vc", "meanvc2", "xvc", "rvc"):
         raise ValueError("BACKEND_UNAVAILABLE: 此輪尚未實作該 Engine")
     manifest = json.loads((root / "contracts/engines" / f"{engine}.json").read_text(encoding="utf-8"))
     missing = [p for p in manifest["requiredPaths"] if not (root / p).is_file()]
@@ -59,9 +59,29 @@ def validate(root: Path, engine: str, request: dict) -> tuple[dict, dict]:
                 raise ValueError(f"PARAMETER_INVALID: {p['name']} 超出範圍或步進")
         elif p["type"] == "select" and value not in p["options"]:
             raise ValueError(f"PARAMETER_INVALID: {p['name']} 選項不合法")
-    read_wav(request.get("reference", ""))
-    if engine != "seed-vc":
+    if engine != "rvc":
+        read_wav(request.get("reference", ""))
+    if engine not in ("seed-vc", "rvc") or (engine == "rvc" and values["source_mode"] == "file"):
         read_wav(request.get("source", ""))
+    if engine == "rvc":
+        try:
+            from .rvc_runtime import registered_model, endpoint
+        except ImportError:
+            from rvc_runtime import registered_model, endpoint
+        registered_model(root, values["model_id"])
+        if values["crossfade"] > values["chunk"]:
+            raise ValueError("PARAMETER_INVALID: crossfade 不得大於 chunk")
+        import sounddevice as sd
+        endpoint(sd, request.get("output", ""), request.get("host_api", ""), "output", 2)
+        if values["source_mode"] == "microphone":
+            endpoint(sd, request.get("input", ""), request.get("host_api", ""), "input", 1)
+            if "cable output" in request["input"].lower() and ("cable input" in request["output"].lower() or "cable in 16ch" in request["output"].lower()):
+                raise ValueError("ROUTE_FAILED: 請勿將同一條 CABLE 的 Output 回送 Input")
+            if "cable out 16ch" in request["input"].lower() and "cable in 16ch" in request["output"].lower():
+                raise ValueError("ROUTE_FAILED: 請勿將同一條 CABLE 16ch 回送")
+        sys.path.insert(0, str(root))
+        from services.tts.playback import resolve_route
+        resolve_route({"output": request["output"], "host_api": request["host_api"], "monitor": request.get("monitor", {"enabled": False})})
     if engine == "seed-vc":
         if any(not request.get(k, "").strip() for k in ("input", "output", "host_api")):
             raise ValueError("DEVICE_NOT_FOUND: 請填同一 Host API 的完整 input/output 名稱；launcher 會核對唯一端點")
@@ -86,6 +106,14 @@ def validate(root: Path, engine: str, request: dict) -> tuple[dict, dict]:
 
 
 def build_command(root: Path, engine: str, request: dict, values: dict, run: Path) -> list[str]:
+    if engine == "rvc":
+        settings = run / "rvc-request.json"
+        normalized = {**request, "parameters": values}
+        if values["source_mode"] == "file":
+            normalized["source"] = str(Path(request["source"]).resolve())
+        settings.write_text(json.dumps(normalized, ensure_ascii=False), encoding="utf-8")
+        return [str(root / ".venv/Scripts/python.exe"), "-u", "-B", str(root / "services/engines/rvc_runtime.py"),
+                "--root", str(root), "--request", str(settings), "--output-dir", str(run)]
     python = str(root / f"tools/venvs/{engine}/Scripts/python.exe")
     if engine == "seed-vc":
         settings = run / "seed-settings.json"
@@ -109,7 +137,7 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
     state(engine, "VALIDATING", "檔案與參數預檢；不代表模型載入或音訊驗證")
     try:
         manifest, values = validate(root, engine, request)
-    except (ValueError, OSError, wave.Error) as exc:
+    except (ValueError, RuntimeError, OSError, wave.Error) as exc:
         emit(dict(type="error", code=str(exc).split(":")[0], message=str(exc)))
         state(engine, "ERROR", str(exc))
         return 2
@@ -126,6 +154,13 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
     def observe(proc: subprocess.Popen) -> None:
         for line in proc.stdout:
             emit(dict(type="log", stream="backend", message=line.rstrip()))
+            if engine == "rvc" and line.startswith('{'):
+                try:
+                    runtime = json.loads(line)
+                    if runtime.get("type") == "rvc_runtime" and not stopping.is_set():
+                        state(engine, runtime["value"], runtime["reason"])
+                except (ValueError, KeyError):
+                    pass
             if "CUDA out of memory" in line or "CUDA error: out of memory" in line:
                 emit(dict(type="error", code="CUDA_OOM", message="GPU 記憶體不足；請停止其他模型後重試"))
                 state(engine, "ERROR", "CUDA_OOM")
@@ -152,9 +187,10 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
                     if child is not None:
                         emit(dict(type="error", code="COMMAND_INVALID", message="請停止後重新啟動新的 service"))
                         continue
-                    state(engine, "LOADING", "啟動現有 runner；等待模型／GUI；TEMPORARY 不自動開 stream" if engine == "seed-vc" else "載入 WAV runner")
+                    reason = "載入 RVC 模型與 F0 warmup" if engine == "rvc" else "載入 WAV runner"
+                    state(engine, "LOADING", "啟動現有 runner；等待模型／GUI；TEMPORARY 不自動開 stream" if engine == "seed-vc" else reason)
                     child = subprocess.Popen(build_command(root, engine, request, values, run), cwd=root,
-                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        stdin=subprocess.PIPE if engine == "rvc" else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                         text=True, encoding="utf-8", errors="replace", shell=False)
                     emit(dict(type="process_started", pid=child.pid, adapter=manifest["adapter"]))
                     observer = threading.Thread(target=observe, args=(child,), daemon=True)
@@ -177,8 +213,17 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
         stopping.set()
         state(engine, "STOPPING", "釋放程序；Rust Job Object 負責清除完整程序樹")
         if child is not None and child.poll() is None:
-            child.terminate()
-            child.wait(timeout=5)
+            if engine == "rvc":
+                try:
+                    child.stdin.write("stop\n")
+                    child.stdin.flush()
+                    child.wait(timeout=2)
+                except (OSError, subprocess.TimeoutExpired):
+                    child.terminate()
+                    child.wait(timeout=1)
+            else:
+                child.terminate()
+                child.wait(timeout=5)
         if observer:
             observer.join(timeout=2)
         state(engine, "OFFLINE", "service 已停止；Job cleanup 由 App 確認")

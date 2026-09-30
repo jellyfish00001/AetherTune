@@ -120,6 +120,7 @@
 |---|---|---|
 | [app/src/main.tsx](../../app/src/main.tsx) | React root；保留 VC mode/engine/shell/native controls，並列舉音訊端點供 VC input/output 與獨立 TTS route 下拉選擇。 | 同步 `desktop.ts` IPC、`SpeechWorkspace.tsx` props、`style.css` layout 與 `app/tests/ui.mjs`。 |
 | [app/src/components/SpeechWorkspace.tsx](../../app/src/components/SpeechWorkspace.tsx) | Manual TTS workspace；Input source、CosyVoice/Breeze、profile、composer、queue actions、settings、recent/favorites、transcript 與 Mini quick popup。 | 同步 `speech.ts` snapshot/action types、Rust speech protocol、`manual-tts.mjs`；不得把 WAITING audio 寫成 READY。 |
+| [app/src/components/RvcControls.tsx](../../app/src/components/RvcControls.tsx) | 依 RVC manifest 呈現登錄角色、Mic／WAV、F0、音高、進階 block 參數及獨立監聽。 | 同步 RVC manifest、runner validation 與 UI request 測試。 |
 | [app/src/services/desktop.ts](../../app/src/services/desktop.ts) | Tauri `invoke/listen` wrapper、default Shell、engine manifest JSON imports 與 browser/native boundary。 | 同步 `main.tsx`、Rust commands/events、`contracts/engines/*.json` 與 UI tests。 |
 | [app/src/services/speech.ts](../../app/src/services/speech.ts) | Speech snapshot/action types、contract voice fallback、snapshot/error normalization、nested enqueue IPC 與 speech-event filtering。 | 同步 `contracts/voices/*.json`、`tts-state`/speech request schema、Rust speech manager、Manual TTS tests。 |
 | [app/src/style.css](../../app/src/style.css) | Full/Compact/Mini shell、TTS controls、queue、composer、settings、transcript 與 quick popup 的 visual/layout rules。 | 修改 layout 後跑 `app/tests/ui.mjs`、`manual-tts.mjs`，並複核 1040×740、420×490、420×260。 |
@@ -128,6 +129,7 @@
 
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
+| [app/tests/rvc-audio-smoke.py](../../app/tests/rvc-audio-smoke.py) | 正式 EngineManager 的 RVC CUDA WAV／虛擬輸入 duplex callback smoke；獨立記錄路由擷取，未讀實體麥克風。 | 同步 desktop-probe、RVC runtime evidence 與 RVC 分項報告；callback 不升格 LIVE。 |
 | [app/tests/audit-speech-processes.py](../../app/tests/audit-speech-processes.py) | 只讀稽核正式 speech probe 記錄的 Windows service PID、WSL process-group PID 與 evidence host PID；只查已知 owned IDs，不做全機 inventory 或 kill，輸出 `process-audit.json`。 | 同步 `manual-audio-smoke.py`/speech service PID artifacts 與 process ownership；存活不等於音訊 PASS。 |
 | [app/tests/cleanup.ps1](../../app/tests/cleanup.ps1) | 由指定 Desktop PID 建出本次 process tree，呼叫 `control.mjs exit` 後 bounded 等待所有 owned process 消失，輸出 cleanup report；不刪其他 backend。 | 修改 Exit/lifecycle 或 process ownership 時同步 `main.rs`、`process_manager`、`control.mjs`。 |
 | [app/tests/contracts.mjs](../../app/tests/contracts.mjs) | AJV 驗證 engine/backend/session/transcript schema 及負面 state/audio boundary fixtures。 | 同步 `contracts/schemas`，跑 `npm run test:contracts`。 |
@@ -272,6 +274,7 @@
 |---|---|---|
 | [services/engines/__init__.py](../../services/engines/__init__.py) | engines package marker，讓 runner service、Seed cache 與 tests 以同一 package import。 | package layout 變更時同步 `services/engines/*` import、native service launcher 與 engine tests。 |
 | [services/engines/runner_service.py](../../services/engines/runner_service.py) | JSONL engine control bridge；只協調既有 runner、以 stdout 傳狀態/ack，保留 backend runner ownership，不在 IPC 傳 PCM。 | command/event schema 變更同步 `contracts/schemas/backend-state.schema.json`、Rust EngineManager bridge、`app/src/services/desktop.ts` 與 runner service tests。 |
+| [services/engines/rvc_runtime.py](../../services/engines/rvc_runtime.py) | RVC 已登錄模型 hash、FCPE／RMVPE CUDA、rolling block／SOLA、PortAudio stream、監聽及 evidence；重用固定 upstream 推論核心。 | 同步 RVC manifest、runner validation、音訊 smoke、backend README 及 source audit。 |
 | [services/engines/seed_cache.py](../../services/engines/seed_cache.py) | 只讀/受保護的 Seed cache asset resolution 與必要 repair，避免覆寫無關 cache 或暗中升級模型。 | asset revision/hash 或 repair policy 變更同步 `tools/seed-vc-assets.*`、Seed setup/preflight、`services/engines/test_seed_cache.py`。 |
 | [services/engines/test_runner_service.py](../../services/engines/test_runner_service.py) | M2 engine adapter/JSONL boundary regression，使用 fixtures 驗 protocol 和 failure cleanup；不代表 CUDA、mic 或 audio E2E。 | runner protocol 或 fixture 改動同步 `runner_service.py`、backend-state schema 與 app contract tests。 |
 | [services/engines/test_seed_cache.py](../../services/engines/test_seed_cache.py) | Seed cache repair 的 path/hash/link protection tests，不下載真模型、不覆寫外部 upstream。 | cache policy 或 manifest 欄位改動同步 `seed_cache.py`、Seed assets registry/preflight。 |
@@ -456,7 +459,7 @@
 | [docs/verification/backends/vcclient-packaged-repair-latest.md](../../docs/verification/backends/vcclient-packaged-repair-latest.md) | VCClient packaged runtime repair/register/probe 結果及 blocked/degraded evidence。 | VCClient runtime package/register/probe 改動後重跑 repair/probe，再更新 report。 |
 | [docs/specs/vcclient-runtime-gate.md](../../docs/specs/vcclient-runtime-gate.md) | VCClient embedded runtime compatibility、role-model 與 package gate；和 model/audio proof 分開。 | VCClient runtime repair、role model 或 gate policy 變更同步 tools 與 latest report。 |
 | [docs/verification/backends/vcclient-rvc-latency-matrix-latest.md](../../docs/verification/backends/vcclient-rvc-latency-matrix-latest.md) | bounded VCClient chunk latency、buffer、invalid/dropout matrix 及 600 秒前置條件。 | latency/chunk validator 或 device route 改動後重跑 bounded matrix。 |
-| [docs/verification/backends/vcclient-rvc-probe-latest.md](../../docs/verification/backends/vcclient-rvc-probe-latest.md) | RVC FCPE+CUDA offline model output matrix；明確標示不是 realtime evidence。 | RVC model, FCPE, probe command 或 output artifact 變更後更新，不能套用成 LIVE。 |
+| [docs/verification/backends/vcclient-rvc-probe-latest.md](../../docs/verification/backends/vcclient-rvc-probe-latest.md) | RVC FCPE+CUDA Desktop block／callback 及歷史 offline output matrix；VCClient、physical Mic、LIVE 分開。 | RVC model、runtime、probe 或 output artifact 變更後更新，不能套用成 LIVE。 |
 | [docs/archive/wiring-deployment-report.md](../../docs/archive/wiring-deployment-report.md) | 歷史 deployed software/device/route onboarding report，供追溯初始配置。 | 只有部署配置或 onboarding evidence 變更時更新；目前狀態另看 wiring verification。 |
 | [docs/verification/audio/wiring-verification-latest.md](../../docs/verification/audio/wiring-verification-latest.md) | 最新 wiring verification，分離 file/runtime/device/service/audio evidence 並標記 PASS/WAITING/BLOCKED。 | `tools/verify_wiring.ps1`、device/route/service 或 probe 改動後重跑並附 artifact。 |
 | [docs/archive/project-architecture-review-report-2026-09-27.md](../../docs/archive/project-architecture-review-report-2026-09-27.md) | 2026-09-27 architecture/opening review 的 counted scope、findings 與 remediation context。 | 只修訂該 review 的來源證據或明確後續；current architecture 以 `architecture.md` 為準。 |

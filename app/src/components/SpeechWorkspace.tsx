@@ -4,6 +4,7 @@ import {
   defaultSpeechSnapshot,
   getSpeechStatus,
   normalizeSpeechSnapshot,
+  outputDeviceChoices,
   sendSpeechAction,
   subscribeSpeech,
   type InterruptPolicy,
@@ -15,6 +16,7 @@ import {
   type SpeechState,
   type VoiceProfile,
   type AudioDevices,
+  type SpeechRoute,
 } from '../services/speech';
 
 export type ShellWithQuickInput = Shell & { quick_input?: boolean };
@@ -27,8 +29,8 @@ type SpeechWorkspaceProps = {
   shell: ShellWithQuickInput;
   onShellPatch: (patch: Partial<ShellWithQuickInput>) => Promise<void>;
   onError: (message: string) => void;
-  route: { output: string; host_api: string };
-  onRouteChange: (route: { output: string; host_api: string }) => void;
+  route: SpeechRoute;
+  onRouteChange: (route: SpeechRoute) => void;
   audioDevices: AudioDevices | null;
   audioDeviceError: string;
   audioDeviceBusy: boolean;
@@ -169,6 +171,7 @@ export function SpeechWorkspace({
   const [text, setText] = useState(() => readSessionValue('composer', ''));
   const [settings, setSettings] = useState<SpeechSettings>(defaultSpeechSnapshot.settings);
   const [actionBusy, setActionBusy] = useState(false);
+  const [showAllOutputs, setShowAllOutputs] = useState(false);
   const [localError, setLocalError] = useState('');
   const [localNotice, setLocalNotice] = useState('');
   const composing = useRef(false);
@@ -227,7 +230,11 @@ export function SpeechWorkspace({
   const ttsEngine = supportedEngines.find((engine) => engine.id === engineId) ?? supportedEngines[0];
   const japaneseReference = selectedProfile?.id === 'reference-female' || selectedProfile?.id === 'reference-male';
   const outputIndex = (audioDevices?.outputs ?? []).findIndex((device) => device.selectable && device.name === route.output && device.host_api === route.host_api);
-  const routeReady = outputIndex >= 0;
+  const outputChoices = useMemo(() => outputDeviceChoices(audioDevices?.outputs ?? [], route, showAllOutputs), [audioDevices, route, showAllOutputs]);
+  const monitor = route.monitor ?? { enabled: false, output: '', host_api: '' };
+  const monitorChoices = outputDeviceChoices(audioDevices?.outputs ?? [], monitor).filter(({ device }) => !/CABLE|Voicemeeter|VB-Audio/i.test(device.name));
+  const monitorIndex = monitorChoices.find(({ device }) => device.name === monitor.output && device.host_api === monitor.host_api)?.index;
+  const routeReady = outputIndex >= 0 && (!monitor.enabled || monitorIndex !== undefined);
   const routeIsVirtual = /CABLE|Voicemeeter/i.test(route.output);
   const generationStart = current?.metrics?.generation_started_at;
   const generationSeconds = current?.status === 'generating' && typeof generationStart === 'string'
@@ -287,6 +294,7 @@ export function SpeechWorkspace({
             host_api: route.host_api,
             rack_profile_id: 'seed-vc-neutral',
             route_profile_id: 'seed-vc-virtual-route',
+            monitor: { ...monitor },
           },
         },
       },
@@ -327,8 +335,21 @@ export function SpeechWorkspace({
   if (settingsOnly) return <div className="speech-settings-page"><span className="eyebrow">AETHERTUNE</span><h1>設定</h1>{settingsPanel}</div>;
 
   const outputSelector = <div className="composer-output">
-    <label>輸出裝置<select aria-label="TTS Output" value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ output: device.name, host_api: device.host_api }); }}><option value="">{audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置'}</option>{audioDevices?.outputs.map((device, index) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{device.name} · {device.host_api}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label>
-    <button type="button" className="text-button" disabled={!native || audioDeviceBusy} onClick={() => void onReloadAudioDevices()}>重新掃描裝置</button>
+    <label>輸出裝置<select aria-label="TTS Output" value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { if (!event.target.value) return; const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ ...route, output: device.name, host_api: device.host_api }); }}><option value="">{audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置'}</option>{outputChoices.map(({ device, index, label, isDefault }) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{label}{showAllOutputs ? ` · ${device.host_api}` : ''}{isDefault ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label>
+    <div className="composer-output-options"><label className="check"><input aria-label="顯示進階輸出裝置" type="checkbox" checked={showAllOutputs} onChange={(event) => setShowAllOutputs(event.target.checked)}/>顯示進階輸出裝置</label><button type="button" className="text-button" disabled={!native || audioDeviceBusy} onClick={() => void onReloadAudioDevices()}>重新掃描裝置</button></div>
+  </div>;
+
+  const monitorControls = <div className="composer-monitor">
+    <label className="check"><input aria-label="自己監聽" type="checkbox" checked={monitor.enabled} disabled={!native || audioDeviceBusy || monitorChoices.length === 0} onChange={(event) => {
+      const preferred = (monitorChoices.find((choice) => choice.isDefault) ?? monitorChoices[0])?.device;
+      onRouteChange({ ...route, monitor: { enabled: event.target.checked, output: monitor.output || preferred?.name || '', host_api: monitor.host_api || preferred?.host_api || '' } });
+    }}/>自己監聽</label>
+    {monitor.enabled && <label>監聽裝置<select aria-label="監聽裝置" value={monitorIndex === undefined ? '' : String(monitorIndex)} disabled={!native || audioDeviceBusy} onChange={(event) => {
+      if (!event.target.value) return;
+      const device = audioDevices?.outputs[Number(event.target.value)];
+      if (device?.selectable) onRouteChange({ ...route, monitor: { enabled: true, output: device.name, host_api: device.host_api } });
+    }}><option value="">請選擇耳機或喇叭</option>{monitorChoices.map(({ device, index, label, isDefault }) => <option key={`${device.host_api}-${device.name}`} value={index}>{label}{isDefault ? ' · 系統預設' : ''}</option>)}</select></label>}
+    <p className="hint">{monitor.enabled ? '同一段語音也會送到監聽裝置。' : '自己監聽已關閉。'}套用下次送出；目前語音請用「停止播放」。{!routeIsVirtual && outputIndex >= 0 ? '主輸出是耳機／喇叭，仍會直接出聲；不想聽到自己時，主輸出請選虛擬線路。' : ''}</p>
   </div>;
 
   const composer = <section className="panel speech-composer">
@@ -344,6 +365,7 @@ export function SpeechWorkspace({
       rows={quickOnly ? 2 : 5}
     />
     {!quickOnly && outputSelector}
+    {!quickOnly && monitorControls}
     {audioDeviceError && <p role="alert" className="error">裝置清單讀取失敗：{audioDeviceError}</p>}
     <div className="composer-footer"><span className="hint">{current?.status === 'generating' ? `正在生成語音${generationSeconds === null ? '' : ` · 已等待 ${generationSeconds} 秒`}；完成後開始播放。` : routeReady ? (routeIsVirtual ? `輸出：${route.output}（虛擬線路；喇叭不會直接出聲）` : `輸出：${route.output}（${route.host_api}）`) : '請先選擇輸出裝置。'}</span><span className="speech-route-label">{current?.status === 'generating' ? '生成中' : routeReady ? '輸出已選擇' : '待選裝置'}</span></div>
     <div className="composer-actions">
@@ -383,7 +405,7 @@ export function SpeechWorkspace({
           <div className="speech-panel-title"><h2>語音佇列 <span>{activeQueueCount} 筆處理中 · {history.length} 筆紀錄</span></h2><button type="button" disabled={!native || actionBusy || activeQueueCount === 0} onClick={() => void runAction({ action: 'clear_queue' })}>清空佇列</button></div>
           {current ? <div className="queue-current"><div className="queue-item-heading"><span className="queue-status">CURRENT · {current.status}{generationSeconds === null ? '' : ` · ${generationSeconds} 秒`}</span><button type="button" disabled={!native || actionBusy} onClick={() => void runAction({ action: 'stop_speaking' })}>停止播放</button></div><p>{current.text}</p><small>{current.engine_id} · {current.voice_profile_id} · {current.route_snapshot?.output ?? '未記錄輸出裝置'}</small>{current.status === 'generating' && <p className="hint">正在載入模型或推論；完整語音完成後才播放，請勿重複送出。</p>}</div> : <div className="queue-empty-action"><p className="empty-state">尚無處理中的語音。</p></div>}
           <div className="queue-pending">{pending.map((item) => <div className="queue-item" key={item.id}><div><span className="queue-status">PENDING · {item.status}</span><p>{queueLabel(item)}</p></div><QueueItemActions item={item} busy={!native || actionBusy} onAction={(action) => void runAction(action)}/></div>)}</div>
-          {history.length > 0 && <details className="queue-history" open><summary>Queue history ({history.length})</summary>{history.map((item) => <div className="queue-history-row" key={item.id}><span>{item.status}</span><span>{queueLabel(item)}</span>{item.error && <small>{item.error}</small>}</div>)}</details>}
+          {history.length > 0 && <details className="queue-history" open><summary>Queue history ({history.length})</summary>{history.map((item) => <div className="queue-history-row" key={item.id}><span>{item.status}</span><span>{queueLabel(item)}</span>{item.error && <small>{item.error}</small>}{item.metrics?.monitor_status === 'failed' && <small className="error">主輸出已完成，自己監聽失敗：{String(item.metrics.monitor_error)}</small>}</div>)}</details>}
         </section>
         <section className="panel speech-phrases">
           <div className="speech-panel-title"><h2>最近使用 / 收藏</h2></div>
