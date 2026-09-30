@@ -22,7 +22,7 @@ async function selectTtsMode(page, expectedProfiles) {
   await mode.selectOption('speech_reconstruction');
   await page.waitForFunction(() => document.querySelector('[data-speech-mode="speech_reconstruction"]') !== null);
   assert.deepEqual(await page.getByLabel('Engine', { exact: true }).locator('option').allTextContents(), ['CosyVoice', 'Breeze TTS 2']);
-  assert.deepEqual(await page.getByLabel('Input', { exact: true }).locator('option').allTextContents(), ['手動輸入文字', '麥克風轉文字 · WAITING', 'Agent Reply · PLANNED']);
+  assert.equal(await page.getByLabel('Input', { exact: true }).count(), 0);
   if (expectedProfiles) assert.deepEqual(await page.getByLabel('Voice profile').locator('option').allTextContents(), expectedProfiles);
 }
 
@@ -33,12 +33,18 @@ async function previewPass() {
   await page.goto(baseUrl);
   await page.waitForSelector('main');
   assert.equal(await page.locator('main').getAttribute('data-native'), 'false');
-  await selectTtsMode(page, ['Reference Female', 'Reference Male', 'Official CosyVoice Sample']);
+  await selectTtsMode(page, ['中文參考聲音（官方範例）', '中文女聲參考（非商用測試）', '日語女聲參考（待核對）', '日語男聲參考（待核對）']);
+  assert.equal(await page.getByLabel('Voice profile').locator('option:checked').textContent(), '中文參考聲音（官方範例）');
+  await page.getByLabel('Engine', { exact: true }).selectOption('breeze');
+  assert.equal(await page.getByLabel('Voice profile').locator('option:checked').textContent(), '中文女聲參考（非商用測試）');
+  await page.getByLabel('Engine', { exact: true }).selectOption('cosyvoice');
+  await page.getByLabel('Voice profile').selectOption('reference-female');
+  assert.ok(await page.getByText('這是日語參考聲音', { exact: false }).isVisible());
+  await page.getByLabel('Voice profile').selectOption('official-cosyvoice-sample');
+  assert.equal(await page.locator('.speech-settings').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Speak', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: 'Add to Queue', exact: true }).isDisabled(), true);
-  assert.equal(await page.getByLabel('Input', { exact: true }).locator('option:disabled').count(), 2);
-  assert.ok(await page.getByText('CosyVoice3 · PLANNED', { exact: true }).isVisible());
-  assert.ok(await page.getByText('Mic WAITING', { exact: false }).first().isVisible());
+  assert.equal(await page.getByText('CosyVoice3 · PLANNED', { exact: true }).count(), 0);
 
   const composer = page.getByLabel('Speech composer');
   await composer.fill('preview line one');
@@ -76,8 +82,9 @@ async function previewPass() {
   assert.equal(await page.getByRole('button', { name: 'VOICE', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'TRANSCRIPT', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'AUDIO', exact: true }).count(), 0);
-  assert.ok(await page.getByText('completed playback only', { exact: true }).isVisible());
+  assert.ok(await page.getByText('僅顯示已完成的播放', { exact: true }).isVisible());
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  assert.equal(await page.locator('.speech-settings').count(), 1);
   assert.equal(await page.getByLabel('Enter to send').isDisabled(), true);
   await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
   assert.deepEqual(diagnostics.errors, []);
@@ -180,9 +187,12 @@ async function mockPass() {
   assert.equal(await page.evaluate(() => window.__speechMockActions.length), beforeIme);
   assert.equal(await composer.inputValue(), 'ime composing');
 
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   const enterSetting = page.getByLabel('Enter to send');
   await enterSetting.uncheck();
   await page.waitForFunction(() => window.__speechMockActions?.some((entry) => entry.action?.action === 'settings'));
+  await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
+  await composer.evaluate((element) => { element.focus(); element.setSelectionRange(element.value.length, element.value.length); });
   await composer.press('Enter');
   assert.equal(await composer.inputValue(), 'ime composing\n');
   await composer.press('Shift+Enter');
@@ -193,7 +203,7 @@ async function mockPass() {
   await page.getByRole('button', { name: 'Compact', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('main')?.classList.contains('compact'));
   const bufferingCurrent = page.locator('.queue-current');
-  assert.ok(await bufferingCurrent.getByRole('button', { name: 'Stop Speaking', exact: true }).isEnabled());
+  assert.ok(await bufferingCurrent.getByRole('button', { name: '停止播放', exact: true }).isEnabled());
   assert.equal(await bufferingCurrent.getByRole('button', { name: 'Remove', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Full', exact: true }).click();
   await page.evaluate(() => { window.__speechMockBuffering = false; });

@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/voice-profile.schema.json",
   "id": "official-cosyvoice-sample",
-  "name": "Official CosyVoice Sample",
+  "name": "中文參考聲音（官方範例）",
   "engines": ["cosyvoice"],
   "status": "WAITING",
   "metadata": {

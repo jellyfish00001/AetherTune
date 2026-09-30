@@ -47,7 +47,7 @@ const pendingQueueStatuses = new Set(['queued', 'pending', 'ready']);
 const terminalQueueStatuses = new Set(['completed', 'failed', 'cancelled', 'rejected']);
 
 function stateLabel(state: SpeechState): string {
-  return state;
+  return ({ IDLE: '待命', QUEUED: '排隊中', GENERATING: '生成中', BUFFERING: '準備播放', PLAYING: '播放中', STOPPING: '停止中', ERROR: '錯誤' } as Record<SpeechState, string>)[state];
 }
 
 function queueLabel(item: SpeechQueueItem): string {
@@ -113,19 +113,19 @@ function VoiceProfileSelect({
   const profileStatus = selected?.status || selected?.metadata?.review_status || 'WAITING';
   const referenceStatus = reference?.metadata_status;
   return <div className="speech-voice-field">
-    <label>Voice profile
+    <label>參考聲音
       <select aria-label="Voice profile" value={selected?.id ?? ''} onChange={(event) => onChange(event.target.value)} disabled={profiles.length === 0}>
         {profiles.length === 0 && <option value="">尚未讀取 profiles</option>}
         {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
       </select>
     </label>
-    {selected && <div className="profile-meta">
+    {selected && <details className="profile-meta"><summary>參考聲音資訊與使用限制</summary>
       <span className="draft-badge">{profileStatus}</span>
-      <span>{referenceAudio || 'reference audio 尚未提供'}</span>
-      <small>{referenceText || 'reference text 尚未提供'}</small>
-      {referenceStatus && referenceStatus !== profileStatus && <small>reference metadata: {referenceStatus}</small>}
+      <span>{referenceAudio || '尚未提供參考音訊'}</span>
+      <small>{referenceText || '尚未提供參考文字'}</small>
+      {referenceStatus && referenceStatus !== profileStatus && <small>參考資料狀態：{referenceStatus}</small>}
       {selected.note && <small>{selected.note}</small>}
-    </div>}
+    </details>}
   </div>;
 }
 
@@ -164,8 +164,8 @@ export function SpeechWorkspace({
   quickOnly = false,
 }: SpeechWorkspaceProps) {
   const [snapshot, setSnapshot] = useState<SpeechSnapshot>(defaultSpeechSnapshot);
-  const [inputSource, setInputSource] = useState<SpeechInputSource>('manual_text');
-  const [profileId, setProfileId] = useState(() => readSessionValue('profile-id', defaultSpeechSnapshot.profiles[0]?.id ?? ''));
+  const inputSource: SpeechInputSource = 'manual_text';
+  const [profileId, setProfileId] = useState(() => readSessionValue('profile-id-v2', defaultSpeechSnapshot.profiles[0]?.id ?? ''));
   const [text, setText] = useState(() => readSessionValue('composer', ''));
   const [settings, setSettings] = useState<SpeechSettings>(defaultSpeechSnapshot.settings);
   const [actionBusy, setActionBusy] = useState(false);
@@ -174,8 +174,7 @@ export function SpeechWorkspace({
   const composing = useRef(false);
   const mounted = useRef(true);
 
-  useEffect(() => writeSessionValue('input-source', inputSource), [inputSource]);
-  useEffect(() => writeSessionValue('profile-id', profileId), [profileId]);
+  useEffect(() => writeSessionValue('profile-id-v2', profileId), [profileId]);
   useEffect(() => writeSessionValue('composer', text), [text]);
 
   const refresh = useCallback(async () => {
@@ -216,14 +215,17 @@ export function SpeechWorkspace({
     };
   }, [profileId, refresh]);
 
-  const profiles = useMemo(() => snapshot.profiles.filter((profile) => !profile.engines?.length || profile.engines.includes(engineId)), [engineId, snapshot.profiles]);
-  const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? profiles[0];
+  const preferredProfileId = engineId === 'breeze' ? 'reference-mandarin-female' : 'official-cosyvoice-sample';
+  const profiles = useMemo(() => snapshot.profiles
+    .filter((profile) => !profile.engines?.length || profile.engines.includes(engineId))
+    .sort((left, right) => Number(right.id === preferredProfileId) - Number(left.id === preferredProfileId)),
+  [engineId, preferredProfileId, snapshot.profiles]);
+  const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? profiles.find((profile) => profile.id === preferredProfileId) ?? profiles[0];
   const { current, pending, history } = useMemo(() => snapshotQueue(snapshot), [snapshot]);
   const activeQueueCount = (current ? 1 : 0) + pending.length;
   const completedTranscript = useMemo(() => snapshot.transcript.filter(isCompletedPlayback), [snapshot.transcript]);
   const ttsEngine = supportedEngines.find((engine) => engine.id === engineId) ?? supportedEngines[0];
-  const profileIsDraft = !selectedProfile || (selectedProfile.status ?? 'draft').toLowerCase() !== 'ready';
-  const isMicInput = inputSource === 'microphone';
+  const japaneseReference = selectedProfile?.id === 'reference-female' || selectedProfile?.id === 'reference-male';
   const outputIndex = (audioDevices?.outputs ?? []).findIndex((device) => device.selectable && device.name === route.output && device.host_api === route.host_api);
   const routeReady = outputIndex >= 0;
   const routeIsVirtual = /CABLE|Voicemeeter/i.test(route.output);
@@ -231,9 +233,6 @@ export function SpeechWorkspace({
   const generationSeconds = current?.status === 'generating' && typeof generationStart === 'string'
     ? Math.max(0, Math.floor((Date.now() - Date.parse(generationStart)) / 1000))
     : null;
-  const inputStatus = inputSource === 'microphone'
-    ? `Mic ${snapshot.capabilities.microphone === 'implemented' && snapshot.mic_enabled ? 'ON' : 'WAITING'}`
-    : inputSource === 'manual_text' ? 'Manual text implemented' : 'PLANNED';
 
   const runAction = useCallback(async (action: SpeechAction, enqueue?: boolean): Promise<boolean> => {
     if (!native) {
@@ -319,13 +318,13 @@ export function SpeechWorkspace({
   };
 
   const settingsPanel = <section className="panel speech-settings">
-    <div className="speech-panel-title"><h2>Speech settings <span>native persisted</span></h2></div>
-    <label>Interrupt policy<select aria-label="Interrupt policy" value={settings.interrupt_policy} disabled={!native || actionBusy} onChange={(event) => handleSettings({ interrupt_policy: event.target.value as InterruptPolicy })}><option value="queue">queue</option><option value="interrupt_current">interrupt_current</option><option value="reject_new">reject_new</option></select></label>
-    <label className="check"><input aria-label="Enter to send" type="checkbox" checked={settings.enter_to_send} disabled={!native || actionBusy} onChange={(event) => handleSettings({ enter_to_send: event.target.checked })}/>Enter to send</label>
-    <p className="hint">{native ? 'Settings are persisted by speech_action.' : '瀏覽器預覽：native settings disabled。'}</p>
+    <div className="speech-panel-title"><h2>送出與佇列 <span>設定會儲存</span></h2></div>
+    <label>新訊息處理方式<select aria-label="Interrupt policy" value={settings.interrupt_policy} disabled={!native || actionBusy} onChange={(event) => handleSettings({ interrupt_policy: event.target.value as InterruptPolicy })}><option value="queue">排隊（建議）</option><option value="interrupt_current">中斷目前語音</option><option value="reject_new">忙碌時拒絕</option></select></label>
+    <label className="check"><input aria-label="Enter to send" type="checkbox" checked={settings.enter_to_send} disabled={!native || actionBusy} onChange={(event) => handleSettings({ enter_to_send: event.target.checked })}/>Enter 直接送出（Shift+Enter 換行）</label>
+    <p className="hint">{native ? '設定會自動儲存。' : '瀏覽器預覽無法儲存設定。'}</p>
   </section>;
 
-  if (settingsOnly) return <div className="speech-settings-page"><span className="eyebrow">TEXT → VOICE</span><h1>Speech settings</h1>{settingsPanel}</div>;
+  if (settingsOnly) return <div className="speech-settings-page"><span className="eyebrow">AETHERTUNE</span><h1>設定</h1>{settingsPanel}</div>;
 
   const outputSelector = <div className="composer-output">
     <label>輸出裝置<select aria-label="TTS Output" value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ output: device.name, host_api: device.host_api }); }}><option value="">{audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置'}</option>{audioDevices?.outputs.map((device, index) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{device.name} · {device.host_api}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label>
@@ -333,7 +332,7 @@ export function SpeechWorkspace({
   </div>;
 
   const composer = <section className="panel speech-composer">
-    <div className="speech-panel-title"><h2>{quickOnly ? 'Quick input' : 'Manual composer'} <span>{text.length} characters</span></h2><span className="speech-input-status">{inputStatus}</span></div>
+    <div className="speech-panel-title"><h2>{quickOnly ? '快速輸入' : '文字輸入'} <span>{text.length} 字</span></h2></div>
     <textarea
       aria-label={quickOnly ? 'Compact quick input' : 'Speech composer'}
       value={text}
@@ -346,7 +345,7 @@ export function SpeechWorkspace({
     />
     {!quickOnly && outputSelector}
     {audioDeviceError && <p role="alert" className="error">裝置清單讀取失敗：{audioDeviceError}</p>}
-    <div className="composer-footer"><span className="hint">{current?.status === 'generating' ? `正在生成完整 WAV${generationSeconds === null ? '' : ` · 已等待 ${generationSeconds} 秒`}；完成後才開始播放。` : routeReady ? (routeIsVirtual ? `輸出：${route.output}（虛擬線路；喇叭不會直接出聲）` : `輸出：${route.output}（${route.host_api}）`) : '請先選擇輸出裝置。'}</span><span className="speech-route-label">{current?.status === 'generating' ? 'GENERATING' : 'AUDIO WAITING'}</span></div>
+    <div className="composer-footer"><span className="hint">{current?.status === 'generating' ? `正在生成語音${generationSeconds === null ? '' : ` · 已等待 ${generationSeconds} 秒`}；完成後開始播放。` : routeReady ? (routeIsVirtual ? `輸出：${route.output}（虛擬線路；喇叭不會直接出聲）` : `輸出：${route.output}（${route.host_api}）`) : '請先選擇輸出裝置。'}</span><span className="speech-route-label">{current?.status === 'generating' ? '生成中' : routeReady ? '輸出已選擇' : '待選裝置'}</span></div>
     <div className="composer-actions">
       <button type="button" className="start" disabled={!native || !routeReady || !text.trim() || actionBusy} onClick={() => void submit(false)}>Speak</button>
       {!quickOnly && <button type="button" disabled={!native || !routeReady || !text.trim() || actionBusy} onClick={() => void submit(true)}>Add to Queue</button>}
@@ -363,43 +362,37 @@ export function SpeechWorkspace({
   </section>;
 
   return <div className="speech-workspace" data-speech-mode={mode}>
-    <div className="headline speech-headline"><div><span className="eyebrow">{mode === 'speech_reconstruction' ? 'SPEECH RECONSTRUCTION' : 'TEXT → VOICE'}</span><h1>{mode === 'speech_reconstruction' ? '重新合成一段聲音。' : '讓文字成為聲音。'}</h1></div><div className="speech-state-stack"><SpeechStateBadge state={snapshot.state}/><span className="audio-waiting">AUDIO WAITING</span></div></div>
+    <div className="headline speech-headline"><div><span className="eyebrow">TEXT → VOICE</span><h1>讓文字成為聲音。</h1></div><div className="speech-state-stack"><SpeechStateBadge state={snapshot.state}/></div></div>
       <div className="speech-layout">
       <div className="speech-main-column">
         <section className="panel speech-controls">
-          <div className="speech-panel-title"><h2>Voice controls <span>TTS backend</span></h2><span className="classification">WAITING</span></div>
+          <div className="speech-panel-title"><h2>聲音選擇 <span>先選引擎與參考聲音</span></h2></div>
           <div className="speech-control-grid">
-            <label>Mode<select aria-label="Mode" value={mode} onChange={(event) => onModeChange(event.target.value)}><option value="speech_reconstruction">Speech Reconstruction</option><option value="text_to_speech">Text → Voice</option><option value="streaming_vc">Streaming VC</option></select></label>
-            <label>Engine<select aria-label="Engine" value={ttsEngine.id} onChange={(event) => onEngineChange(event.target.value)}>{supportedEngines.map((engine) => <option key={engine.id} value={engine.id}>{engine.name}</option>)}</select></label>
-            <label>文字來源<select aria-label="Input" value={inputSource} onChange={(event) => setInputSource(event.target.value as SpeechInputSource)}><option value="manual_text">手動輸入文字</option><option value="microphone" disabled>麥克風轉文字 · WAITING</option><option value="agent_reply" disabled>Agent Reply · PLANNED</option></select></label>
+            <label>模式<select aria-label="Mode" value={mode} onChange={(event) => onModeChange(event.target.value)}><option value="speech_reconstruction">語音重建</option><option value="text_to_speech">文字發聲</option><option value="streaming_vc">即時變聲</option></select></label>
+            <label>引擎<select aria-label="Engine" value={ttsEngine.id} onChange={(event) => onEngineChange(event.target.value)}>{supportedEngines.map((engine) => <option key={engine.id} value={engine.id}>{engine.name}</option>)}</select></label>
             <VoiceProfileSelect profiles={profiles} profileId={profileId} engineId={ttsEngine.id} onChange={setProfileId}/>
           </div>
-          <div className="speech-engine-notes"><span>{ttsEngine.detail}</span><span className="planned-badge">CosyVoice3 · PLANNED</span></div>
-          <div className="speech-capabilities"><span>Mic {snapshot.capabilities.microphone === 'implemented' && snapshot.mic_enabled ? 'ON' : 'WAITING'}</span><span>Manual text {snapshot.capabilities.manual_text}</span><span>agent_reply {snapshot.capabilities.agent_reply}</span></div>
-          <p className="hint">{snapshot.profiles_pending ? 'Voice Library 尚未建立；目前沿用 backend reference catalogue，尚未讀取正式 speech_status profiles。' : 'Voice profiles 由 speech_status snapshot 提供。'}</p>
-          {profileIsDraft && <p className="draft-note">Draft profile：reference audio／text 尚未完成正式核對；不代表 active 或 ready。</p>}
-          <p className="hint">{isMicInput ? 'microphone real STT：WAITING。manual composer 不受 Mic OFF gate 影響。' : 'manual_text provider 可直接送入 SpeechQueue。'}</p>
-          <div className="tts-legacy-start"><button type="button" disabled aria-label="▶ START">▶ START</button><span>TTS 使用 Speak／Queue；VC runner START 保持 disabled。</span></div>
+          {japaneseReference && <p className="draft-note">這是日語參考聲音，中文文字可能帶日語發音；請改選中文參考聲音。</p>}
+          <p className="hint">首次使用會載入模型；同一引擎的下一句會直接推論。切換引擎或取消生成後需重新載入。</p>
         </section>
         {composer}
         {(localError || (snapshot.state === 'ERROR' && snapshot.queue[0]?.error)) && <p role="alert" className="error speech-error">{localError || snapshot.queue[0]?.error}</p>}
       </div>
       <aside className="speech-side-column">
         <section className="panel speech-queue">
-          <div className="speech-panel-title"><h2>Speech Queue <span>{activeQueueCount} active · {history.length} history</span></h2><button type="button" disabled={!native || actionBusy || activeQueueCount === 0} onClick={() => void runAction({ action: 'clear_queue' })}>Clear Queue</button></div>
-          {current ? <div className="queue-current"><div className="queue-item-heading"><span className="queue-status">CURRENT · {current.status}{generationSeconds === null ? '' : ` · ${generationSeconds} 秒`}</span><button type="button" disabled={!native || actionBusy} onClick={() => void runAction({ action: 'stop_speaking' })}>Stop Speaking</button></div><p>{current.text}</p><small>{current.engine_id} · {current.voice_profile_id} · {current.route_snapshot?.output ?? '未記錄輸出裝置'}</small>{current.status === 'generating' && <p className="hint">正在載入模型並產生完整語音；播放尚未開始。請勿重複送出。</p>}</div> : <div className="queue-empty-action"><p className="empty-state">No current speech. TTS audio remains WAITING until backend evidence arrives.</p><button type="button" disabled>Stop Speaking</button></div>}
+          <div className="speech-panel-title"><h2>語音佇列 <span>{activeQueueCount} 筆處理中 · {history.length} 筆紀錄</span></h2><button type="button" disabled={!native || actionBusy || activeQueueCount === 0} onClick={() => void runAction({ action: 'clear_queue' })}>清空佇列</button></div>
+          {current ? <div className="queue-current"><div className="queue-item-heading"><span className="queue-status">CURRENT · {current.status}{generationSeconds === null ? '' : ` · ${generationSeconds} 秒`}</span><button type="button" disabled={!native || actionBusy} onClick={() => void runAction({ action: 'stop_speaking' })}>停止播放</button></div><p>{current.text}</p><small>{current.engine_id} · {current.voice_profile_id} · {current.route_snapshot?.output ?? '未記錄輸出裝置'}</small>{current.status === 'generating' && <p className="hint">正在載入模型或推論；完整語音完成後才播放，請勿重複送出。</p>}</div> : <div className="queue-empty-action"><p className="empty-state">尚無處理中的語音。</p></div>}
           <div className="queue-pending">{pending.map((item) => <div className="queue-item" key={item.id}><div><span className="queue-status">PENDING · {item.status}</span><p>{queueLabel(item)}</p></div><QueueItemActions item={item} busy={!native || actionBusy} onAction={(action) => void runAction(action)}/></div>)}</div>
           {history.length > 0 && <details className="queue-history" open><summary>Queue history ({history.length})</summary>{history.map((item) => <div className="queue-history-row" key={item.id}><span>{item.status}</span><span>{queueLabel(item)}</span>{item.error && <small>{item.error}</small>}</div>)}</details>}
         </section>
         <section className="panel speech-phrases">
-          <div className="speech-panel-title"><h2>Recent / Favorites <span>backend snapshot</span></h2></div>
+          <div className="speech-panel-title"><h2>最近使用 / 收藏</h2></div>
           <div className="phrase-list">{snapshot.recent_phrases.map((phrase) => <div className="phrase-row" key={phrase}><button type="button" className="phrase-button" onClick={() => setText(phrase)}>{phrase}</button><button type="button" className="pin-button" aria-label={snapshot.favorites.includes(phrase) ? `Unpin ${phrase}` : `Pin ${phrase}`} disabled={!native || actionBusy} onClick={() => handleFavorite(phrase)}>{snapshot.favorites.includes(phrase) ? '★' : '☆'}</button></div>)}</div>
           {snapshot.favorites.length > 0 && <div className="favorite-phrases"><span className="favorite-heading">Favorites</span>{snapshot.favorites.map((phrase) => <div className="phrase-row" key={`favorite-${phrase}`}><button type="button" className="phrase-button" onClick={() => setText(phrase)}>{phrase}</button><button type="button" className="pin-button" aria-label={`Unpin ${phrase}`} disabled={!native || actionBusy} onClick={() => handleFavorite(phrase)}>★</button></div>)}</div>}
         </section>
-        {settingsPanel}
         <section className="panel speech-transcript">
-          <div className="speech-panel-title"><h2>Transcript <span>completed playback only</span></h2></div>
-          {completedTranscript.length === 0 ? <p className="empty-state">尚無 completed playback。failed／cancelled 項目只留在 queue history。</p> : <div className="transcript-list">{completedTranscript.map((entry) => <div className="transcript-row" key={entry.id}><span>ME · manual_text</span><p>{entry.text}</p></div>)}</div>}
+          <div className="speech-panel-title"><h2>文字紀錄 <span>僅顯示已完成的播放</span></h2></div>
+          {completedTranscript.length === 0 ? <p className="empty-state">尚無已完成的播放。</p> : <div className="transcript-list">{completedTranscript.map((entry) => <div className="transcript-row" key={entry.id}><span>我 · 文字輸入</span><p>{entry.text}</p></div>)}</div>}
         </section>
       </aside>
     </div>

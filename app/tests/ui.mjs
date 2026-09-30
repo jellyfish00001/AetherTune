@@ -29,7 +29,7 @@ await page.getByRole('button',{name:'Full',exact:true}).click();
 if(!native)await page.setViewportSize({width:1040,height:740});
 await page.getByLabel('Mode',{exact:true}).selectOption('speech_reconstruction');
 assert.deepEqual(await page.getByLabel('Engine',{exact:true}).locator('option').allTextContents(),['CosyVoice','Breeze TTS 2']);
-assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
+assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).count(),0);
 await page.getByLabel('Mode',{exact:true}).selectOption('text_to_speech');
 assert.deepEqual(await page.getByLabel('Engine',{exact:true}).locator('option').allTextContents(),['CosyVoice','Breeze TTS 2']);
 await page.getByLabel('Mode',{exact:true}).selectOption('streaming_vc');

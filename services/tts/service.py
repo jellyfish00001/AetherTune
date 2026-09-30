@@ -304,6 +304,14 @@ class SpeechService:
         if current is not None:
             self._cancel_current("service_shutdown")
         self._worker.join(timeout=max(0.1, float(timeout)))
+        closed: set[int] = set()
+        for adapter in self._adapters.values():
+            if id(adapter) in closed:
+                continue
+            closed.add(id(adapter))
+            close = getattr(adapter, "close", None)
+            if callable(close):
+                close()
         self._store.close()
 
     # ---------- command implementations ----------
@@ -652,7 +660,14 @@ class SpeechService:
         try:
             record["metrics"]["generation_started_at"] = started_at
             self._safe_save_request(record)
+            self._emit_snapshot()
             adapter = self._adapters[record["engine_id"]]
+            # 兩個 TTS 模型可能同時佔用 GPU；切換引擎時先釋放舊 worker。
+            for other_id, other in self._adapters.items():
+                if other_id != record["engine_id"] and other is not adapter:
+                    close = getattr(other, "close", None)
+                    if callable(close):
+                        close()
             generation_result = adapter.generate(record, output_path, job_dir, cancel_event)
             if cancel_event.is_set():
                 raise GenerationCancelled("generation cancelled")

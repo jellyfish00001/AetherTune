@@ -2,6 +2,7 @@ import { command, native, subscribe } from './desktop';
 import referenceFemale from '../../../contracts/voices/reference-female.json';
 import referenceMale from '../../../contracts/voices/reference-male.json';
 import officialCosyVoiceSample from '../../../contracts/voices/official-cosyvoice-sample.json';
+import referenceMandarinFemale from '../../../contracts/voices/reference-mandarin-female.json';
 
 export type SpeechState =
   | 'IDLE'
@@ -186,9 +187,10 @@ function fromContractProfile(profile: ContractVoiceProfile): VoiceProfile {
 
 // 直接匯入 contracts/voices，避免預覽 registry 與 backend profile IDs 分叉。
 export const backendReferenceCatalogue: VoiceProfile[] = [
+  fromContractProfile(officialCosyVoiceSample as ContractVoiceProfile),
+  fromContractProfile(referenceMandarinFemale as ContractVoiceProfile),
   fromContractProfile(referenceFemale as ContractVoiceProfile),
   fromContractProfile(referenceMale as ContractVoiceProfile),
-  fromContractProfile(officialCosyVoiceSample as ContractVoiceProfile),
 ].map((profile) => ({ ...profile, source: 'backend_reference_catalogue' }));
 
 export const defaultSpeechSnapshot: SpeechSnapshot = {

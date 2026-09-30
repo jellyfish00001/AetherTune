@@ -13,6 +13,7 @@ import subprocess
 import time
 import wave
 import copy
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, RLock
@@ -363,160 +364,173 @@ class BaseGenerationAdapter:
         return GenerationResult(audio_path=output_path, metrics=metrics, evidence=evidence)
 
 
-class CosyVoiceAdapter(BaseGenerationAdapter):
+class ResidentGenerationAdapter(BaseGenerationAdapter):
+    """同一 speech service 內保留一個受 WSL process-group 管理的模型。"""
+
+    def __init__(self, root: Path, engine_id: str, distro: str = "Ubuntu") -> None:
+        super().__init__(root, engine_id, distro)
+        self._warm_job: WslJob | None = None
+        self._mailbox: Path | None = None
+
+    def _worker_command(self, mailbox: Path) -> list[str]:
+        if self.engine_id == "cosyvoice":
+            environment = [
+                "-u", "CUDA_VISIBLE_DEVICES",
+                f"PYTHONPATH={to_wsl_path(self.root / 'tools/external/CosyVoice')}:{to_wsl_path(self.root / 'tools/external/CosyVoice/third_party/Matcha-TTS')}",
+                "HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1",
+            ]
+            python = self.root / "tools/venvs/cosyvoice-wsl/bin/python"
+            model = self.root / "models/speech-reconstruction/cosyvoice"
+        else:
+            environment = [
+                f"PYTHONPATH={to_wsl_path(self.root / 'tools/external/breeze-tts')}",
+                f"PATH={to_wsl_path(self.root / 'artifacts/sox-local/usr/bin')}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                f"LD_LIBRARY_PATH={to_wsl_path(self.root / 'artifacts/sox-local/usr/lib/x86_64-linux-gnu')}:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu",
+                "HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1",
+            ]
+            python = self.root / "tools/venvs/breeze-tts-wsl/bin/python"
+            model = self.root / "models/speech-reconstruction/breeze-tts-2"
+        return ["env", *environment, to_wsl_path(python), "-u",
+                to_wsl_path(self.root / "tools/tts-resident-worker.py"),
+                "--engine", self.engine_id, "--model-dir", to_wsl_path(model),
+                "--mailbox", to_wsl_path(mailbox)]
+
+    def _request_payload(self, request: Mapping[str, Any], output_path: Path, job_dir: Path) -> dict[str, Any]:
+        reference = _profile_reference(request, self.engine_id)
+        for key in ("audio_path", "text_path"):
+            if not (self.root / reference[key]).is_file():
+                raise GenerationError(f"REFERENCE_INVALID: 找不到 {reference[key]}")
+        text_file = job_dir / "tts-text.txt"
+        _write_text_file(text_file, str(request["text"]))
+        payload: dict[str, Any] = {
+            "id": str(request["id"]), "output": to_wsl_path(output_path),
+            "text_file": to_wsl_path(text_file),
+        }
+        if self.engine_id == "cosyvoice":
+            payload.update({
+                "prompt_audio": to_wsl_path(self.root / reference["audio_path"]),
+                "prompt_text_file": to_wsl_path(self.root / reference["text_path"]),
+            })
+        else:
+            metadata = request.get("metadata") if isinstance(request.get("metadata"), dict) else {}
+            cfg_scale = metadata.get("cfg_scale", 1.0)
+            seed = metadata.get("seed", 42)
+            attention = metadata.get("attention_implementation", "eager")
+            if not isinstance(cfg_scale, (int, float)) or isinstance(cfg_scale, bool):
+                raise GenerationError("PARAMETER_INVALID: cfg_scale 必須是數字")
+            if not isinstance(seed, int) or isinstance(seed, bool):
+                raise GenerationError("PARAMETER_INVALID: seed 必須是整數")
+            if attention not in ("eager", "flash_attention_2"):
+                raise GenerationError("PARAMETER_INVALID: attention_implementation 不合法")
+            payload.update({
+                "reference_audio": to_wsl_path(self.root / reference["audio_path"]),
+                "reference_text_file": to_wsl_path(self.root / reference["text_path"]),
+                "instruction": metadata.get("instruction") if isinstance(metadata.get("instruction"), str) else "",
+                "cfg_scale": float(cfg_scale), "seed": seed,
+                "fast_all": bool(metadata.get("fast_all", False)),
+                "attention_implementation": attention,
+            })
+        return payload
+
+    def _ensure_worker(self, job_dir: Path) -> tuple[WslJob, Path]:
+        with self._job_lock:
+            if self._warm_job is not None and self._warm_job.poll() is None and self._mailbox is not None:
+                return self._warm_job, self._mailbox
+            if self._warm_job is not None:
+                self._warm_job.wait(timeout=2)
+            mailbox = job_dir.parent.parent / "workers" / self.engine_id / uuid.uuid4().hex
+            (mailbox / "requests").mkdir(parents=True)
+            (mailbox / "results").mkdir(parents=True)
+            job = WslJob(root=self.root, job_dir=mailbox, command=self._worker_command(mailbox), distro=self.distro)
+            self._warm_job = job
+            self._mailbox = mailbox
+            self._active_job = job
+            try:
+                job.start()
+            except Exception:
+                self._warm_job = None
+                self._mailbox = None
+                self._active_job = None
+                raise
+            return job, mailbox
+
+    def generate(self, request: Mapping[str, Any], output_path: Path, job_dir: Path, cancel_event: Event) -> GenerationResult:
+        readiness = self.readiness()
+        if not readiness["preflight_valid"]:
+            raise GenerationError("MODEL_NOT_FOUND: " + ", ".join(item["path"] for item in readiness["errors"]))
+        payload = self._request_payload(request, output_path, job_dir)
+        started = time.perf_counter()
+        job, mailbox = self._ensure_worker(job_dir)
+        request_id = str(request["id"])
+        result_path = mailbox / "results" / f"{request_id}.json"
+        pending_path = mailbox / "requests" / f"{request_id}.json"
+        temporary = pending_path.with_suffix(".tmp")
+        try:
+            temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            os.replace(temporary, pending_path)
+            deadline = time.monotonic() + 900
+            while not result_path.is_file():
+                if cancel_event.is_set():
+                    audit = job.cancel("generation_cancelled")
+                    raise GenerationCancelled(json.dumps({"pid_audit": audit}, ensure_ascii=False))
+                if job.poll() is not None:
+                    raise GenerationError(f"BACKEND_CRASH: {self.engine_id} resident worker exit={job.poll()}; stderr={job.stderr_path}")
+                if time.monotonic() >= deadline:
+                    job.cancel("generation_timeout")
+                    raise GenerationError(f"BACKEND_TIMEOUT: {self.engine_id} 生成超過 15 分鐘；stderr={job.stderr_path}")
+                time.sleep(0.05)
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            if cancel_event.is_set():
+                audit = job.cancel("generation_cancelled")
+                raise GenerationCancelled(json.dumps({"pid_audit": audit}, ensure_ascii=False))
+            if result.get("status") != "PASS" or result.get("id") != request_id:
+                raise GenerationError(f"BACKEND_CRASH: {self.engine_id} resident request failed: {result.get('error')}; stderr={job.stderr_path}")
+            return self._finish_result(
+                request=request, output_path=output_path, started=started, audit=job.audit(),
+                runner={"kind": "resident_wsl_worker", "script": "tools/tts-resident-worker.py",
+                        "supports_streaming_tts": False},
+            )
+        finally:
+            with self._job_lock:
+                self._active_job = None
+            if cancel_event.is_set() and job.poll() is None:
+                job.cancel("adapter_finally_cleanup")
+                try:
+                    job.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                with self._job_lock:
+                    if self._warm_job is job:
+                        self._warm_job = None
+                        self._mailbox = None
+
+    def close(self) -> dict[str, Any] | None:
+        with self._job_lock:
+            job = self._warm_job
+            self._warm_job = None
+            self._mailbox = None
+            self._active_job = None
+        if job is None:
+            return None
+        if job.poll() is None:
+            audit = job.cancel("resident_worker_close")
+        else:
+            audit = job.audit()
+        try:
+            job.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        return audit
+
+
+class CosyVoiceAdapter(ResidentGenerationAdapter):
     def __init__(self, root: Path, distro: str = "Ubuntu") -> None:
         super().__init__(root, "cosyvoice", distro)
 
-    def _build_job(self, request: Mapping[str, Any], output_path: Path, job_dir: Path) -> WslJob:
-        reference = _profile_reference(request, self.engine_id)
-        for key in ("audio_path", "text_path"):
-            if not (self.root / reference[key]).is_file():
-                raise GenerationError(f"REFERENCE_INVALID: 找不到 {reference[key]}")
-        text_file = job_dir / "tts-text.txt"
-        _write_text_file(text_file, str(request["text"]))
-        command = [
-            "env",
-            "-u",
-            "CUDA_VISIBLE_DEVICES",
-            f"PYTHONPATH={to_wsl_path(self.root / 'tools/external/CosyVoice')}:{to_wsl_path(self.root / 'tools/external/CosyVoice/third_party/Matcha-TTS')}",
-            "HF_HUB_OFFLINE=1",
-            "TRANSFORMERS_OFFLINE=1",
-            f"{to_wsl_path(self.root)}/tools/venvs/cosyvoice-wsl/bin/python",
-            "-u",
-            f"{to_wsl_path(self.root)}/tools/cosyvoice-infer.py",
-            "--model-dir",
-            to_wsl_path(self.root / "models/speech-reconstruction/cosyvoice"),
-            "--prompt-audio",
-            to_wsl_path(self.root / reference["audio_path"]),
-            "--prompt-text-file",
-            to_wsl_path(self.root / reference["text_path"]),
-            "--text-file",
-            to_wsl_path(text_file),
-            "--output",
-            to_wsl_path(output_path),
-            "--fp16",
-        ]
-        return WslJob(root=self.root, job_dir=job_dir, command=command, distro=self.distro)
 
-    def generate(self, request: Mapping[str, Any], output_path: Path, job_dir: Path, cancel_event: Event) -> GenerationResult:
-        readiness = self.readiness()
-        if not readiness["preflight_valid"]:
-            raise GenerationError("MODEL_NOT_FOUND: " + ", ".join(item["path"] for item in readiness["errors"]))
-        job = self._build_job(request, output_path, job_dir)
-        with self._job_lock:
-            self._active_job = job
-        started = time.perf_counter()
-        try:
-            job.start()
-            audit = self._wait_job(job, cancel_event)
-            return self._finish_result(
-                request=request,
-                output_path=output_path,
-                started=started,
-                audit=audit,
-                runner={
-                    "kind": "cosyvoice2_direct_wsl_argv",
-                    "script": "tools/cosyvoice-infer.py",
-                    "supports_streaming_tts": False,
-                },
-            )
-        finally:
-            if job.poll() is None:
-                self._ensure_job_stopped(job, cancel_event)
-            with self._job_lock:
-                self._active_job = None
-
-
-class BreezeAdapter(BaseGenerationAdapter):
+class BreezeAdapter(ResidentGenerationAdapter):
     def __init__(self, root: Path, distro: str = "Ubuntu") -> None:
         super().__init__(root, "breeze", distro)
-
-    def _build_job(self, request: Mapping[str, Any], output_path: Path, job_dir: Path) -> WslJob:
-        reference = _profile_reference(request, self.engine_id)
-        for key in ("audio_path", "text_path"):
-            if not (self.root / reference[key]).is_file():
-                raise GenerationError(f"REFERENCE_INVALID: 找不到 {reference[key]}")
-        text_file = job_dir / "tts-text.txt"
-        _write_text_file(text_file, str(request["text"]))
-        metadata = request.get("metadata") if isinstance(request.get("metadata"), dict) else {}
-        instruction = metadata.get("instruction")
-        cfg_scale = metadata.get("cfg_scale", 1.0)
-        seed = metadata.get("seed", 42)
-        fast_all = bool(metadata.get("fast_all", False))
-        attention = metadata.get("attention_implementation", "eager")
-        if not isinstance(cfg_scale, (int, float)) or isinstance(cfg_scale, bool):
-            raise GenerationError("PARAMETER_INVALID: cfg_scale 必須是數字")
-        if not isinstance(seed, int) or isinstance(seed, bool):
-            raise GenerationError("PARAMETER_INVALID: seed 必須是整數")
-        if attention not in ("eager", "flash_attention_2"):
-            raise GenerationError("PARAMETER_INVALID: attention_implementation 不合法")
-        command = [
-            "env",
-            f"PYTHONPATH={to_wsl_path(self.root / 'tools/external/breeze-tts')}",
-            f"PATH={to_wsl_path(self.root / 'artifacts/sox-local/usr/bin')}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            f"LD_LIBRARY_PATH={to_wsl_path(self.root / 'artifacts/sox-local/usr/lib/x86_64-linux-gnu')}:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu",
-            "HF_HUB_OFFLINE=1",
-            "TRANSFORMERS_OFFLINE=1",
-            f"{to_wsl_path(self.root)}/tools/venvs/breeze-tts-wsl/bin/python",
-            "-u",
-            f"{to_wsl_path(self.root)}/tools/breeze-tts2-infer.py",
-            "--model-dir",
-            to_wsl_path(self.root / "models/speech-reconstruction/breeze-tts-2"),
-            "--text-file",
-            to_wsl_path(text_file),
-            "--output",
-            to_wsl_path(output_path),
-            "--cfg-scale",
-            str(float(cfg_scale)),
-            "--seed",
-            str(seed),
-            "--attention-implementation",
-            str(attention),
-        ]
-        if fast_all:
-            command.append("--fast-all")
-        if isinstance(instruction, str) and instruction.strip():
-            command.extend(["--instruction", instruction.strip()])
-        command.extend(
-            [
-                "--reference-audio",
-                to_wsl_path(self.root / reference["audio_path"]),
-                "--reference-text-file",
-                to_wsl_path(self.root / reference["text_path"]),
-            ]
-        )
-        # command 內容等同 tools/breeze-tts2-run.ps1 的 WSL argv，但由 service
-        # wrapper 直接持有 setsid group，才能提供安全 cancellation audit。
-        return WslJob(root=self.root, job_dir=job_dir, command=command, distro=self.distro)
-
-    def generate(self, request: Mapping[str, Any], output_path: Path, job_dir: Path, cancel_event: Event) -> GenerationResult:
-        readiness = self.readiness()
-        if not readiness["preflight_valid"]:
-            raise GenerationError("MODEL_NOT_FOUND: " + ", ".join(item["path"] for item in readiness["errors"]))
-        job = self._build_job(request, output_path, job_dir)
-        with self._job_lock:
-            self._active_job = job
-        started = time.perf_counter()
-        try:
-            job.start()
-            audit = self._wait_job(job, cancel_event)
-            return self._finish_result(
-                request=request,
-                output_path=output_path,
-                started=started,
-                audit=audit,
-                runner={
-                    "kind": "breeze_tts2_wrapper_equivalent_wsl_argv",
-                    "script": "tools/breeze-tts2-run.ps1",
-                    "underlying_runner": "tools/breeze-tts2-infer.py",
-                    "supports_streaming_tts": False,
-                },
-            )
-        finally:
-            if job.poll() is None:
-                self._ensure_job_stopped(job, cancel_event)
-            with self._job_lock:
-                self._active_job = None
 
 
 def default_adapters(root: Path, distro: str = "Ubuntu") -> dict[str, BaseGenerationAdapter]:

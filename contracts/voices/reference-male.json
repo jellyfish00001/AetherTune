@@ -1,14 +1,14 @@
 {
   "$schema": "../schemas/voice-profile.schema.json",
   "id": "reference-male",
-  "name": "Reference Male",
+  "name": "日語男聲參考（待核對）",
   "engines": ["cosyvoice", "breeze"],
   "status": "WAITING",
   "metadata": {
     "review_status": "WAITING",
     "manual_review_required": true,
     "source": "dataset/reference-voices/README.md",
-    "notes": "公開測試樣本；reference transcript 尚待人工逐字核對。"
+    "notes": "JVNV 日語測試樣本；中文合成可能帶日語發音，reference transcript 尚待人工逐字核對。"
   },
   "references": {
     "cosyvoice": {

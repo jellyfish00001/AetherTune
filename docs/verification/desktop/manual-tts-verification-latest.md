@@ -1,5 +1,23 @@
 # Manual TTS 增量實作與驗證
 
+## 2026-09-30：雙引擎常駐、中文參考聲音與單一設定入口
+
+本輪將 Desktop Manual TTS 的 CosyVoice2／Breeze TTS 2 都改為 service 持有的 WSL worker。第一句載入模型，後續同引擎句子在同一 process 推論；切換引擎或關閉 Desktop service 時清理前一個 worker。這只適用於當前 Desktop service 存活期間；重新啟動程式後仍須首次載入。兩引擎仍先產生完整 WAV 再播放，沒有 chunk streaming。
+
+`AETHERTUNE_RESIDENT_TTS_SMOKE=1` 執行 `tools/venvs/seed-vc/Scripts/python.exe app/tests/resident-tts-smoke.py`，report 為 `artifacts/sessions/resident-smoke-8ab12b6f-29ff-4a17-a066-d734dea1f2b4/report.json`。CosyVoice2 首句／次句生成 `62.869／4.096 秒`、模型載入 `25.407／0 秒`；Breeze 為 `170.370／8.197 秒`、模型載入 `86.101／0 秒`。各引擎兩句均有 finite／nonzero WAV 與 SHA-256，次句 `runtime_reused=true` 且 worker PID／token 與首句相同；兩個 worker 的 close audit 均為 identity verified、無殘留。此數字是本機本次實測，不是每次生成的保證或物理播放證據。
+
+本次 model fingerprint：CosyVoice2 `204861ce8b518b73fd5c36e4dab0641cfa326ae7ef8d554810d853a3c0f08d60`，Breeze `972153a41d5cee95e94b97ba37be4a0803473f84c62172e10fe0f7bbfeef57e7`；兩者均在 WSL `Ubuntu`、RTX 5060 Ti CUDA 環境推論。CosyVoice2 使用 `tools/external/CosyVoice/asset/zero_shot_prompt.wav`（SHA-256 `c7b31d6dbe7cc6a716dded00550db5b50940bf209e424e4ad207b12e657c8ff6`）；Breeze 使用 `dataset/reference-voices/female-sister-f003.wav`（SHA-256 `2BCF3F197045799A90CB63DA02E94F2E8237E5C074304E5D00E8322F4FAF3053`）及來源原文。輸出 SHA-256 與各 request path 見 report；離線 smoke 沒有開啟 Windows 音訊裝置。
+
+舊 `reference-female`／`reference-male` 的 prompt transcript 是日語；本輪在 UI 明確標記為日語參考，CosyVoice2 預選官方中文樣本，Breeze 預選授權標為 CC BY-NC-ND 4.0 的本機中文女聲樣本，供非商業試用。新增樣本的人耳語言與音質聽評仍 `WAITING`。WORKSPACE 先顯示聲音與引擎，再顯示輸入及輸出裝置；Speech settings 僅在 SETTINGS。生成開始時間在 Queue 進入 `generating` 時即送到前端，畫面顯示等待秒數。
+
+原生 WebView2 使用根目錄 `AetherTune.exe`，在 `1300×900` 視窗選 CosyVoice、官方中文樣本、系統預設 `喇叭 (HyperX QuadCast S)`／`MME`，由 `AETHERTUNE_NATIVE_AUDIO_SMOKE=1` 的 `node app/tests/manual-tts-native-smoke.mjs` 在同一程式連續送兩次 `今天測試中文語音。`。session `71f7dbf2-2d6e-4c90-930c-d9f93586f6a6` 的 request `b2e17d67-31e2-4f5e-a675-d8795d34b4c2` 與 `957a44e5-8cf0-42c2-8989-b4a834eed00e` 均走完 `queued → generating → playing → completed`，WebView2 console error `0`、播放 callback `2.84／2.72 秒`、WAV RMS `0.0451／0.0439`，且生成中 snapshot 有 `generation_started_at`。報告在 `artifacts/desktop/ui/manual-tts-native-smoke-cold.json`、`artifacts/desktop/ui/manual-tts-native-smoke.json`；各 request 的 evidence 在該 session 目錄。
+
+原生首句生成 `182.460 秒`、其中模型載入 `75.644 秒`；第二句生成 `3.297 秒`、`load_seconds=0`、`runtime_reused=true`，兩句的 worker PID `36844`、token `0b66996222cb4c3b8060f3df50d45d0c`、模型 fingerprint 完全一致。首句約 3 分鐘確實偏久，不能稱為正常固定等待；這次改動解決了每句重載，首次載入、WSL 啟動及準備工作仍待進一步優化。新版原生截圖為 `output/playwright/manual-tts-native-smoke.png`。另以瀏覽器預覽 `http://127.0.0.1:1420/`、`1280×720` 視窗複核聲音控制排在文字輸入前；新分頁的 SETTINGS 只顯示一份送出設定。Playwright 預覽與 mock IPC 測試均 PASS。
+
+最後檢核命令：`app/dev.ps1 -Test`（contract、engine 6、cache 6、TTS 26、Rust 4 全 PASS）、在 `app/` 執行 `npm run test:manual-tts-ui` 與 `npm run test:ui`（Playwright preview／mock IPC PASS）、`app/dev.ps1 -Build`（成功並複製根目錄 exe，SHA-256 `E06C67DEB9F7E469F147291CF6EE72D15DD81994E6240DBECF32245F2662FE43`）。原生視窗使用上述 smoke 兩次，`1300×900`、`tauri.localhost`，輸出路由如上；console error `0`，沒有 network 異常回報。音訊 smoke 與預覽測試使用不同頁面與能力，不能互相替代。
+
+原生測試證明 WAV 有限且非零、指定音訊端點的播放 callback 完成；`playback_verified=false`、`route_status=WAITING`，未做物理 loopback 或人耳語言／音質聽評。中文 prompt/reference 降低再次用日語樣本的可能，但不能據此宣稱已確認聽感為標準中文。Mic STT、VC 即時音訊、外部 Rack 與 LIVE gate 仍 `WAITING`。
+
 ## 2026-09-30：首次使用回報、裝置選擇與原生單句複核
 
 使用者回報 Speak 送出後看似無作用、裝置須手填，且 `LIVE`／`VOICE`／`TRANSCRIPT` 三個分頁沒有差別。當時 session `3e218dfc-40f0-4d30-bcf2-8e046b159fb7` 的三筆 request 都已被 Queue 接受，但 evidence 均為 `cancelled`，沒有完成 WAV／播放；畫面當時的 `CURRENT · generating` 是尚在生成完整 WAV。舊 UI 沒有顯示等待時間，且輸出預設為 `CABLE Input`，不會由實體喇叭直接發聲。不能把這三筆紀錄稱為生成失敗，也不能稱為音訊成功。
@@ -39,7 +57,7 @@ Manual Composer（不呼叫 STT）
   → 完成播放 → SQLite commit → ME Transcript／JSONL／TXT
 ```
 
-生成狀態與播放狀態分開；TTS state 使用 `IDLE / QUEUED / GENERATING / BUFFERING / PLAYING / STOPPING / ERROR`。Request 使用 `queued / generating / ready / playing / completed / cancelled / failed`。當前 runner 為完整 WAV，`supports_streaming_tts=false`，TTFA 為本 adapter 首個可用 buffer 的時間；真正 chunk streaming 與 warm model residency 尚未交付。
+生成狀態與播放狀態分開；TTS state 使用 `IDLE / QUEUED / GENERATING / BUFFERING / PLAYING / STOPPING / ERROR`。Request 使用 `queued / generating / ready / playing / completed / cancelled / failed`。runner 為完整 WAV，`supports_streaming_tts=false`，TTFA 為本 adapter 首個可用 buffer 的時間；真正 chunk streaming 尚未交付。這段原始紀錄寫於 2026-09-27～28，當時的 warm model residency 也尚未交付；2026-09-30 已加入。
 
 Speak 遵守 interrupt policy，Add to Queue 永遠 FIFO。Stop Speaking 取消 current，Clear Queue 取消 pending，均不關閉 App 或服務。Mic OFF／Input Mode 不作為 manual 的 gate。未來 STT 提交入口只接受 physical microphone source；本輪尚未實作真實常駐 mic capture，因此 Mic ON 的完整共存驗收保持 WAITING。
 
@@ -115,7 +133,7 @@ Runner 為 PyTorch `2.9.1+cu128`、CUDA `12.8`、RTX 5060 Ti，`ref_clone_tata /
 | Transcript／退出 | 20 completed → 20 ME／manual_text，cancelled／failed 均 0；session ended_at 已保存、service_alive=false；21 個記錄的 Windows PIDs 與 20 個 WSL groups 無存活 |
 | 驗證報告 | `queue-20-final/audio-report.json`、`artifact-verification.json`、`process-audit.json` 均 PASS；完整 request／timestamps／hash 在 `artifacts/sessions/3b504f49-a879-41ed-a0d9-46c93d8bdb3c/` |
 
-這輪證明 offline Manual TTS 的 20-request 穩定性與 profile/reference 切換；Breeze 仍是前述單次真實鏈路驗證。每句重載模型，沒有 warm residency 或真正 chunk streaming，不能將約 30 分鐘批次執行當作連續 600 秒 realtime／LIVE PASS。
+2026-09-27～28 的測試證明 offline Manual TTS 的 20-request 穩定性與 profile/reference 切換；Breeze 當時仍是前述單次真實鏈路驗證。當時每句重載模型，沒有 warm residency 或真正 chunk streaming，不能將約 30 分鐘批次執行當作連續 600 秒 realtime／LIVE PASS；2026-09-30 的重用結果見本頁頂端。
 
 ## 操作與重跑
 

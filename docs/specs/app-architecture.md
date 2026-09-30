@@ -82,7 +82,7 @@ M5 VoiceProfile 與 M6 TTS 共用 Mode → Engine；M7 只接既有 Audio Rack�
 
 新增服務留在 `services/tts/`，原生 bridge 留在 `app/src-tauri/src/speech_manager/`。`speech_status` 懶啟動受 Windows Job 管理的 Python JSONL service；`speech_action` 傳入 allowlist 動作，每次 command_id 都要收到 accepted／error ACK，拒絕新 request 不能被 UI 當成送出成功。IPC／WebView 仍不傳 PCM。
 
-`SpeechRequest → SpeechQueue → TTSOrchestrator` 負責串行生命週期；Generation Adapter 沿用 CosyVoice2 WSL Python 與 Breeze wrapper，Playback 在 Windows 對指定 PortAudio output／host API 開啟音訊。現有 `seed-vc-virtual-route` 與 `seed-vc-neutral` 是跨 backend 共用外部 rack／route，Post-FX 仍為 External / Manual，不能將 playback completion 等同完整 rack／LIVE PASS。
+`SpeechRequest → SpeechQueue → TTSOrchestrator` 負責串行生命週期；Generation Adapter 為 CosyVoice2／Breeze 各自持有受 token 與 process group 管理的 WSL 常駐 worker，同一 Engine 的下一句重用模型。切換 Engine 先釋放舊 worker；生成中取消會終止該 worker，下一句重新載入；App Exit 清理 idle worker。每筆 request 仍有獨立 WAV、manifest 與 evidence。Playback 在 Windows 對指定 PortAudio output／host API 開啟音訊。現有 `seed-vc-virtual-route` 與 `seed-vc-neutral` 是跨 backend 共用外部 rack／route，Post-FX 仍為 External / Manual，不能將 playback completion 等同完整 rack／LIVE PASS。
 
 SpeechManager 與 VC EngineManager 分開持有程序，Audio control mutex 防止兩邊同時提交佔用 Output 的啟動動作。Stop Speaking 送 TTS command，不關閉 TTS service；App Exit 才送 shutdown 並釋放 Job。WSL generation 的取消另外要清除自己建立的 Linux process group；Windows Job 不能當成 Linux 子程序已消失的證據。
 

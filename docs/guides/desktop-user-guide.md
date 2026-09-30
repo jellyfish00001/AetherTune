@@ -12,7 +12,7 @@
 
 要使用文字發聲，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue 停用是預期行為。舊 Tk 控制台已移除；Seed 官方 GUI 與 MeanVC2／X-VC 的獨立 CLI 仍可依[後端手冊](user-guide.md)操作。Desktop 的 VC 參數與裝置控制仍在開發中，不能把舊控制台的欄位當成已完整移植。
 
-目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；排隊還會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
+目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。首次使用某個 Engine 時會載入模型；同一 App session 內連續使用相同 Engine，後續句子重用已載入的模型。切換 Engine、Stop Speaking 取消正在生成的句子、worker 異常或 Exit 後再次使用，會重新載入。前版逐句重載時，CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；這不是新版熱模型的保證時間。排隊也會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
 
 ## 2. 啟動前與第一次建置
 
@@ -56,7 +56,7 @@ wsl.exe --list --quiet
 2. 如果已有 VC runner，先在 Streaming VC 模式按 `STOP`。VC 與 TTS 不可同時爭用 Output／GPU；Mic STT 的未來共存是另一件事。
 3. `Engine` 選 **CosyVoice**（目前實際使用 CosyVoice2）或 **Breeze TTS 2**。CosyVoice3 尚未接入。
 4. 「文字來源」目前是**手動輸入文字**。`microphone` 尚未有常駐實體 Mic/STT，選項停用；`agent_reply` 也尚未開放。
-5. 明確選 `Voice profile`，核對畫面顯示的 reference WAV／文字路徑。
+5. 明確選 `Voice profile`，核對畫面顯示的 reference WAV／文字路徑。中文首次測試預選「中文參考聲音（官方範例）」；若選日語參考聲音，中文可能帶日語發音。Breeze 可選「中文女聲參考（非商用測試）」，該樣本僅供本機非商業測試且仍待人工聽評。
 6. 在「輸出裝置」下拉選單選要聽的實體喇叭或虛擬線路；選單顯示 PortAudio 的裝置名稱與 Host API，預選系統預設播放端。可用「重新掃描裝置」更新清單。先前已有音訊擷取證據的虛擬線路組合如下：
 
    | 欄位 | 值 |
@@ -70,13 +70,14 @@ wsl.exe --list --quiet
 
 | Voice profile | 可用 Engine | 用途／限制 |
 |---|---|---|
-| Official CosyVoice Sample | CosyVoice | 上游測試 reference；可作第一次 pipeline 檢核，實際顯示名稱以 profile 為準 |
-| Reference Female | CosyVoice、Breeze | 使用 `dataset/reference-voices/voice-female-f1.wav`；prompt transcript 仍需人工核對 |
-| Reference Male | CosyVoice、Breeze | 使用 `dataset/reference-voices/voice-male-m1.wav`；prompt transcript 仍需人工核對 |
+| 中文參考聲音（官方範例） | CosyVoice | 上游中文測試 reference；預設用於第一次中文 pipeline 檢核，實際中文發音仍需聽評 |
+| 中文女聲參考（非商用測試） | CosyVoice、Breeze | 使用 `dataset/reference-voices/female-sister-f003.wav`；CC BY-NC-ND 4.0，僅本機非商業測試，音訊／原文對齊待人工核對 |
+| 日語女聲參考（待核對） | CosyVoice、Breeze | 使用 `dataset/reference-voices/voice-female-f1.wav`；原文是日語，中文可能帶日語發音 |
+| 日語男聲參考（待核對） | CosyVoice、Breeze | 使用 `dataset/reference-voices/voice-male-m1.wav`；原文是日語，中文可能帶日語發音 |
 
 `WAITING`／`DRAFT` 表示 reference metadata、人工審核或完整 route 的狀態，不等於這次生成已失敗。可以跑已準備的測試 profile，但不能將它當成正式批准或聲線品質通過。自訂聲線由 Agent 修改 `contracts/voices/`，目前沒有 UI 的新增 Voice Library 功能。
 
-目前 TTS UI 可改文字、Engine、Voice、輸出裝置、interrupt policy 與 Enter 行為；文字來源只提供手動輸入。Streaming VC 的 Host API、麥克風輸入及輸出改用列舉下拉選單，但即時音訊仍須獨立驗收。manifest 的進階參數不等於畫面已有可用控制項。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
+目前 TTS UI 可改文字、Engine、Voice、輸出裝置、interrupt policy 與 Enter 行為；`WORKSPACE` 放生成操作與佇列，`SETTINGS` 才放送出與佇列設定。文字來源只提供手動輸入。Streaming VC 的 Host API、麥克風輸入及輸出改用列舉下拉選單，但即時音訊仍須獨立驗收。manifest 的進階參數不等於畫面已有可用控制項。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
 
 ## 4. Speak、Queue 與取消
 
@@ -91,7 +92,7 @@ wsl.exe --list --quiet
 | Move Up／Move Down | 調整 pending 次序 |
 | Speak Now（pending） | 將原 request 移到下一個；是否打斷 current 依該 request 保存的 policy |
 
-在 `Speech settings` 或 Full 的 `SETTINGS` 頁設定：
+在 Full 的 `SETTINGS` 頁設定：
 
 | Interrupt policy | 正在生成／播放時按 Speak |
 |---|---|

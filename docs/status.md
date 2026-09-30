@@ -2,6 +2,8 @@
 
 **文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
 
+2026-09-30 Manual TTS 更新：CosyVoice2 與 Breeze TTS 2 在 Desktop service 內各保留一個已載入模型的 WSL worker；同引擎後續句子重用模型，切換引擎或關閉服務時釋放 worker。兩引擎各兩句的真實 WAV 驗證顯示第二句 `load_seconds=0`、相同 worker identity，CosyVoice2 生成時間約 `62.9 → 4.1 秒`，Breeze 約 `170.4 → 8.2 秒`。根目錄 exe 的原生中文送出與播放 callback 連續兩次 PASS，生成 `182.5 → 3.3 秒`；首句仍慢。中文文字預設改用中文參考聲音，日語樣本明確標示；WORKSPACE 僅留聲音與輸入操作，送出設定集中在 SETTINGS。詳細證據與限制見[Manual TTS 驗證](verification/desktop/manual-tts-verification-latest.md)。
+
 2026-09-30 Desktop 入口更新：根目錄 `AetherTune.exe` 已由當次 build 產生；舊 Tk 控制台已移除。啟動卡住的診斷鎖順序已修正，根目錄 exe 的視窗回應與原生 WebView2 畫面已複核；該次是啟動／UI 證據，沒有重跑音訊或 LIVE gate。命令與截圖見 [App 啟動驗證](verification/desktop/app-verification-latest.md)，日常操作見 [Desktop 手冊](guides/desktop-user-guide.md)。
 
 2026-09-30 Manual TTS 使用回報複核：三筆舊 request 在完整 WAV 產生前取消；修正手填裝置與重複分頁後，根目錄 exe 的原生單句測試走完生成、實體輸出 callback 與 Transcript，WAV 有限且非零。這是本機 `CosyVoice2 → HyperX／MME` 的單句證據，物理 loopback／人耳聽評、Mic STT、VC 即時鏈與 LIVE 仍 `WAITING`。精確 request、hash、命令與畫面見 [Manual TTS 2026-09-30 複核](verification/desktop/manual-tts-verification-latest.md)。
@@ -10,7 +12,7 @@
 
 前次 Manual TTS 增量日期：2026-09-28（Asia/Taipei）
 
-Manual TTS 增量：Desktop Composer／Queue／Transcript 與既有 CosyVoice2／Breeze 已接通；指定 CABLE 的真實生成／完成播放／非零擷取／hash／provider／程序清理 PASS。生成及播放取消後下一句完成亦 PASS；CosyVoice2 同一 service 的 20 次真實 request、男女 profile 各 10 次、20 個非零播放時窗及 Transcript／FIFO／退出清理全 PASS，Breeze 為單次鏈路驗證。詳細命令與 evidence 見 [`manual-tts-verification-latest.md`](verification/desktop/manual-tts-verification-latest.md)。目前完整 WAV、每句重載模型，屬 offline；實體 Mic 共存、原生 GUI 完整互動、外部 Post-FX、LIVE 與人工聽評仍 WAITING；Agent Reply 僅停用契約。
+當時的 Manual TTS 增量：Desktop Composer／Queue／Transcript 與既有 CosyVoice2／Breeze 已接通；指定 CABLE 的真實生成／完成播放／非零擷取／hash／provider／程序清理 PASS。生成及播放取消後下一句完成亦 PASS；CosyVoice2 同一 service 的 20 次真實 request、男女 profile 各 10 次、20 個非零播放時窗及 Transcript／FIFO／退出清理全 PASS，Breeze 當時為單次鏈路驗證。詳細命令與 evidence 見 [`manual-tts-verification-latest.md`](verification/desktop/manual-tts-verification-latest.md)。當時為完整 WAV、每句重載模型；此重載限制已由上方 2026-09-30 更新修正。實體 Mic 共存、外部 Post-FX、LIVE 與人工聽評仍 WAITING；Agent Reply 僅停用契約。
 
 這份文件回答「目前哪些可以直接使用、哪些仍需要補條件」。`PASS` 只代表指定 gate 有可重跑證據；不代表音質一定符合個人偏好。`WAITING` 是尚未完成或需要人工／系統條件；`BLOCKED` 是目前有明確錯誤，不能當作可用。Seed-VC 開箱操作及本輪 readiness 見 [`seed-vc-readiness-latest.md`](verification/backends/seed-vc-readiness-latest.md)。
 

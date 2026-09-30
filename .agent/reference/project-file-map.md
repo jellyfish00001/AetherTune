@@ -142,6 +142,7 @@
 | [app/tests/manual-playback-diagnostic.py](../../app/tests/manual-playback-diagnostic.py) | 針對指定 TTS WAV 與 Windows host/output route 做 playback diagnostic，保存 route/audio evidence。 | 同步 `services/tts/playback.py` 與 manual TTS evidence；不修改預設裝置。 |
 | [app/tests/manual-tts.mjs](../../app/tests/manual-tts.mjs) | Playwright preview + explicit mocked Tauri IPC regression；驗證 composer、IME、enqueue、profile、queue/error、Mini/Compact layout。 | 修改 TTS DOM/IPC 時必跑 `node tests/manual-tts.mjs`；mock 不是 live audio proof。 |
 | [app/tests/manual-tts-native-smoke.mjs](../../app/tests/manual-tts-native-smoke.mjs) | 需明確旗標才執行的原生 WebView2 單句 TTS 驗證；使用系統預設實體輸出，記錄 Queue 狀態、播放 metrics、UI 截圖與 console error。 | 只在獲得真實音訊測試授權且目前 App 由本輪啟動時執行；另核對生成 WAV／evidence，不能把 native callback 當成人耳聽評。 |
+| [app/tests/resident-tts-smoke.py](../../app/tests/resident-tts-smoke.py) | 明確旗標啟動 CosyVoice／Breeze 各兩筆真實 WAV，檢查同一 worker PID/token 與第二筆 `runtime_reused`；不播放。 | 修改常駐模型、WSL mailbox 或取消生命週期後重跑；另行驗證原生 UI／播放。 |
 | [app/tests/probe-report.py](../../app/tests/probe-report.py) | 解析 `artifacts/desktop/integration/{seed-vc,meanvc2,xvc}-probe.jsonl`，確認同一 EngineManager 的 final `OFFLINE`、service 不存活與無 PID survivor，並比對既有 runner baseline 未被改寫；輸出 `probe-report.json`，保留 realtime audio `WAITING`。 | 同步 `desktop-probe.rs` event/output、engine lifecycle 與 `docs/verification/desktop/app-verification-latest.md`；這是 process/control report，不是 audio E2E。 |
 | [app/tests/ui.mjs](../../app/tests/ui.mjs) | Playwright browser 或 optional Tauri CDP UI regression；驗證三種 shell 尺寸、mode/engine filtering、click-through/hide。 | 同步 `main.tsx`/`style.css`/Tauri window behavior；交叉複核 Browser 與 native evidence。 |
 | [app/tests/verify-speech-artifacts.mjs](../../app/tests/verify-speech-artifacts.mjs) | 以 AJV 與 SHA-256 核對正式 probe 的 session/request/state/transcript schema、request/profile/reference/output/model/route evidence、WAV hash、FIFO、metrics、SQLite exports 與 `service_alive=false`；不做 Windows/WSL PID cleanup，該責任屬 `audit-speech-processes.py`。 | 同步 `speech-probe`、`manual-audio-smoke.py`、TTS service snapshot/contracts 與 Manual TTS verification。 |
@@ -227,6 +228,7 @@
 | [contracts/voices/reference-female.json](../../contracts/voices/reference-female.json) | `reference-female` CosyVoice/Breeze voice profile，保存公開 sample provenance、per-engine audio/text paths 與 review notes。 | 修改 ID/engine/reference 時同步 `contracts/engines`、TTS UI fallback、Manual TTS evidence。 |
 | [contracts/voices/reference-male.json](../../contracts/voices/reference-male.json) | `reference-male` CosyVoice/Breeze voice profile，保存公開 sample provenance、per-engine audio/text paths 與 review notes。 | 同上。 |
 | [contracts/voices/official-cosyvoice-sample.json](../../contracts/voices/official-cosyvoice-sample.json) | Official CosyVoice zero-shot sample profile，只支援 CosyVoice，保留 official audio/text metadata status。 | 同步 CosyVoice manifest、TTS service profile validation 與 UI catalogue。 |
+| [contracts/voices/reference-mandarin-female.json](../../contracts/voices/reference-mandarin-female.json) | 中文女聲本機非商業測試 profile，連到來源 register 的 exact source text 與音檔。 | 同步 reference register、文字 fixture、TTS UI catalogue 與使用手冊；人工聽評仍 WAITING。 |
 
 ## `dataset/`
 
@@ -321,6 +323,7 @@
 |---|---|---|
 | [tools/cosyvoice-setup.ps1](../../tools/cosyvoice-setup.ps1) | 在 WSL2 Ubuntu 建立 CosyVoice Python 3.10 environment、安裝官方依賴、下載 CosyVoice2。 | model/runtime revision 變更同步 `cosyvoice-infer.py`、models register、CosyVoice verification。 |
 | [tools/cosyvoice-infer.py](../../tools/cosyvoice-infer.py) | CosyVoice2 dedicated WSL inference entry，支援 zero-shot/reference clone，輸出 WAV 與 manifest。 | input/reference/output contract 同步 `services/tts/adapters.py`、voice profiles、CosyVoice docs。 |
+| [tools/tts-resident-worker.py](../../tools/tts-resident-worker.py) | CosyVoice／Breeze 的 WSL 常駐推論 worker；每筆 mailbox request 產生獨立 WAV、manifest 與結果，模型在同 Engine 連續請求間保留。 | 同步 `services/tts/adapters.py` 的 WSL group 清理、Breeze resident runtime、真實兩筆 smoke 與 Manual TTS 驗證。 |
 | [tools/cosyvoice-frontend-probe.py](../../tools/cosyvoice-frontend-probe.py) | 以小輸入執行 CosyVoice speech-tokenizer ONNX，記錄 provider/profiling，區分 frontend probe 與完整 TTS。 | probe output 或 ONNX provider policy 同步 cudnn8 wrapper、verification docs。 |
 | [tools/cosyvoice-frontend-cudnn8-probe.ps1](../../tools/cosyvoice-frontend-cudnn8-probe.ps1) | CosyVoice frontend CUDNN8 probe 的 WSL wrapper。 | WSL path/runtime 變更同步 frontend probe 和 CosyVoice verification。 |
 | [tools/breeze-tts2-setup.ps1](../../tools/breeze-tts2-setup.ps1) | 在 WSL2 Ubuntu 建立 Breeze TTS 2 Python 3.10 environment 與官方 checkpoint。 | checkpoint/license/runtime 變更同步 Breeze infer/run/webui 和 verification。 |
@@ -341,6 +344,7 @@
 | [tools/fixtures/breeze-reference-female-text.txt](../../tools/fixtures/breeze-reference-female-text.txt) | Breeze female reference audio 的人工核對 transcript fixture。 | reference profile 或 transcript 改動同步 `contracts/voices`、Breeze docs/runner。 |
 | [tools/fixtures/breeze-reference-male-text.txt](../../tools/fixtures/breeze-reference-male-text.txt) | Breeze male reference audio 的人工核對 transcript fixture。 | 同上。 |
 | [tools/fixtures/breeze-target-text.txt](../../tools/fixtures/breeze-target-text.txt) | Breeze target utterance 的 deterministic UTF-8 text input。 | target test case 或 runner 變更同步 Breeze verification。 |
+| [tools/fixtures/mandarin-female-reference.txt](../../tools/fixtures/mandarin-female-reference.txt) | 中文女聲樣本的來源原文；聲音逐字對齊仍待人工核對。 | 同步 `reference-mandarin-female.json`、reference register 與 TTS evidence。 |
 | [tools/fixtures/cosyvoice/prompt-text.txt](../../tools/fixtures/cosyvoice/prompt-text.txt) | CosyVoice prompt/reference clone 的 prompt text fixture。 | voice profile/reference contract 變更同步 CosyVoice runner/docs。 |
 | [tools/fixtures/cosyvoice/reference-female-text.txt](../../tools/fixtures/cosyvoice/reference-female-text.txt) | CosyVoice female reference audio 的 transcript fixture。 | 同步 `contracts/voices/reference-female.json` 與 dataset reference register。 |
 | [tools/fixtures/cosyvoice/reference-male-text.txt](../../tools/fixtures/cosyvoice/reference-male-text.txt) | CosyVoice male reference audio 的 transcript fixture。 | 同步 `contracts/voices/reference-male.json` 與 dataset reference register。 |

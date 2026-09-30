@@ -24,7 +24,7 @@ page.on('console', (message) => { if (message.type() === 'error') errors.push(me
 
 const invoke = (command) => page.evaluate((name) => window.__TAURI_INTERNALS__.invoke(name), command);
 const startedAt = Date.now();
-const phrase = 'AetherTune 輸出裝置測試。';
+const phrase = '今天測試中文語音。';
 const transitions = [];
 let report = { status: 'WAITING', started_at: new Date(startedAt).toISOString(), phrase, transitions };
 
@@ -43,7 +43,7 @@ try {
   const output = await page.getByLabel('TTS Output').locator('option:checked').textContent();
   assert.ok(output?.includes('系統預設'), `未自動選中系統輸出：${output}`);
   assert.ok(!/CABLE|Voicemeeter/i.test(output), `系統預設是虛擬線路；停止實體喇叭 smoke：${output}`);
-  await page.getByLabel('Voice profile').selectOption({ label: 'Reference Female' });
+  await page.getByLabel('Voice profile').selectOption({ label: '中文參考聲音（官方範例）' });
   const before = await invoke('speech_status');
   const existingIds = new Set(before.queue.map((item) => item.id));
   await page.getByLabel('Speech composer').fill(phrase);
@@ -52,10 +52,12 @@ try {
 
   let request;
   let snapshot;
+  let sawGenerationStart = false;
   const deadline = Date.now() + 300000;
   while (Date.now() < deadline) {
     snapshot = await invoke('speech_status');
     request = snapshot.queue.find((item) => !existingIds.has(item.id) && item.text === phrase);
+    if (request?.status === 'generating' && request.metrics?.generation_started_at) sawGenerationStart = true;
     if (request && transitions.at(-1)?.status !== request.status) {
       transitions.push({ at: new Date().toISOString(), status: request.status });
       console.log(`TTS ${request.id}: ${request.status}`);
@@ -76,6 +78,7 @@ try {
     screenshot: screenshotPath,
   };
   assert.equal(request.status, 'completed', `TTS 未完成：${JSON.stringify(request.error)}`);
+  assert.ok(sawGenerationStart, '生成中的 Queue 未顯示可計時的開始時間');
   assert.ok(request.metrics?.first_playback_audio_at, '缺少播放 callback 的首音時間');
   assert.ok(Number(request.metrics?.playback_seconds) > 0, '播放長度必須大於零');
   assert.equal(request.metrics?.output_name, request.route_snapshot?.output);

@@ -1,0 +1,27 @@
+{
+  "$schema": "../schemas/voice-profile.schema.json",
+  "id": "reference-mandarin-female",
+  "name": "中文女聲參考（非商用測試）",
+  "engines": ["cosyvoice", "breeze"],
+  "status": "WAITING",
+  "metadata": {
+    "review_status": "WAITING",
+    "manual_review_required": true,
+    "source": "dataset/manifests/reference-register.csv#female-sister-f003",
+    "notes": "普通話來源，CC BY-NC-ND 4.0；僅本機非商業測試。原文有來源登記，生成語音仍待人工聽評。"
+  },
+  "references": {
+    "cosyvoice": {
+      "audio_path": "dataset/reference-voices/female-sister-f003.wav",
+      "text_path": "tools/fixtures/mandarin-female-reference.txt",
+      "metadata_status": "WAITING",
+      "notes": "來源資料原文，音訊逐字對齊待人工核對。"
+    },
+    "breeze": {
+      "audio_path": "dataset/reference-voices/female-sister-f003.wav",
+      "text_path": "tools/fixtures/mandarin-female-reference.txt",
+      "metadata_status": "WAITING",
+      "notes": "來源資料原文，音訊逐字對齊待人工核對。"
+    }
+  }
+}

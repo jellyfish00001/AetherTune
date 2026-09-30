@@ -76,6 +76,7 @@ class FakeGenerationAdapter:
         self.fail_next = False
         self.start_gate: threading.Event | None = None
         self.started = threading.Event()
+        self.close_calls = 0
 
     def readiness(self) -> dict:
         return {
@@ -147,6 +148,9 @@ class FakeGenerationAdapter:
             if process.poll() is None:
                 alive.append(process.pid)
         return {"event": "fixture_group_cancelled", "reason": reason, "alive_pids": alive}
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 class ServiceTests(unittest.TestCase):
@@ -233,6 +237,36 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual({profile["id"] for profile in snapshot["profiles"]}, {"reference-male", "reference-female"})
         self.assertTrue(all({"id", "name", "engines"}.issubset(profile) for profile in snapshot["profiles"]))
         self.adapter.start_gate.set()
+
+    def test_generating_snapshot_exposes_elapsed_start(self) -> None:
+        self.adapter.start_gate = threading.Event()
+        request_id = self.service.handle_command(self.request("elapsed"))["result"]["request_id"]
+        current = self.wait_status(request_id, "generating")
+        deadline = time.monotonic() + 2
+        while "generation_started_at" not in current.get("metrics", {}) and time.monotonic() < deadline:
+            time.sleep(0.01)
+            current = self.wait_status(request_id, "generating")
+        self.assertIn("generation_started_at", current["metrics"])
+        self.assertTrue(any(
+            event["snapshot"].get("current_request_id") == request_id
+            and any(item["id"] == request_id and "generation_started_at" in item.get("metrics", {})
+                    for item in event["snapshot"]["queue"])
+            for event in self.events
+        ))
+        self.adapter.start_gate.set()
+
+    def test_switching_engine_closes_previous_adapter(self) -> None:
+        breeze = FakeGenerationAdapter(engine_id="breeze", delay=0.01)
+        self.service._adapters = {"cosyvoice": self.adapter, "breeze": breeze}
+        first = self.service.handle_command(self.request("cosy"))["result"]["request_id"]
+        self.wait_status(first, "completed")
+        self.assertEqual(breeze.close_calls, 1)
+        command = self.request("breeze")
+        command["request"]["engine_id"] = "breeze"
+        second = self.service.handle_command(command)["result"]["request_id"]
+        self.wait_status(second, "completed")
+        self.assertEqual(self.adapter.close_calls, 1)
+        self.assertEqual(breeze.close_calls, 1)
 
     def test_add_to_queue_ignores_interrupt_policy(self) -> None:
         self.adapter.start_gate = threading.Event()
