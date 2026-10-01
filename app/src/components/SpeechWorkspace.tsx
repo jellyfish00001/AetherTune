@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { native, type Shell } from '../services/desktop';
+import { native, type Shell, type VcPostFx } from '../services/desktop';
 import {
   defaultSpeechSnapshot,
   getSpeechStatus,
@@ -25,6 +25,7 @@ type SpeechWorkspaceProps = {
   mode: 'speech_reconstruction' | 'text_to_speech';
   onModeChange: (mode: string) => void;
   engineId: string;
+  postfx: VcPostFx;
   onEngineChange: (engineId: string) => void;
   shell: ShellWithQuickInput;
   onShellPatch: (patch: Partial<ShellWithQuickInput>) => Promise<void>;
@@ -152,6 +153,7 @@ export function SpeechWorkspace({
   mode,
   onModeChange,
   engineId,
+  postfx,
   onEngineChange,
   shell,
   onShellPatch,
@@ -289,6 +291,7 @@ export function SpeechWorkspace({
         source: 'manual',
         metadata: {
           input_source: inputSource,
+          postfx: { ...postfx },
           route: {
             output: route.output,
             host_api: route.host_api,
@@ -305,7 +308,7 @@ export function SpeechWorkspace({
       if (quickOnly) await onShellPatch({ quick_input: false });
     }
     return accepted;
-  }, [inputSource, onShellPatch, quickOnly, route, routeReady, runAction, selectedProfile, text, ttsEngine.id, ttsEngine.name]);
+  }, [inputSource, onShellPatch, postfx, quickOnly, route, routeReady, runAction, selectedProfile, text, ttsEngine.id, ttsEngine.name]);
 
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || !settings.enter_to_send || composing.current || event.nativeEvent.isComposing) return;

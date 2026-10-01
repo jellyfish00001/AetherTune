@@ -42,7 +42,7 @@ for(const engine of ['seed-vc','meanvc2','xvc']){
   assert.equal(await page.getByLabel('Input device',{exact:true}).count(),1,`${engine} route input`);
   assert.equal(await page.getByLabel('Output device',{exact:true}).count(),1,`${engine} route output`);
   assert.equal(await page.getByLabel('自己監聽',{exact:true}).count(),1,`${engine} shared monitor`);
-  assert.equal(await page.getByText('音效與乾濕混合',{exact:true}).count(),1,`${engine} shared post-fx`);
+  assert.equal(await page.getByRole('button',{name:'調整音效',exact:true}).count(),1,`${engine} effects settings entry`);
   assert.equal(await page.getByLabel('Reference WAV',{exact:true}).count(),1,`${engine} reference`);
   assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0,`${engine} has no source WAV`);
   if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
@@ -51,7 +51,7 @@ await page.getByLabel('Engine',{exact:true}).selectOption('rvc');
 assert.equal(await page.getByLabel('RVC model_id').inputValue(),'Sage_CN_HeroicFemale');
 assert.equal(await page.getByLabel('Reference WAV',{exact:true}).count(),0);
 assert.equal(await page.getByLabel('自己監聽',{exact:true}).count(),1);
-assert.equal(await page.getByText('音效與乾濕混合',{exact:true}).count(),1);
+assert.equal(await page.getByRole('button',{name:'調整音效',exact:true}).count(),1);
 await page.getByLabel('RVC source_mode').selectOption('microphone');
 assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0);
 await page.getByLabel('RVC source_mode').selectOption('file');
@@ -70,7 +70,9 @@ await page.getByLabel('Engine',{exact:true}).selectOption('seed-vc');
 assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0);
 if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
 const storedVcSettings=await page.evaluate(()=>JSON.parse(localStorage.getItem('aethertune.vc-settings.v1')||'null'));
-assert.ok(storedVcSettings?.route&&storedVcSettings?.monitor&&storedVcSettings?.postfx&&storedVcSettings?.rvcParameters);
+assert.ok(storedVcSettings?.route&&storedVcSettings?.monitor&&storedVcSettings?.rvcParameters);
+const storedEffects=await page.evaluate(()=>JSON.parse(localStorage.getItem('aethertune.audio-effects.v1')||'null'));
+assert.equal(Object.keys(storedEffects).length,6);
 assert.equal(storedVcSettings.metrics,undefined);
 if(native){
   let shell=await invoke('shell_status');

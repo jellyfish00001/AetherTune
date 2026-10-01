@@ -25,7 +25,26 @@
     "source": { "enum": ["manual", "stt", "system", "agent"] },
     "priority": { "type": "integer" },
     "interrupt_policy": { "enum": ["queue", "interrupt_current", "reject_new"] },
-    "metadata": { "type": "object" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "postfx": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "wet": { "type": "number", "minimum": 0, "maximum": 1 },
+            "low_db": { "type": "number", "minimum": -12, "maximum": 12 },
+            "mid_db": { "type": "number", "minimum": -12, "maximum": 12 },
+            "high_db": { "type": "number", "minimum": -12, "maximum": 12 },
+            "compressor_threshold_db": { "type": "number", "minimum": -48, "maximum": 0 },
+            "compressor_ratio": { "type": "number", "minimum": 1, "maximum": 8 },
+            "reverb_mix": { "type": "number", "minimum": 0, "maximum": 0.5 },
+            "output_gain_db": { "type": "number", "minimum": -12, "maximum": 6 }
+          }
+        }
+      }
+    },
     "created_at": { "type": "string", "format": "date-time" },
     "status": { "enum": ["queued", "generating", "ready", "playing", "completed", "cancelled", "failed"] },
     "metrics": { "type": "object" },

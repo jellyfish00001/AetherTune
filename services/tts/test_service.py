@@ -23,6 +23,7 @@ from pathlib import Path
 from .adapters import GenerationCancelled, GenerationResult
 from .playback import MonitoredPlayback, NullPlayback, PlaybackCancelled, PlaybackError, SoundDevicePlayback, list_audio_devices, resolve_route
 from .service import SpeechService
+from .postfx import render_postfx
 from .wsl_job import WslJob, to_wsl_path
 
 
@@ -287,6 +288,27 @@ class ServiceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.service.close()
         self.folder.cleanup()
+
+    def test_postfx_is_snapshotted_and_processed_file_reaches_playback(self) -> None:
+        command = self.request("effects-snapshot")
+        command["request"]["metadata"]["postfx"] = {"enabled": True, "wet": 0.5, "low_db": 4}
+        request_id = self.service.handle_command(command)["result"]["request_id"]
+        command["request"]["metadata"]["postfx"]["wet"] = 0.9
+        completed = self.wait_status(request_id, "completed")
+        self.assertEqual(completed["metadata"]["postfx"]["wet"], 0.5)
+        self.assertTrue(completed["metrics"]["postfx_enabled"])
+        played = Path(self.service._playback.calls[0]["audio_path"])
+        self.assertTrue(played.name.endswith(".postfx.wav"))
+        self.assertTrue(played.is_file())
+        self.assertTrue(played.with_name(f"{request_id}.wav").is_file())
+
+    def test_invalid_postfx_rejected_before_enqueue(self) -> None:
+        for settings in ({"wet": 1.1}, {"enabled": "yes"}, {"low_db": float("nan")}, {"unknown": 1}):
+            command = self.request("effects-invalid")
+            command["request"]["metadata"]["postfx"] = settings
+            result = self.service.handle_command(command)
+            self.assertFalse(result["accepted"])
+        self.assertEqual(self.service.snapshot()["snapshot"]["queue"], [])
 
     def test_monitor_warning_and_route_snapshot_are_persisted_after_primary_completion(self) -> None:
         class WarningPlayback(NullPlayback):

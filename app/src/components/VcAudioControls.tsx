@@ -1,15 +1,9 @@
 import React from 'react';
 import { outputDeviceChoices, type AudioDevices, type SpeechRoute } from '../services/speech';
-import type { VcPostFx } from '../services/desktop';
 
 type Monitor = NonNullable<SpeechRoute['monitor']>;
 
 const physicalDevice = (name: string) => !/CABLE|Voicemeeter|VB-Audio/i.test(name);
-
-function numberValue(value: string, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
 
 export function VcAudioControls({
   reference,
@@ -24,8 +18,6 @@ export function VcAudioControls({
   onHost,
   monitor,
   onMonitor,
-  postfx,
-  onPostfx,
   audioDevices,
   locked,
   native,
@@ -47,8 +39,6 @@ export function VcAudioControls({
   onHost: (value: string) => void;
   monitor: Monitor;
   onMonitor: (monitor: Monitor) => void;
-  postfx: VcPostFx;
-  onPostfx: (postfx: VcPostFx) => void;
   audioDevices: AudioDevices | null;
   locked: boolean;
   native: boolean;
@@ -69,8 +59,6 @@ export function VcAudioControls({
     .filter(({ device }) => device.selectable && physicalDevice(device.name));
   const selectedMonitor = monitorChoices.find(({ device }) => device.name === monitor.output && device.host_api === monitor.host_api);
   const virtualOutput = /CABLE|Voicemeeter|VB-Audio/i.test(output);
-
-  const updateFx = <K extends keyof VcPostFx>(key: K, value: VcPostFx[K]) => onPostfx({ ...postfx, [key]: value });
 
   return <div className="rvc-controls vc-audio-controls">
     {showReference && <label>Voice / Reference WAV<input aria-label="Reference WAV" disabled={locked} value={reference} onChange={(event) => onReference(event.target.value)}/></label>}
@@ -103,20 +91,5 @@ export function VcAudioControls({
       <p className="hint">{virtualOutput && !monitor.enabled ? '輸出送至虛擬線路；開啟自己監聽才能在耳機聽見。' : monitor.enabled ? '轉換後聲音會同時送到主輸出與監聽裝置。' : '自己監聽已關閉。'} 設定變更請先停止，再重新啟動。</p>
     </div>
 
-    <details className="vc-postfx">
-      <summary>音效與乾濕混合</summary>
-      <label className="check"><input aria-label="啟用音效" type="checkbox" checked={postfx.enabled} disabled={locked} onChange={(event) => updateFx('enabled', event.target.checked)}/>啟用音效</label>
-      <div className="device-fields">
-        <label>乾濕混合<input aria-label="Post-FX wet" type="number" min={0} max={1} step={0.01} disabled={locked} value={postfx.wet} onChange={(event) => updateFx('wet', numberValue(event.target.value, postfx.wet))}/></label>
-        <label>輸出增益（dB）<input aria-label="Post-FX output gain" type="number" min={-12} max={6} step={0.1} disabled={locked} value={postfx.output_gain_db} onChange={(event) => updateFx('output_gain_db', numberValue(event.target.value, postfx.output_gain_db))}/></label>
-        <label>低頻（dB）<input aria-label="Post-FX low" type="number" min={-12} max={12} step={0.1} disabled={locked} value={postfx.low_db} onChange={(event) => updateFx('low_db', numberValue(event.target.value, postfx.low_db))}/></label>
-        <label>中頻（dB）<input aria-label="Post-FX mid" type="number" min={-12} max={12} step={0.1} disabled={locked} value={postfx.mid_db} onChange={(event) => updateFx('mid_db', numberValue(event.target.value, postfx.mid_db))}/></label>
-        <label>高頻（dB）<input aria-label="Post-FX high" type="number" min={-12} max={12} step={0.1} disabled={locked} value={postfx.high_db} onChange={(event) => updateFx('high_db', numberValue(event.target.value, postfx.high_db))}/></label>
-        <label>Compressor threshold（dB）<input aria-label="Post-FX compressor threshold" type="number" min={-48} max={0} step={1} disabled={locked} value={postfx.compressor_threshold_db} onChange={(event) => updateFx('compressor_threshold_db', numberValue(event.target.value, postfx.compressor_threshold_db))}/></label>
-        <label>Compressor ratio<input aria-label="Post-FX compressor ratio" type="number" min={1} max={8} step={0.1} disabled={locked} value={postfx.compressor_ratio} onChange={(event) => updateFx('compressor_ratio', numberValue(event.target.value, postfx.compressor_ratio))}/></label>
-        <label>Reverb mix<input aria-label="Post-FX reverb mix" type="number" min={0} max={0.5} step={0.01} disabled={locked} value={postfx.reverb_mix} onChange={(event) => updateFx('reverb_mix', numberValue(event.target.value, postfx.reverb_mix))}/></label>
-      </div>
-      <p className="hint">關閉音效時保持原始轉換聲；乾濕比例控制「變聲後乾聲」與「音效處理聲」的混合，0 為純變聲後乾聲，1 為純音效處理聲。</p>
-    </details>
   </div>;
 }

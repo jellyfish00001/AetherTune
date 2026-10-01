@@ -73,7 +73,9 @@ Manual TTS 的輸出選單預設每個裝置只顯示一項，收起重複 Host 
 
 Manual TTS 提供預設關閉的「自己監聽」與獨立耳機／喇叭選擇。提交時在 `metadata.route.monitor` 保存 `enabled`、精確 `output`／`host_api`，已接受的 queue request 保留快照，切 layout 不重設、完整重啟關閉。停播同時停止主輸出與監聽；監聽失敗只記錄獨立警告，不重播、改送或取消已完成主輸出。同名實體主輸出只開一條 stream，禁止將已知 CABLE／Voicemeeter 虛擬線路當監聽回送。主輸出為實體裝置時不受額外監聽開關影響。音訊仍在 Python playback 處理，不經 WebView／IPC 傳 PCM；本機 callback 不升格 Discord、聽評或 LIVE。
 
-Audio Rack 跨 backend 共用：EQ、De-Esser、Compressor、Saturation、Pitch Correction、Ambience、Limiter。MVP 只接既有 Light Host／Graillon／VB-CABLE／Voicemeeter；無法程式控制的效果標示 **External / Manual**，提供 Open Rack。不得自行寫完整 VST3 host或假稱已套用。
+內建音效在 SETTINGS 調整：RVC／MeanVC2／X-VC／Seed-VC／CosyVoice／Breeze 各有獨立、可持久保存的紀錄，包含啟用、三頻 EQ、壓縮閾值／比例、殘響、乾濕及增益。切換項目還原各自設定，重設只影響選定引擎；保存失敗明確提示。VC 於下一次 START 套用；TTS 於送出時保存快照，生成後於播放前處理，原始生成 WAV 保留。內建音效不等於外部 VST 或 LIVE 驗收。
+
+Audio Rack 跨 backend 共用：EQ、De-Esser、Compressor、Saturation、Pitch Correction、Ambience、Limiter。外部 Rack 沿用既有 Light Host／Graillon／VB-CABLE／Voicemeeter；無法程式控制的效果標示 **External / Manual**，提供 Open Rack。不得自行寫完整 VST3 host或假稱已套用。
 
 ## Transcript、Session 與儲存
 
@@ -135,7 +137,7 @@ Settings：General（Windows startup、start minimized、overlay、opacity、hot
 
 使用者增量規格要求 Speech Reconstruction 有 `microphone`、`manual_text`、`agent_reply` 三個 Input Mode。Manual Text 與麥克風狀態解耦；Microphone/STT runtime 尚未交付的部分保持 WAITING，Agent Reply 停用且 PLANNED。Microphone 選項下仍可使用文字 Composer，不能要求先關閉 Mic。Self STT 接入時只接受 physical microphone capture，不得讀取 mixed output／TTS loopback。
 
-所有文字發聲共用 `SpeechRequest → SpeechQueue → TTSOrchestrator → Engine Adapter → Playback → 現有外部 Audio Rack／Output`。沿用 CosyVoice2、Breeze TTS 2 runner 與 reference；CosyVoice3 未安裝不得作為可選 runtime。沿用既有路由 profile 與外部 Post-FX，不新增 VST host。
+所有文字發聲共用 `SpeechRequest → SpeechQueue → TTSOrchestrator → Engine Adapter → 內建 Post-FX → Playback → 現有外部 Audio Rack／Output`。沿用 CosyVoice2、Breeze TTS 2 runner 與 reference；CosyVoice3 未安裝不得作為可選 runtime。沿用既有路由 profile 與外部 Rack，不新增 VST host。
 
 - Speak 在 idle 立即開始；busy 時套用 Queue（預設）、Interrupt Current、Reject New Request。
 - Add to Queue 永遠排入 FIFO；支援 Remove、Clear、Move Up／Down、Speak Now。

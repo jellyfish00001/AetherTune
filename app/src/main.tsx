@@ -13,6 +13,8 @@ import {
 import { SpeechWorkspace, type ShellWithQuickInput } from './components/SpeechWorkspace';
 import { RvcControls, defaultRvcParameters } from './components/RvcControls';
 import { VcAudioControls } from './components/VcAudioControls';
+import { AudioEffectsSettings } from './components/AudioEffectsSettings';
+import { audioEffectsStorageKey, defaultAudioEffects, normalizeAudioEffects, readAudioEffects } from './services/audio-effects';
 import { getAudioDevices, outputDeviceChoices, type AudioDevices, type SpeechRoute } from './services/speech';
 import './style.css';
 
@@ -34,17 +36,6 @@ const capabilities: Record<string, string> = {
 };
 const ttsModes = new Set(['speech_reconstruction', 'text_to_speech']);
 const vcSettingsStorageKey = 'aethertune.vc-settings.v1';
-const defaultVcPostFx: VcPostFx = {
-  enabled: false,
-  wet: 0.3,
-  low_db: 0,
-  mid_db: 0,
-  high_db: 0,
-  compressor_threshold_db: -18,
-  compressor_ratio: 3,
-  reverb_mix: 0.12,
-  output_gain_db: 0,
-};
 type VcMonitor = NonNullable<SpeechRoute['monitor']>;
 type StoredVcSettings = {
   reference?: string;
@@ -65,14 +56,6 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function finiteNumber(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? clamp(value, min, max) : fallback;
-}
-
 function normalizeMonitor(value: unknown): VcMonitor | undefined {
   if (!isRecord(value) || typeof value.enabled !== 'boolean') return undefined;
   return {
@@ -84,17 +67,7 @@ function normalizeMonitor(value: unknown): VcMonitor | undefined {
 
 function normalizePostFx(value: unknown): VcPostFx | undefined {
   if (!isRecord(value)) return undefined;
-  return {
-    enabled: typeof value.enabled === 'boolean' ? value.enabled : defaultVcPostFx.enabled,
-    wet: finiteNumber(value.wet, defaultVcPostFx.wet, 0, 1),
-    low_db: finiteNumber(value.low_db, defaultVcPostFx.low_db, -12, 12),
-    mid_db: finiteNumber(value.mid_db, defaultVcPostFx.mid_db, -12, 12),
-    high_db: finiteNumber(value.high_db, defaultVcPostFx.high_db, -12, 12),
-    compressor_threshold_db: finiteNumber(value.compressor_threshold_db, defaultVcPostFx.compressor_threshold_db, -48, 0),
-    compressor_ratio: finiteNumber(value.compressor_ratio, defaultVcPostFx.compressor_ratio, 1, 8),
-    reverb_mix: finiteNumber(value.reverb_mix, defaultVcPostFx.reverb_mix, 0, 0.5),
-    output_gain_db: finiteNumber(value.output_gain_db, defaultVcPostFx.output_gain_db, -12, 6),
-  };
+  return normalizeAudioEffects(value);
 }
 
 function normalizeRvcParameters(value: unknown): Record<string, string | number> | undefined {
@@ -216,7 +189,9 @@ function App() {
   const [host, setHost] = useState(storedVcSettings.host_api ?? '');
   const [rvcParameters, setRvcParameters] = useState(storedVcSettings.rvcParameters ?? defaultRvcParameters);
   const [vcMonitor, setVcMonitor] = useState<VcMonitor>(storedVcSettings.monitor ?? { enabled: false, output: '', host_api: '' });
-  const [postfx, setPostfx] = useState<VcPostFx>(storedVcSettings.postfx ?? defaultVcPostFx);
+  const [audioEffects, setAudioEffects] = useState(() => readAudioEffects(storedVcSettings.postfx));
+  const [effectsEngine, setEffectsEngine] = useState('rvc');
+  const [effectsSaveError, setEffectsSaveError] = useState('');
   const [showAllVcOutputs, setShowAllVcOutputs] = useState(false);
   const [speechRoute, setSpeechRoute] = useState<SpeechRoute>({ output: '', host_api: '', monitor: { enabled: false, output: '', host_api: '' } });
   const [audioDevices, setAudioDevices] = useState<AudioDevices | null>(null);
@@ -267,6 +242,7 @@ function App() {
   const active = !!status.service_alive;
   const locked = active || busy;
   const isRvc = engine === 'rvc';
+  const postfx = audioEffects[engine] ?? defaultAudioEffects;
   const rvcFile = isRvc && rvcParameters.source_mode === 'file';
   const implemented = ['skeleton', 'implemented'].includes(selected.implementation);
   const request = { reference, source, input, output, host_api: host, parameters: isRvc ? rvcParameters : {}, monitor: vcMonitor, postfx };
@@ -341,6 +317,12 @@ function App() {
     setValidation('');
   }
 
+  function openSettings() {
+    setEffectsEngine(engine);
+    setPage('SETTINGS');
+    if (shell.mode !== 'full') void changeShell({ mode: 'full', click_through: false, quick_input: false });
+  }
+
   async function start() {
     await act(async () => setStatus(await command<Status>('start', { engine, request })));
   }
@@ -395,12 +377,20 @@ function App() {
         source,
         rvcParameters,
         monitor: vcMonitor,
-        postfx,
       }));
     } catch {
       // 儲存空間不可用時不阻止即時控制；設定仍只存在目前工作階段。
     }
-  }, [input, output, host, reference, source, rvcParameters, vcMonitor, postfx]);
+  }, [input, output, host, reference, source, rvcParameters, vcMonitor]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(audioEffectsStorageKey, JSON.stringify(audioEffects));
+      setEffectsSaveError('');
+    } catch {
+      setEffectsSaveError('音效紀錄儲存失敗；本次設定仍可使用，關閉 App 後可能遺失。');
+    }
+  }, [audioEffects]);
 
   const modes = <div className="window-modes" aria-label="視窗模式">{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini'}</button>)}</div>;
   const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>▶ START</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>■ STOP</button></div>;
@@ -421,6 +411,7 @@ function App() {
     mode: mode as 'speech_reconstruction' | 'text_to_speech',
     onModeChange: changeMode,
     engineId: engine,
+    postfx,
     onEngineChange: setEngine,
     shell,
     onShellPatch: changeShell,
@@ -435,6 +426,7 @@ function App() {
   const speechWorkspace = speechProps ? <SpeechWorkspace {...speechProps} /> : null;
   const speechSettings = speechProps ? <SpeechWorkspace {...speechProps} settingsOnly /> : null;
   const miniQuickWorkspace = speechProps ? <SpeechWorkspace {...speechProps} quickOnly /> : null;
+  const effectsSettings = <AudioEffectsSettings engine={effectsEngine} onEngine={setEffectsEngine} settings={audioEffects[effectsEngine] ?? defaultAudioEffects} onSettings={(next) => setAudioEffects((previous) => ({ ...previous, [effectsEngine]: normalizeAudioEffects(next) }))} saveError={effectsSaveError}/>;
   const overlaySettings = <section className="panel settings"><h1>Overlay &amp; shortcuts</h1><label>Opacity · {Math.round(shell.opacity * 100)}%<input aria-label="Opacity" type="range" min="0.45" max="1" step="0.01" value={shell.opacity} onChange={(event) => void changeShell({ opacity: Number(event.target.value) })}/></label><label className="check"><input type="checkbox" checked={shell.always_on_top} onChange={(event) => void changeShell({ always_on_top: event.target.checked })}/>Always on Top (Full)</label><label className="check"><input type="checkbox" checked={shell.locked} onChange={(event) => void changeShell({ locked: event.target.checked })}/>Lock Position</label><label>顯示／隱藏快捷鍵<input aria-label="Overlay hotkey" value={hotkeys.visibility_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, visibility_hotkey: event.target.value })}/></label><label>Runner Start / Stop 快捷鍵<input aria-label="Voice hotkey" value={hotkeys.voice_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, voice_hotkey: event.target.value })}/></label><button disabled={!native} onClick={() => void changeShell(hotkeys)}>儲存快捷鍵</button><details><summary>Diagnostics</summary><pre aria-label="Backend logs">{log.length ? log.map((entry) => JSON.stringify(entry)).join('\n') : '尚無 backend log'}</pre></details><button disabled={!native} onClick={() => void command('exit')}>Exit AetherTune</button></section>;
 
   return <main className={`shell ${shell.mode}`} style={{ opacity: shell.mode === 'full' ? 1 : shell.opacity }} data-native={native}>
@@ -445,7 +437,7 @@ function App() {
       {error && <div role="alert" className="error">{error}</div>}
     </> : <>
       <div className="topline"><span className="tag">{native ? 'LOCAL DESKTOP' : '瀏覽器預覽 · 無程序控制'}</span>{modes}</div>
-      {shell.mode === 'full' && <nav>{[{ id: 'LIVE', label: 'WORKSPACE' }, { id: 'SETTINGS', label: 'SETTINGS' }].map((tab) => <button key={tab.id} className={page === tab.id ? 'selected' : ''} onClick={() => setPage(tab.id)}>{tab.label}</button>)}</nav>}
+      {shell.mode === 'full' && <nav>{[{ id: 'LIVE', label: 'WORKSPACE' }, { id: 'SETTINGS', label: 'SETTINGS' }].map((tab) => <button key={tab.id} className={page === tab.id ? 'selected' : ''} onClick={() => tab.id === 'SETTINGS' ? openSettings() : setPage(tab.id)}>{tab.label}</button>)}</nav>}
       <div className="content">
         {(page === 'LIVE' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
           <div className="headline"><div><span className="eyebrow">VOICE WORKSPACE</span><h1>{shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode]}</h1></div><span className="state"><i className="dot"/>{status.value}</span></div>
@@ -454,15 +446,16 @@ function App() {
             <label>Engine <span className="classification">{selected.classification}</span><select aria-label="Engine" disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(''); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
             <p className="adapter-label">{rvcFile ? '來源 WAV 模式 · START 轉換並播放音檔，不讀取麥克風。' : '麥克風模式 · START 後等待 RUNNING，再開始說話；STOP 後可切換引擎。'}</p>
             {controls}
+            <button type="button" className="text-button" aria-label="調整音效" onClick={openSettings}>音效：{postfx.enabled ? '已啟用' : '關閉'} · 到設定調整</button>
             {shell.mode === 'full' && <>
               {isRvc && <RvcControls parameters={rvcParameters} onParameters={setRvcParameters} locked={locked}/>}
-              {isStreamingVc && <VcAudioControls reference={reference} onReference={setReference} showReference={!isRvc} showInput={!rvcFile} input={input} onInput={setInput} output={output} onOutput={setOutput} host={host} onHost={setHost} monitor={vcMonitor} onMonitor={setVcMonitor} postfx={postfx} onPostfx={setPostfx} audioDevices={audioDevices} locked={locked} native={native} showAllOutputs={showAllVcOutputs} onShowAllOutputs={setShowAllVcOutputs} audioDeviceError={audioDeviceError} audioDeviceBusy={audioDeviceBusy} onReloadAudioDevices={() => void reloadAudioDevices()}/>}
+              {isStreamingVc && <VcAudioControls reference={reference} onReference={setReference} showReference={!isRvc} showInput={!rvcFile} input={input} onInput={setInput} output={output} onOutput={setOutput} host={host} onHost={setHost} monitor={vcMonitor} onMonitor={setVcMonitor} audioDevices={audioDevices} locked={locked} native={native} showAllOutputs={showAllVcOutputs} onShowAllOutputs={setShowAllVcOutputs} audioDeviceError={audioDeviceError} audioDeviceBusy={audioDeviceBusy} onReloadAudioDevices={() => void reloadAudioDevices()}/>}
               {isRvc && rvcFile && <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label>}
             </>}
             {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || !vcRouteValid || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation(`${result.valid ? '預檢 PASS · ' : '預檢 BLOCKED · '}${result.events.at(-1)?.reason ?? ''}`); })}>檢查啟動條件</button>}
             {validation && <p role="status" className="hint">{validation}</p>}
           </section><section className="panel monitoring"><h2>串流狀態</h2>{meters}<p className="hint">{status.reason}</p><div className="route"><span>INPUT · {host || '未選擇 Host API'}</span><b>{isRvc && rvcFile ? `Source WAV · ${source}` : input || '未選擇輸入裝置'}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>OUTPUT · {host || '未選擇 Host API'}</span><b>{output || '未選擇輸出裝置'}</b></div><details><summary>驗收與使用限制</summary><p className="hint">{selected.limitations.join(' ')} 即時字幕／ME／REMOTE 語音紀錄尚未提供。</p></details></section></div>
-        </> : <>{isSpeechMode && speechSettings}{overlaySettings}</>}
+        </> : <>{effectsSettings}{isSpeechMode && speechSettings}{overlaySettings}</>}
         {error && <div role="alert" className="error">{error}</div>}
       </div>
       <footer><span>ENGINE {selected.name} · {isSpeechMode ? '文字發聲' : status.value}</span>{!isSpeechMode && <span>{rvcFile ? '來源 WAV' : '麥克風輸入'}</span>}<button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{shell.locked ? '解鎖位置' : '鎖定位置'}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>Click-through</button>}</footer>

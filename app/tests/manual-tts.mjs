@@ -170,6 +170,16 @@ async function mockPass() {
   await page.waitForFunction(() => document.querySelector('select[aria-label="Input device"]')?.querySelectorAll('option').length > 1);
   assert.equal(await page.getByLabel('Input device').inputValue(), '麥克風 (HyperX QuadCast S)');
   await selectTtsMode(page, ['Reference Male']);
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  assert.equal(await page.getByLabel('音效引擎').inputValue(), 'cosyvoice');
+  await page.getByLabel('啟用音效').check();
+  await page.getByLabel('Post-FX wet').fill('0.62');
+  await page.getByLabel('Post-FX wet').blur();
+  await page.getByLabel('音效引擎').selectOption('breeze');
+  assert.equal(await page.getByLabel('啟用音效').isChecked(), false);
+  await page.getByLabel('Post-FX wet').fill('0.27');
+  await page.getByLabel('Post-FX wet').blur();
+  await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('select[aria-label="TTS Output"]')?.value === '1');
   assert.ok((await page.getByLabel('TTS Output').locator('option:checked').textContent()).includes('系統預設'));
   // 同一裝置只列一次；展開／收起進階選項不能改掉使用者選中的 Host API。
@@ -242,6 +252,8 @@ async function mockPass() {
   assert.equal(enterAction.action.request.metadata.route.output, '喇叭 (HyperX QuadCast S)');
   assert.equal(enterAction.action.request.metadata.route.host_api, 'MME');
   assert.equal(enterAction.action.request.metadata.route.rack_profile_id, 'seed-vc-neutral');
+  assert.equal(enterAction.action.request.metadata.postfx.enabled, true);
+  assert.equal(enterAction.action.request.metadata.postfx.wet, 0.62);
 
   await composer.fill('explicit queue action');
   await page.getByRole('button', { name: 'Add to Queue', exact: true }).click();
@@ -324,6 +336,12 @@ async function mockPass() {
   assert.equal(await page.getByLabel('Input device').count(), 0);
   await page.getByLabel('RVC pitch').fill('3');
   await page.getByLabel('自己監聽', { exact: true }).check();
+  await page.getByRole('button', { name: '調整音效', exact: true }).click();
+  assert.equal(await page.getByLabel('音效引擎').inputValue(), 'rvc');
+  await page.getByLabel('啟用音效').check();
+  await page.getByLabel('Post-FX wet').fill('0.44');
+  await page.getByLabel('Post-FX wet').blur();
+  await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
   await page.getByRole('button', { name: '▶ START', exact: true }).click();
   await page.waitForFunction(() => window.__rvcMockStarts.length === 1);
   const rvcRequest = await page.evaluate(() => window.__rvcMockStarts[0]);
@@ -332,6 +350,8 @@ async function mockPass() {
   assert.equal(rvcRequest.request.parameters.source_mode, 'file');
   assert.equal(rvcRequest.request.parameters.pitch, 3);
   assert.equal(rvcRequest.request.monitor.enabled, true);
+  assert.equal(rvcRequest.request.postfx.enabled, true);
+  assert.equal(rvcRequest.request.postfx.wet, 0.44);
   assert.equal(rvcRequest.request.output, 'CABLE Input (VB-Audio Virtual Cable)');
   assert.ok(await page.getByLabel('RVC model_id').isDisabled());
   await page.getByRole('button', { name: '■ STOP', exact: true }).click();

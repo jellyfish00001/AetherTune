@@ -17,10 +17,16 @@
 1. 保持 `Mode = Streaming VC`，選 Engine。RVC 使用已登錄角色模型；其他三個引擎沿用預選 Reference WAV。裝置清單載入後，App 自動選實體麥克風與實體播放端；合法的已保存選擇會保留，不改 Windows 預設裝置。
 2. 首屏按 START，等待模型載入與預熱完成、狀態變成 RUNNING，再說話。首次啟動／切換可能等待數十秒，不能看到 LOADING 就判定無聲故障。輸出必須選實際接耳機／喇叭的裝置；有 OUTPUT PEAK 但聽不到時先查播放端。切換 Engine 或參數前按 STOP。
 3. 若主輸出選 `CABLE Input` 或 Voicemeeter，聲音會送到虛擬線路；勾「自己監聽」並選耳機，才能同時直接聽見。各 Engine 共用此設定。
-4. 展開「音效與乾濕混合」，可啟用 EQ、壓縮、殘響及輸出增益。wet=0 為變聲後乾聲，wet=1 為音效處理聲；關閉音效完全 bypass。主輸出與監聽使用同一效果鏈。設定需 STOP 後再 START。
+4. 按「到設定調整」或 SETTINGS，在「音效設定 → 設定項目」選引擎，調整 EQ、壓縮、殘響、乾濕比例及輸出增益，再勾「啟用音效」。數值離開欄位後自動儲存；六個引擎各有一份紀錄，切換及重新開啟 App 都會還原。「重設此項目音效」只重設目前引擎。Compact 的入口會展開 Full 設定頁。
 5. INPUT PEAK 無變化時查麥克風／靜音；有輸入而 OUTPUT PEAK 無變化時查 backend error；RTF>1 表示模型處理慢於輸入，會斷續。MODEL P95 只表示模型處理，不能當成端到端延遲。
 
 本機當輪可用程度、輸出證據與仍待聽評的範圍見 [Desktop VC 驗證](../verification/desktop/realtime-vc-verification-latest.md)；模式差異與畫面未完成項目見 [操作畫面審查](../verification/desktop/usability-audit-latest.md)。外部 VST／Light Host 與 600 秒 LIVE 驗收另行記錄。
+
+### 各引擎的音效紀錄
+
+RVC／MeanVC2／X-VC／Seed-VC／CosyVoice／Breeze TTS 2 各自保存啟用、乾濕、三頻 EQ、壓縮閾值／比例、殘響及增益；同引擎的不同角色或參考聲音目前共用這份紀錄。新紀錄預設關閉音效，舊版共用 VC 音效只移轉到 RVC，其他引擎保持自己的預設。
+
+VC 在下一次 START 使用當時設定；執行中調整後須 STOP／START。TTS 在下一次 Speak／Add to Queue 固定設定，已排隊的句子不會被後來的調整改變；生成 WAV 保留，音效結果另存後播放，主輸出與監聽使用同一份結果。wet=0 為變聲／生成後乾聲，wet=1 為音效處理聲；關閉音效完全 bypass。保存失敗會在設定頁提示。實測與資料邊界見 [音效設定驗證](../verification/desktop/audio-effects-verification-latest.md)。
 
 目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。首次使用某個 Engine 時會載入模型；同一 App session 內連續使用相同 Engine，後續句子重用已載入的模型。切換 Engine、Stop Speaking 取消正在生成的句子、worker 異常或 Exit 後再次使用，會重新載入。前版逐句重載時，CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；這不是新版熱模型的保證時間。排隊也會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
 

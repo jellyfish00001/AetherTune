@@ -1,4 +1,4 @@
-import { command, native, subscribe } from './desktop';
+import { command, native, subscribe, type VcPostFx } from './desktop';
 import referenceFemale from '../../../contracts/voices/reference-female.json';
 import referenceMale from '../../../contracts/voices/reference-male.json';
 import officialCosyVoiceSample from '../../../contracts/voices/official-cosyvoice-sample.json';
@@ -164,6 +164,7 @@ export type SpeechSubmitRequest = {
   source: 'manual';
   metadata: {
     input_source: SpeechInputSource;
+    postfx: VcPostFx;
     route: SpeechRoute & {
       rack_profile_id: string;
       route_profile_id: string;

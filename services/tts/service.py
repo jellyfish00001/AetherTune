@@ -26,6 +26,9 @@ from typing import Any, Callable, Mapping
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from services.engines.postfx import validate_postfx
+from services.tts.postfx import render_postfx
+
 if __package__ in (None, ""):
     from services.tts.adapters import (
         BaseGenerationAdapter,
@@ -387,6 +390,8 @@ class SpeechService:
         if not isinstance(metadata, Mapping):
             raise ValueError("REQUEST_INVALID: metadata 必須是 object")
         metadata = copy.deepcopy(dict(metadata))
+        # 每筆 queue request 固定送出時的音效，不受後續引擎切換或設定修改影響。
+        metadata["postfx"] = validate_postfx(metadata.get("postfx"))
         priority = request.get("priority", 0)
         if isinstance(priority, bool) or not isinstance(priority, int):
             raise ValueError("REQUEST_INVALID: priority 必須是整數")
@@ -683,13 +688,20 @@ class SpeechService:
             self._safe_save_request(record)
             self._emit_snapshot()
             route = record["route_snapshot"]
+            playback_path, postfx_evidence = render_postfx(
+                generation_result.audio_path, output_path.with_suffix(".postfx.wav"),
+                record["metadata"]["postfx"], cancel_event,
+            )
+            record["metrics"].update(postfx_enabled=postfx_evidence["enabled"],
+                                     postfx_seconds=postfx_evidence["seconds"],
+                                     playback_audio_path=str(playback_path))
             record["metrics"]["playback_started_at"] = utc_now()
             with self._lock:
                 record["status"] = "playing"
                 self._state = "PLAYING"
             self._safe_save_request(record)
             self._emit_snapshot()
-            playback_result = self._playback.play(generation_result.audio_path, route, cancel_event)
+            playback_result = self._playback.play(playback_path, route, cancel_event)
             if cancel_event.is_set():
                 raise PlaybackCancelled("playback cancelled")
             first_playback_audio_at = playback_result.first_audio_at
@@ -725,6 +737,7 @@ class SpeechService:
                 record["error"] = None
             self._safe_save_request(record)
             evidence = dict(generation_result.evidence)
+            evidence["postfx"] = postfx_evidence
             evidence["request_id"] = request_id
             evidence["route_resolution"] = {
                 "requested": copy.deepcopy(route),

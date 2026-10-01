@@ -2,6 +2,8 @@
 
 **文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
 
+2026-10-01 六引擎音效設定：音效移至 SETTINGS，六引擎各自保存紀錄、單項重設與重啟還原；TTS 加入生成後／播放前處理，queue 保留送出時的設定。41 個 service／WAV tests、preview／mock／原生設定與完整 App 重啟專項 PASS；既有雙引擎生成 WAV 處理及 Breeze 處理後 CABLE 回錄 PASS。新生成／原生 Speak＋FX 全鏈與實體人耳聽評沒有因此升格，詳見 [音效設定驗證](verification/desktop/audio-effects-verification-latest.md)。
+
 2026-10-01 Desktop 畫面審查：四 VC 的 START 移至首屏，修正 Mic／WAV／文字模式提示，移除工程佔位、空白 VC Transcript 與無作用的 Mini 文字按鈕。內建 Browser、Edge preview／mock 與原生 WebView2 UI 專項 PASS，根目錄 exe 已更新；實體耳機接點與人耳聽評仍未確認。未完成功能與測試邊界見 [操作畫面審查](verification/desktop/usability-audit-latest.md)。
 
 2026-10-01 Desktop 四 VC 無聲修復：Seed／Mean／X 已從 GUI-only／Source WAV 啟動改為常駐麥克風串流；四引擎共用監聽與內建 EQ／壓縮／殘響／乾濕混合。三個共用 worker 的 20 秒注入音訊與 CABLE 回錄 PASS，RVC File CABLE 與 duplex 核心分項 PASS；Voicemeeter B1、實體聽評及長時間 LIVE 仍另驗。新版根目錄 exe、數值與未解項見 [Desktop VC 驗證](verification/desktop/realtime-vc-verification-latest.md)；[VoiceStudio 比較](reference/voicestudio-comparison.md)是固定 revision 唯讀研究。
