@@ -2,7 +2,7 @@
 
 **文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
-更新日期：2026-10-02（Asia/Taipei）。規格整理已於 `d478ee2` 推送；後續完成隔離資料 baseline 與原生 CDP 拖曳測試修正，詳見分項報告。沒有修改產品 UI／效能程式或重跑模型／LIVE；原生實際操作因使用者正在使用電腦而暫緩。舊報告仍只代表原日期的限定結果。
+更新日期：2026-10-02（Asia/Taipei）。規格整理 `d478ee2`、資料 baseline／CDP 測試修正 `2729702` 已推送。後續已實作快照排序子範圍優化，交錯比較與 TTS 回歸通過，詳見分項報告；未更動 UI／資料契約或重跑真模型／LIVE。原生實際操作因使用者正在使用電腦而暫緩；舊報告只代表原日期的限定結果。
 
 ## 怎麼看與追蹤
 
@@ -38,14 +38,14 @@
 
 ### 最需要注意的現況
 
-- 雙語與音效已有 preview／mock／native／重啟專項 PASS；不覆蓋全部原生操作。完整 `test:ui` 的拖曳斷言曾失敗，需 UI-01 重現後判明產品或測試問題。
+- 雙語與音效已有 preview／mock／native／重啟專項 PASS；不覆蓋全部原生操作。拖曳斷言已確認並修正 CDP 座標問題，UI-01 仍等待實際桌面操作，不以隱藏視窗的狀態斷言代替。
 - TTS 同引擎第二句已有模型重用證據；cold start／engine switch 仍慢。不能把 warm 單句數字當每次啟動速度，也不能把完整 WAV 可用時間稱為 streaming 首包。
 - 四 VC 短測有輸出；Seed／Mean／X 的 callback 輸入使用 fixture，RVC duplex B1 擷取仍 WAITING。physical 說話、音質、600 秒與 Discord／外部 Rack 未通過完整驗收。
 - 舊 VCClient packaged 的 BLOCKED 與新版 Desktop headless RVC 是不同實作。前者不是後者的依賴；後者局部 PASS 也不修正前者。
 
 ## 工作順序與每批出口
 
-這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 已修正自動化座標問題，等待桌面可供實際操作。其餘依賴尚未完成的工作仍列 PLANNED。
+這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 等待桌面可供實際操作。PERF-02 先完成不涉及 UI／schema 的快照排序子範圍；其餘依賴尚未完成的工作仍列 PLANNED。
 
 | 批次 | 目的／工作 | 出口 |
 |---|---|---|
@@ -56,6 +56,8 @@
 | 4：日常使用與交付 | LIVE-01、SHIP-01；FUT-01 排後續 | 指定配置與安裝目標逐項通過；沒有證據的引擎／路由保持原分類 |
 
 AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在已有合格配置時安排，不必等待全部新功能。不同任務不可同時佔用同一 GPU／音訊線路。
+
+局部 source 優化若已有受影響範圍的 baseline、契約不變且可獨立回退，可先於整批出口交付；不把該子範圍通過視為 BASE／MOD／DATA 全部完成。PERF-02 的快照排序屬此情形，完整跨層更新仍按依賴執行。
 
 ## 任務登錄：每列都是可交接單位
 
@@ -72,7 +74,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 | MOD-03／高 | F06、N03：共用音效脫離 VC 專用層 | `services/engines/postfx.py`、`services/tts/postfx.py`；BASE-01 | PLANNED | 單一 DSP 實作、不依賴 VC／TTS orchestration；callers／tests／文件同步；相同 PCM／設定的 bypass、wet、取消與輸出相容 |
 | DATA-01／高 | F07.4／09、N03：資料版本、writer、migration 與復原 | `services/tts/storage.py`、contracts、UI／shell settings；BASE-01 | PLANNED | 依架構資料表界定 owner；migration 前可用備份、重跑冪等、失敗可復原；舊 session／requests／favorites／設定保留；未完成 queue 不自動重播 |
 | PERF-01／高 | F02／03／08：縮短量測確認的冷載入／生成瓶頸 | adapters、WSL worker、streaming adapters；BASE-01、MOD-02 | PLANNED | 依 baseline 選一個最大成本改善；cold／warm 分報，品質／取消／GPU 回收不退步；沒有顯著改善則不宣稱成功 |
-| PERF-02／高 | F07／08：降低重複更新與長 Session I/O 成本 | UI 訂閱、service snapshot、storage exports；BASE-01、MOD-01、MOD-02、DATA-01 | PLANNED | 先量測事件＋polling、全量 snapshot／export；按瓶頸做有界更新／分頁或可重建匯出；漏事件恢復、durability、queue identity 不退步 |
+| PERF-02／高 | F07／08：降低重複更新與長 Session I/O 成本 | UI 訂閱、service snapshot、storage exports；排序子範圍依資料 baseline；跨層更新仍依 BASE-01、MOD-01／02、DATA-01 | IN_PROGRESS | [快照排序子範圍 PASS](verification/desktop/performance-baseline-latest.md#snapshot-order-comparison)：相同 payload、成對量測、TTS 回歸。事件／polling、全量 payload／export、有界更新／分頁仍未完成；漏事件恢復、durability、queue identity 均需維持 |
 | FEAT-01／中 | F02.4／05：通用參數、Voice Library、Preset Save／Load | manifests／voices、UI forms、settings repository；MOD-01、DATA-01 | PLANNED | 六引擎只顯示支援欄位；round-trip 保留 exact route／profile／FX；缺檔／舊版本／不相容 engine 有明確錯誤；不混用 RVC 與 reference |
 | FEAT-02／中 | F07.2／3：Session history、搜尋、分頁與匯出 | storage query／export、Transcript UI；MOD-01、DATA-01 | PLANNED | 跨 session 篩選／分頁穩定；Clear View 不刪 DB；DB 可重建 TXT／JSONL，SRT 有時間檢查；長資料量案例與失敗恢復 |
 | FEAT-03／中 | F04：Mic／Remote capture、VAD、STT、重建串接 | 新增模組限既有 `services/`、contracts、Rust／UI adapter；MOD-02、DATA-01 | PLANNED | physical Self 與 Remote source 分離；切 VC 不停 STT；backend_stt 不重跑辨識；CPU／GPU 共存及回授、取消、durability 驗收 |

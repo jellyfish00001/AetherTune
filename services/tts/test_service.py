@@ -419,6 +419,36 @@ class ServiceTests(unittest.TestCase):
         ))
         self.adapter.start_gate.set()
 
+    def test_snapshot_orders_active_then_terminal_history_without_sharing_records(self) -> None:
+        # 持鎖建 fixture 並在釋放前清掉，worker 不會執行合成的 current／pending。
+        service = self.service
+        with service._condition:
+            try:
+                for name, status in (("done", "completed"), ("second", "queued"),
+                                     ("cancelled", "cancelled"), ("current", "generating"),
+                                     ("first", "queued"), ("failed", "failed")):
+                    service._requests[name] = {
+                        "id": name, "status": status, "text": name,
+                        "metadata": {"route": {"output": "fixed"}},
+                        "profile_snapshot": {"id": "voice", "engines": ["cosyvoice"]},
+                        "_cancel_audit": {"private": True},
+                    }
+                service._current_id = "current"
+                service._pending.extend(("first", "second"))
+                queue = service.snapshot()["snapshot"]["queue"]
+                self.assertEqual([row["id"] for row in queue],
+                                 ["current", "first", "second", "done", "cancelled", "failed"])
+                self.assertTrue(all("_cancel_audit" not in row for row in queue))
+                queue[0]["metadata"]["route"]["output"] = "changed by consumer"
+                queue[0]["profile_snapshot"]["engines"].append("breeze")
+                fresh = service.snapshot()["snapshot"]["queue"][0]
+                self.assertEqual(fresh["metadata"]["route"]["output"], "fixed")
+                self.assertEqual(fresh["profile_snapshot"]["engines"], ["cosyvoice"])
+            finally:
+                service._current_id = None
+                service._pending.clear()
+                service._requests.clear()
+
     def test_switching_engine_closes_previous_adapter(self) -> None:
         breeze = FakeGenerationAdapter(engine_id="breeze", delay=0.01)
         self.service._adapters = {"cosyvoice": self.adapter, "breeze": breeze}

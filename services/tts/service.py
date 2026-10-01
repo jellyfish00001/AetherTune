@@ -185,9 +185,10 @@ class SpeechService:
             if current_id is not None:
                 ordered_ids.append(current_id)
             ordered_ids.extend(request_id for request_id in self._pending if request_id != current_id)
-            # terminal history stays visible after current/pending so cancelled
-            # items remain auditable without disturbing FIFO reorder semantics.
-            ordered_ids.extend(request_id for request_id in self._requests if request_id not in ordered_ids)
+            # current／pending 保持原順序，terminal history 按建立順序接在後面。
+            # _requests 的 key 唯一，只需排除 active IDs；避免長歷史的逐筆 list 掃描。
+            active_ids = set(ordered_ids)
+            ordered_ids.extend(request_id for request_id in self._requests if request_id not in active_ids)
             queue = [self._public_request(self._requests[request_id]) for request_id in ordered_ids]
         readiness = self.engine_readiness()
         return {

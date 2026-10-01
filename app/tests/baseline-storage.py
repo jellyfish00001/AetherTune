@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import platform
@@ -45,7 +46,41 @@ def timed(call, repeats: int = 5) -> tuple[object, dict]:
     return result, {"samples_ms": samples, "median_ms": statistics.median(samples)}
 
 
-def run_case(output: Path, count: int, repeat: int) -> dict:
+def snapshot_baseline(ref: str) -> tuple[object, dict]:
+    revision = subprocess.check_output(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+                                       cwd=ROOT, text=True).strip()
+    source = subprocess.check_output(["git", "show", f"{revision}:services/tts/service.py"], cwd=ROOT)
+    owner = next(node for node in ast.parse(source).body
+                 if isinstance(node, ast.ClassDef) and node.name == "SpeechService")
+    method = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.name == "snapshot")
+    # 只比較 repo 內指定 commit 的 snapshot 方法；其餘依賴固定目前版本。
+    # 不切換工作樹、不安裝舊環境，也不能拿這個比較宣稱整個舊版本的速度。
+    namespace = dict(vars(sys.modules[SpeechService.__module__]))
+    exec(compile(ast.Module(body=[method], type_ignores=[]), f"git:{revision}:snapshot", "exec"), namespace)
+    return namespace["snapshot"], {"revision": revision,
+                                   "service_source_sha256": hashlib.sha256(source).hexdigest(),
+                                   "scope": "snapshot method only; all other dependencies held current"}
+
+
+def compare_snapshot(service: SpeechService, baseline) -> dict:
+    calls = {"before": lambda: baseline(service), "after": service.snapshot}
+    assert calls["before"]() == calls["after"]()  # 先暖機；完整公開 payload 必須一致。
+    samples = {"before": [], "after": []}
+    for index in range(20):
+        values = {}
+        for name in (("before", "after") if index % 2 == 0 else ("after", "before")):
+            values[name], timing = timed(calls[name], repeats=1)
+            samples[name].append(timing["samples_ms"][0])
+        assert values["before"] == values["after"], "snapshot payload 不相容"
+    result = {name: {"samples_ms": values, "median_ms": statistics.median(values),
+                     "p95_ms": sorted(values)[18]} for name, values in samples.items()}
+    result["median_reduction_percent"] = 100 * (1 - result["after"]["median_ms"] / result["before"]["median_ms"])
+    result["payload_equal"] = True
+    result["samples_per_variant"] = 20
+    return result
+
+
+def run_case(output: Path, count: int, repeat: int, baseline=None) -> dict:
     case = output / f"rows-{count}-run-{repeat}"
     case.mkdir()
     # catalogue 保持真實欄位大小；WAV／weights 不複製，也不讀使用者 DB。
@@ -86,6 +121,8 @@ def run_case(output: Path, count: int, repeat: int) -> dict:
             "snapshot_utf8_bytes": len(serialized.encode("utf-8")),
             "row_counts_verified": True,
         }
+        if baseline is not None:
+            result["snapshot_comparison"] = compare_snapshot(service, baseline)
     finally:
         service.close()
         assert not service._worker.is_alive(), "fixture worker 未回收"
@@ -115,11 +152,13 @@ def run_case(output: Path, count: int, repeat: int) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--compare-snapshot-ref", help="在同一 fixture 交錯比較 repo 指定 commit 的 snapshot 方法")
     args = parser.parse_args()
     output = (args.output or ROOT / "artifacts/desktop" / f"storage-baseline-{uuid.uuid4()}").resolve()
     # 只容許全新 artifacts 子目錄；不覆寫舊 evidence 或碰 canonical 使用者 DB。
     if not output.is_relative_to((ROOT / "artifacts").resolve()) or output.exists():
         parser.error("--output 必須是 artifacts 內尚未存在的子目錄")
+    baseline, comparison = snapshot_baseline(args.compare_snapshot_ref) if args.compare_snapshot_ref else (None, None)
     output.mkdir(parents=True)
     sources = [Path(__file__), ROOT / "services/tts/service.py", ROOT / "services/tts/storage.py"]
     sources.extend(sorted((ROOT / "contracts/voices").glob("*.json")))
@@ -133,10 +172,12 @@ def main() -> int:
         "cases": [], "limits": ["模型、裝置、UI rendering、CPU/RSS、IPC transport 未量測",
                                  "catalogue 真實，request／transcript 是合成資料；readiness 為 stub"],
     }
+    if comparison is not None:
+        report["snapshot_comparison"] = comparison
     try:
         for count in (10, 100, 1000):
             for repeat in range(1, 4):
-                case = run_case(output, count, repeat)
+                case = run_case(output, count, repeat, baseline)
                 report["cases"].append(case)
                 (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(json.dumps({"rows": count, "repeat": repeat, "snapshot_ms": case["snapshot"]["median_ms"],

@@ -95,7 +95,7 @@ flowchart LR
 
 - **模型生命週期：**保留同 engine 的 TTS resident worker 與 VC 常駐 processor；cold／warm／切換／取消後重新載入分開量測。不預載所有模型，不以延後取消或殘留 GPU worker 換取表面速度。
 - **UI 更新：**目前 engine events 加 1 秒 refresh，SpeechWorkspace 也有訂閱及 native 1 秒 refresh；這是重複工作的待量測點，尚不能斷言瓶頸。若改成 event 為主、poll 為恢復，需 single-flight、失聯重同步及 unmount cleanup，不能漏掉終態。
-- **Session 成長：**現行 snapshot 包含本 service 的 terminal requests；export 讀取本 session records 並重寫輸出。先測量資料量對 JSON、DB、I/O 與渲染的影響，再引入 bounded history／pagination 或增量 export；不能刪掉 canonical records 來縮短時間。
+- **Session 成長：**snapshot 以 current → pending → 其餘歷史的順序包含全部 requests；以 active ID set 篩選歷史，保留深拷貝及完整 profile／route。export 仍讀取本 session records 並重寫輸出。先測量資料量對 JSON、DB、I/O 與渲染的影響，再引入 bounded history／pagination 或增量 export；不能刪掉 canonical records 來縮短時間。
 - **音訊熱路徑：**callback 不做 DB／磁碟／hash／log flush；bounded buffer、backlog、drops 保留。模型 p95、RTF 與 microphone→terminal 延遲是不同指標，不以增加未顯示的 buffer 掩蓋 underrun。
 - **驗證：**固定輸入與硬體的 baseline／after、資源釋放、品質與耐久性條件見[優化驗收](verification-plan.md#optimization-acceptance)。沒有量測就只記「程式整理」，不記「效能提升」。
 

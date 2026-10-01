@@ -193,6 +193,8 @@ Set-Location D:\AetherTune
 
 每案例關閉 service 後檢查 DB integrity、request identity／文字與匯出一致、worker 已回收，再記錄最終 bytes／hash；`close()` 會更新 session 結束時間，不能提前 hash。`report.json` 保存 source／catalogue fingerprints、raw samples、起迄時間及 PASS／FAILED；失敗案例與舊 report 要保留。重跑規則與證據解讀見[資料效能報告](../../docs/verification/desktop/performance-baseline-latest.md)，未量 UI／模型／資源的項目不可升級狀態。
 
+只比較 snapshot 方法時，可加 `--compare-snapshot-ref <repo-commit>`：先暖機，再於相同 service／DB／fixture 交錯量舊／新方法各 20 次，核對每對完整 payload 相同。舊方法取自指定 Git commit，其他依賴固定目前版本；如果要比較的修改也涉及 `_public_request`、storage 或其他依賴，這種方法隔離不足，必須另建各版本的完整受測環境。report 保存基準 revision／source hash、原始 samples、median 與各案例 p95；不得混池或將 profiler timing 當一般 latency。
+
 ### UI regression 與原生程序
 
 UI 改動用兩個終端：第一個 `Set-Location D:\AetherTune\app` 後 `npm run dev`；第二個在同目錄跑 `npm run test:ui`、`npm run test:manual-tts-ui`。後者是 explicit mocked Tauri IPC，配合內建 Browser／Chrome 複核畫面，按 AGENTS 記錄 URL、viewport、actions、console／network、screenshots。native layer 未測就明列 WAITING。純文件改動只檢查連結、檔案覆蓋、指令與 source 一致，不重跑模型或錄音。
