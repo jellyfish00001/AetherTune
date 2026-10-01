@@ -5,10 +5,13 @@
   ],
   "referenceVoice": true,
   "classification": "WAITING",
-  "implementation": "skeleton",
+  "implementation": "implemented",
   "requiredPaths": [
     "tools/venvs/xvc/Scripts/python.exe",
     "tools/xvc-run.py",
+    "services/engines/stream_runtime.py",
+    "services/engines/streaming_adapters.py",
+    "services/engines/postfx.py",
     "tools/external/X-VC/configs/xvc.yaml",
     "models/xvc/xvc.pt",
     "models/xvc/glm-tokenizer/model.safetensors",
@@ -16,9 +19,10 @@
   ],
   "id": "xvc",
   "name": "X-VC",
-  "adapter": "file_runner",
+  "adapter": "stream_runner",
   "limitations": [
-    "第一輪僅 WAV streaming runner；current=0 為 offline。即時 capture/output 尚未整合。"
+    "START 直接開啟麥克風與輸出，使用常駐模型與 rolling codec window。",
+    "即時模式 current 必須大於 0；處理速度、物理聽評與 LIVE_GATE 需獨立驗證。"
   ],
   "parameters": [
     {

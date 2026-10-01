@@ -6,6 +6,8 @@
 
 2026-09-26 交叉檢查並新增 MeanVC2、X-VC 候選列；其他元件列保留先前審核日期與範圍，沒有藉此代表全表已重新審核。
 
+2026-10-01 Desktop resident adapters 只重用已固定的 Seed／Mean／X 推論核心與資產，實際 source hash、device 與 checkpoint hash 由 [Desktop VC 報告](../verification/desktop/realtime-vc-verification-latest.md)的 JSON evidence 記錄。VoiceStudio 僅作 [固定版本外部研究](voicestudio-comparison.md)，未安裝、未複製其程式碼，也不是新增 backend。
+
 | 元件 | 上游來源 | 目前確認 | 採用判斷 |
 |---|---|---|---|
 | RVC 訓練/推論 WebUI | [RVC-Project/Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI) | 公開、MIT；README 目前列 Python 3.12 x64，RTX 50 系列使用 CUDA 12.8 Torch 依賴；支援 RMVPE 與 `.pth`/`.index` 目錄 | 主訓練基線；已在專案 `.venv` 完成依賴與 runtime smoke test |

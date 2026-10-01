@@ -28,7 +28,7 @@
 
 | 範圍 | 報告 |
 |---|---|
-| Desktop 與本機入口 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[App 首輪](verification/desktop/app-verification-latest.md) |
+| Desktop 與本機入口 | [操作畫面審查](verification/desktop/usability-audit-latest.md)、[四 VC 串流／音效修復](verification/desktop/realtime-vc-verification-latest.md)、[Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[App 首輪](verification/desktop/app-verification-latest.md) |
 | Streaming VC／模型 | [Backend 安裝與基本音訊](verification/backends/backend-install-test-latest.md)、[Seed readiness](verification/backends/seed-vc-readiness-latest.md)、[Seed GUI 音訊](verification/backends/seed-vc-verification-latest.md)、[RVC 模型 audit](verification/backends/rvc-model-audit-latest.md) |
 | Speech Reconstruction | [CosyVoice](verification/backends/cosyvoice-verification-latest.md)、[Breeze TTS 2](verification/backends/breeze-tts2-verification-latest.md) |
 | VCClient／音訊線路 | [packaged repair](verification/backends/vcclient-packaged-repair-latest.md)、[RVC probe](verification/backends/vcclient-rvc-probe-latest.md)、[latency matrix](verification/backends/vcclient-rvc-latency-matrix-latest.md)、[wiring](verification/audio/wiring-verification-latest.md)、[客觀 WAV 比較](verification/audio/audio-quality-comparison-latest.md) |

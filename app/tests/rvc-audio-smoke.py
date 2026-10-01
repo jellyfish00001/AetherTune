@@ -27,6 +27,7 @@ def main() -> int:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--stream-seconds', type=int, default=0)
     parser.add_argument('--monitor', action='store_true')
+    parser.add_argument('--postfx', action='store_true', help='驗證共用 EQ／壓縮／殘響與乾濕混合')
     args = parser.parse_args()
     folder = args.output.resolve()
     folder.mkdir(parents=True, exist_ok=True)
@@ -45,7 +46,8 @@ def main() -> int:
         return 1
     request = dict(source=str(args.source.resolve()), input='CABLE Output (VB-Audio Virtual Cable)', output=output_name,
                    host_api='Windows DirectSound', parameters={'model_id':args.model_id,'f0_method':args.f0_method,'source_mode':'microphone' if stream_mode else 'file'},
-                   monitor={'enabled':args.monitor,'output':'喇叭 (HyperX QuadCast S)','host_api':'MME'})
+                   monitor={'enabled':args.monitor,'output':'喇叭 (HyperX QuadCast S)','host_api':'MME'},
+                   postfx={'enabled':args.postfx,'wet':0.5,'low_db':3,'high_db':-2,'reverb_mix':0.15})
     request_path = folder/'request.json'
     request_path.write_text(json.dumps(request,ensure_ascii=False),encoding='utf-8')
     capture = folder/'capture.wav'

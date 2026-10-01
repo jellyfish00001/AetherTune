@@ -14,6 +14,8 @@
 
 `--model 120ms` 選另一組模型；執行前仍須確認權重存在。來源／reference 需可解碼 WAV；輸出為 16 kHz WAV 與 `<檔名>.run-evidence.json`。`--realtime --target <WAV>` 可進入官方互動式裝置選擇；是否已有 mic／route 證據只看驗證報告。
 
+Desktop 的 START 使用 `services/engines/stream_runtime.py`，直接開啟明確的麥克風與輸出裝置；`streaming_adapters.py` 重用官方 `VCRunner.process_chunk`，模型與 cache 在同一 session 常駐。host PCM 為 48 kHz、160 ms block，核心 PCM 為 16 kHz；CLI 檔案流程仍保留。監聽與共用 Post-FX 的操作見 [Desktop 手冊](../../docs/guides/desktop-user-guide.md)，實測見 [Desktop VC 驗證](../../docs/verification/desktop/realtime-vc-verification-latest.md)。
+
 ## 不可提前宣稱
 
 - 不下載 checkpoint 就不能寫成 runtime PASS。

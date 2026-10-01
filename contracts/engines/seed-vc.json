@@ -5,11 +5,12 @@
   ],
   "referenceVoice": true,
   "classification": "WAITING",
-  "implementation": "skeleton",
+  "implementation": "implemented",
   "requiredPaths": [
     "tools/venvs/seed-vc/Scripts/python.exe",
-    "tools/external/powershell/pwsh.exe",
-    "tools/seed-vc-gui-run.ps1",
+    "services/engines/stream_runtime.py",
+    "services/engines/streaming_adapters.py",
+    "services/engines/postfx.py",
     "tools/external/seed-vc/real-time-gui.py",
     "models/seed-vc/checkpoints/realtime-tiny/DiT_uvit_tat_xlsr_ema.pth",
     "tools/external/seed-vc/checkpoints/models--facebook--wav2vec2-xls-r-300m/refs/main",
@@ -19,13 +20,12 @@
   "id": "seed-vc",
   "name": "Seed-VC",
   "profiles": [
-    "realtime-tiny",
-    "offline-v1"
+    "realtime-tiny"
   ],
-  "adapter": "temporary_gui",
+  "adapter": "stream_runner",
   "limitations": [
-    "TEMPORARY：啟動官方 GUI；Desktop Start 尚不開啟音訊 stream。",
-    "FP32 / CUDA 0 沿用現有 launcher；有效音訊與 LIVE_GATE 維持 WAITING。"
+    "Desktop 使用 realtime-tiny FP32 / CUDA 0 常駐核心，START 直接開啟音訊串流。",
+    "參考聲音需有效 WAV；物理麥克風聽評與 600 秒 LIVE_GATE 需獨立驗證。"
   ],
   "parameters": [
     {

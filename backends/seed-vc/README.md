@@ -21,6 +21,8 @@
 
 Windows realtime-tiny 走官方 `real-time-gui.py`，不使用 offline inference config。先讀 [`docs/reference/seed-vc-assets.md`](../../docs/reference/seed-vc-assets.md)，檢查 source／checkpoint／config／encoder／vocoder／VAD cache，再用本文件下方的 GUI `-PreflightOnly` 列舉裝置並以 `tools/seed-vc-gui-run.ps1` 啟動。Launcher 使用 FP32／CUDA device 0，預設 offline mode 並要求唯一裝置名稱，不改 Windows 預設 audio endpoints，也不注入 WAV。`tools/seed-vc-live-capture.py` 可另行錄製 mic、CABLE Output 與 Voicemeeter B1 的實際 PCM／callback evidence；onset estimate 不能代替完整 LIVE_GATE。
 
+Desktop START 另使用 headless realtime-tiny 核心：`streaming_adapters.py` import 官方 `load_models`／`custom_infer`，沿用 rolling context／SOLA，FP32／CUDA 0，48 kHz host PCM。同一 session 保留模型與 reference conditioning，直接啟動 capture/output，不需要第二個 GUI 的 Start VC。Desktop 不使用官方 GUI 的 VAD 靜音 gate；此 profile 與歷史 GUI 驗證分開記錄。操作见 [Desktop 手冊](../../docs/guides/desktop-user-guide.md)，當輪輸出與限制見 [Desktop VC 驗證](../../docs/verification/desktop/realtime-vc-verification-latest.md)。
+
 ## 離線使用
 
 `tools/seed-vc-setup.ps1` 先做唯讀 preflight，再建立獨立的 `tools/venvs/seed-vc`；manifest gate 的支援範圍是 `realtime-tiny` GUI，不能推論 `offline-v1` 所需 config／Whisper／BigVGAN 資產也齊全。缺少 realtime 前置時會先列缺項，不執行 pip；setup 不 clone source 或下載權重。Python 3.10 base interpreter 可由 `pyvenv.cfg`／本機安裝探索，也可只對 setup 傳 `-Python310 <base-python.exe>`。`tools/seed-vc-run.ps1` 另檢查 offline route 的 repo、checkpoint、輸入與輸出，再呼叫官方 `inference.py`；它以新 WAV 或新 hash 通過 stale-output gate，經 `audio_output_validation.py` 驗證後才寫本輪 manifest。`realtime-tiny` GUI 需搭配官方 XLS-R/Hifi-GAN preset，不能把 tiny checkpoint 塞進 offline config。當次 setup／asset completeness 看[Seed readiness](../../docs/verification/backends/seed-vc-readiness-latest.md)。

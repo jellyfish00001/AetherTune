@@ -120,7 +120,8 @@
 |---|---|---|
 | [app/src/main.tsx](../../app/src/main.tsx) | React root；保留 VC mode/engine/shell/native controls，並列舉音訊端點供 VC input/output 與獨立 TTS route 下拉選擇。 | 同步 `desktop.ts` IPC、`SpeechWorkspace.tsx` props、`style.css` layout 與 `app/tests/ui.mjs`。 |
 | [app/src/components/SpeechWorkspace.tsx](../../app/src/components/SpeechWorkspace.tsx) | Manual TTS workspace；Input source、CosyVoice/Breeze、profile、composer、queue actions、settings、recent/favorites、transcript 與 Mini quick popup。 | 同步 `speech.ts` snapshot/action types、Rust speech protocol、`manual-tts.mjs`；不得把 WAITING audio 寫成 READY。 |
-| [app/src/components/RvcControls.tsx](../../app/src/components/RvcControls.tsx) | 依 RVC manifest 呈現登錄角色、Mic／WAV、F0、音高、進階 block 參數及獨立監聽。 | 同步 RVC manifest、runner validation 與 UI request 測試。 |
+| [app/src/components/RvcControls.tsx](../../app/src/components/RvcControls.tsx) | 依 RVC manifest 呈現登錄角色、Mic／WAV、F0、音高與進階 block 參數。 | 同步 RVC manifest、runner validation 與 UI request 測試。 |
+| [app/src/components/VcAudioControls.tsx](../../app/src/components/VcAudioControls.tsx) | 四 VC 共用 reference、裝置、監聽與 Post-FX controls。 | 同步 main request、postfx validation 與 UI tests。 |
 | [app/src/services/desktop.ts](../../app/src/services/desktop.ts) | Tauri `invoke/listen` wrapper、default Shell、engine manifest JSON imports 與 browser/native boundary。 | 同步 `main.tsx`、Rust commands/events、`contracts/engines/*.json` 與 UI tests。 |
 | [app/src/services/speech.ts](../../app/src/services/speech.ts) | Speech snapshot/action types、contract voice fallback、snapshot/error normalization、nested enqueue IPC 與 speech-event filtering。 | 同步 `contracts/voices/*.json`、`tts-state`/speech request schema、Rust speech manager、Manual TTS tests。 |
 | [app/src/style.css](../../app/src/style.css) | Full/Compact/Mini shell、TTS controls、queue、composer、settings、transcript 與 quick popup 的 visual/layout rules。 | 修改 layout 後跑 `app/tests/ui.mjs`、`manual-tts.mjs`，並複核 1040×740、420×490、420×260。 |
@@ -130,6 +131,7 @@
 | 檔案 | 用途與主要讀取者 | 修改同步檢核 |
 |---|---|---|
 | [app/tests/rvc-audio-smoke.py](../../app/tests/rvc-audio-smoke.py) | 正式 EngineManager 的 RVC CUDA WAV／虛擬輸入 duplex callback smoke；獨立記錄路由擷取，未讀實體麥克風。 | 同步 desktop-probe、RVC runtime evidence 與 RVC 分項報告；callback 不升格 LIVE。 |
+| [app/tests/vc-native.mjs](../../app/tests/vc-native.mjs) | 根目錄 exe 四 VC 的原生 START／metrics／STOP、載入取消與可見操作證據。 | 需要 WebView2 CDP；完成後恢復實體輸出，不能替代人耳聽評。 |
 | [app/tests/audit-speech-processes.py](../../app/tests/audit-speech-processes.py) | 只讀稽核正式 speech probe 記錄的 Windows service PID、WSL process-group PID 與 evidence host PID；只查已知 owned IDs，不做全機 inventory 或 kill，輸出 `process-audit.json`。 | 同步 `manual-audio-smoke.py`/speech service PID artifacts 與 process ownership；存活不等於音訊 PASS。 |
 | [app/tests/cleanup.ps1](../../app/tests/cleanup.ps1) | 由指定 Desktop PID 建出本次 process tree，呼叫 `control.mjs exit` 後 bounded 等待所有 owned process 消失，輸出 cleanup report；不刪其他 backend。 | 修改 Exit/lifecycle 或 process ownership 時同步 `main.rs`、`process_manager`、`control.mjs`。 |
 | [app/tests/contracts.mjs](../../app/tests/contracts.mjs) | AJV 驗證 engine/backend/session/transcript schema 及負面 state/audio boundary fixtures。 | 同步 `contracts/schemas`，跑 `npm run test:contracts`。 |
@@ -275,6 +277,12 @@
 | [services/engines/__init__.py](../../services/engines/__init__.py) | engines package marker，讓 runner service、Seed cache 與 tests 以同一 package import。 | package layout 變更時同步 `services/engines/*` import、native service launcher 與 engine tests。 |
 | [services/engines/runner_service.py](../../services/engines/runner_service.py) | JSONL engine control bridge；只協調既有 runner、以 stdout 傳狀態/ack，保留 backend runner ownership，不在 IPC 傳 PCM。 | command/event schema 變更同步 `contracts/schemas/backend-state.schema.json`、Rust EngineManager bridge、`app/src/services/desktop.ts` 與 runner service tests。 |
 | [services/engines/rvc_runtime.py](../../services/engines/rvc_runtime.py) | RVC 已登錄模型 hash、FCPE／RMVPE CUDA、rolling block／SOLA、PortAudio stream、監聽及 evidence；重用固定 upstream 推論核心。 | 同步 RVC manifest、runner validation、音訊 smoke、backend README 及 source audit。 |
+| [services/engines/stream_runtime.py](../../services/engines/stream_runtime.py) | Seed／Mean／X 共用 capture、推論 worker、bounded PCM queue、輸出／監聽、metrics 與 evidence。 | 同步 runner service、三 manifest、runtime queue tests、Desktop VC report。 |
+| [services/engines/streaming_adapters.py](../../services/engines/streaming_adapters.py) | 三引擎 resident 模型、reference、source revision、rolling context 與 host/model 重取樣。 | 同步 backend README、processor tests 與真實 streaming smoke。 |
+| [services/engines/postfx.py](../../services/engines/postfx.py) | 共用 EQ／壓縮／殘響／乾濕混合與範圍驗證。 | 同步 VC UI controls、四 runtime 接點與訊號 tests。 |
+| [services/engines/test_postfx.py](../../services/engines/test_postfx.py) | bypass、乾聲、跨 block filter history、reverb tail 與 limiter regression。 | Post-FX 變更後重跑，不替代 physical listening。 |
+| [services/engines/test_stream_runtime.py](../../services/engines/test_stream_runtime.py) | variable frame FIFO、bounded backlog 與不阻塞輸出 callback regression。 | 同步 capture/output queue 行為。 |
+| [services/engines/test_streaming_adapters.py](../../services/engines/test_streaming_adapters.py) | X codec boundary、lookahead 與 rolling/fade regression。 | 同步三 processor 的參數與輸出契約。 |
 | [services/engines/seed_cache.py](../../services/engines/seed_cache.py) | 只讀/受保護的 Seed cache asset resolution 與必要 repair，避免覆寫無關 cache 或暗中升級模型。 | asset revision/hash 或 repair policy 變更同步 `tools/seed-vc-assets.*`、Seed setup/preflight、`services/engines/test_seed_cache.py`。 |
 | [services/engines/test_runner_service.py](../../services/engines/test_runner_service.py) | M2 engine adapter/JSONL boundary regression，使用 fixtures 驗 protocol 和 failure cleanup；不代表 CUDA、mic 或 audio E2E。 | runner protocol 或 fixture 改動同步 `runner_service.py`、backend-state schema 與 app contract tests。 |
 | [services/engines/test_seed_cache.py](../../services/engines/test_seed_cache.py) | Seed cache repair 的 path/hash/link protection tests，不下載真模型、不覆寫外部 upstream。 | cache policy 或 manifest 欄位改動同步 `seed_cache.py`、Seed assets registry/preflight。 |
@@ -399,6 +407,7 @@
 | [tools/streaming-backend-setup.ps1](../../tools/streaming-backend-setup.ps1) | 隔離 MeanVC2/X-VC Python runtime/setup，不修改其他 backend。 | runtime/setup 變更同步 backend README、install/test verification。 |
 | [tools/streaming_backend_evidence.py](../../tools/streaming_backend_evidence.py) | 共用 file-driven streaming WAV evidence/hash/metadata helper；不判 LIVE 或人工音質。 | evidence schema 同步 MeanVC2/X-VC runners、backend docs。 |
 | [tools/meanvc2-run.py](../../tools/meanvc2-run.py) | 隔離 MeanVC2 upstream runtime 的 file-driven WAV adapter。 | adapter/config/output 變更同步 `backends/meanvc2/README.md`、streaming evidence。 |
+| [tools/desktop-vc-smoke.py](../../tools/desktop-vc-smoke.py) | 注入 WAV → resident worker → Post-FX → PortAudio／CABLE 的可重跑 smoke。 | 同步 Desktop VC report；不升格 physical mic 或 LIVE。 |
 | [tools/xvc-run.py](../../tools/xvc-run.py) | 隔離 X-VC CUDA inference，複製 config 到 artifact，避免修改 upstream。 | adapter/config/output 變更同步 `backends/xvc/README.md`、streaming evidence。 |
 
 ## `docs/`
@@ -430,6 +439,8 @@
 |---|---|---|
 | [docs/verification/desktop/manual-tts-verification-latest.md](../../docs/verification/desktop/manual-tts-verification-latest.md) | Manual TTS service/queue/generation/playback/transcript 的命令、實際 evidence、限制與剩餘 boundary；TTS UI/native 維護者讀取。 | `services/tts`、Rust speech bridge、`app/src` 或 contract 改動後重跑對應 service/UI/native checks。 |
 | [docs/verification/desktop/app-verification-latest.md](../../docs/verification/desktop/app-verification-latest.md) | M0/M1/M2 Desktop baseline、歷史檢核與 caveats；Manual TTS 最新證據另見 dedicated report。 | app launch/IPC/contract 或 UI test 變更同步 app architecture/requirements。 |
+| [docs/verification/desktop/realtime-vc-verification-latest.md](../../docs/verification/desktop/realtime-vc-verification-latest.md) | Desktop 四 VC 無聲修復、Post-FX、當輪 streaming/route evidence 與剩餘 physical gate。 | 同步 stream/rvc runtime、manifest、UI、可重跑 smoke。 |
+| [docs/verification/desktop/usability-audit-latest.md](../../docs/verification/desktop/usability-audit-latest.md) | Desktop 操作畫面審查、模式差異、未完成／多餘 UI 與修正證據。 | 同步 main/SpeechWorkspace、UI tests、Desktop 手冊；UI PASS 不升格實體音訊。 |
 | [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 2026-09-27 Python 3.10 runtime 與已移除 Tk 控制台的歷史驗證；不能作為目前 UI 操作入口。 | runtime 變更看現行 runtime check；Desktop 操作以 user guide 與當輪 app verification 為準。 |
 | [docs/status.md](../../docs/status.md) | 本輪 Agent implementation/test status 集中表，標示 PASS/WAITING/PLANNED 邊界；不能取代各 verifier。 | 每輪實作或驗證後同步相關詳細 report，維持狀態詞彙一致。 |
 | [docs/archive/local-environment.md](../../docs/archive/local-environment.md) | 歷史本機 runtime/device/environment inventory，並指向現行 Python UI verification。 | 本機環境證據改動同步 current verification，不以歷史 inventory 覆蓋新 artifact。 |
@@ -449,6 +460,7 @@
 | [docs/archive/seed-vc-readiness-2026-09-26.md](../../docs/archive/seed-vc-readiness-2026-09-26.md) | 2026-09-26 dated Seed realtime readiness recheck，保留當日 evidence 與 historical context。 | 只在重現該日期 artifact 時修改；目前狀態以 latest report 為準。 |
 | [docs/verification/backends/seed-vc-verification-latest.md](../../docs/verification/backends/seed-vc-verification-latest.md) | Seed GUI lifecycle、callback/CABLE partial evidence 與 mic/600s/listening limitations。 | GUI/user-flow/capture/route evidence 變更後重跑對應 checks，再更新最新報告。 |
 | [docs/reference/source-audit.md](../../docs/reference/source-audit.md) | upstream source、license、revision、provenance 與採用/隔離決策的 authority。 | 新增或升級 source/backend/model 時先登錄 URL/revision/license，再同步 register/docs。 |
+| [docs/reference/voicestudio-comparison.md](../../docs/reference/voicestudio-comparison.md) | VoiceStudio 固定 revision 唯讀比較與可採納工程方法。 | 上游版本或研究結論更新時核對 source；不表示安裝／音訊 PASS。 |
 | [docs/archive/streaming-vc-candidate-intake-2026-09-26.md](../../docs/archive/streaming-vc-candidate-intake-2026-09-26.md) | MeanVC2/X-VC dated candidate intake、fixed source/license process 與候選 boundary。 | 僅在該 intake evidence 或 source decision 修訂時更新；current status 仍看 backend-install report。 |
 
 ### Audio、VCClient 與 wiring reports

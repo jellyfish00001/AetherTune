@@ -8,9 +8,11 @@ import {
   subscribe,
   type Manifest,
   type Status,
+  type VcPostFx,
 } from './services/desktop';
 import { SpeechWorkspace, type ShellWithQuickInput } from './components/SpeechWorkspace';
 import { RvcControls, defaultRvcParameters } from './components/RvcControls';
+import { VcAudioControls } from './components/VcAudioControls';
 import { getAudioDevices, outputDeviceChoices, type AudioDevices, type SpeechRoute } from './services/speech';
 import './style.css';
 
@@ -22,7 +24,7 @@ const initial: Status = {
 };
 const modeLabels: Record<string, string> = {
   streaming_vc: 'Streaming VC',
-  speech_reconstruction: 'Speech Reconstruction',
+  speech_reconstruction: 'Speech Reconstruction（目前僅文字）',
   text_to_speech: 'Text → Voice',
 };
 const capabilities: Record<string, string> = {
@@ -31,25 +33,190 @@ const capabilities: Record<string, string> = {
   text_to_speech: 'text_to_speech',
 };
 const ttsModes = new Set(['speech_reconstruction', 'text_to_speech']);
+const vcSettingsStorageKey = 'aethertune.vc-settings.v1';
+const defaultVcPostFx: VcPostFx = {
+  enabled: false,
+  wet: 0.3,
+  low_db: 0,
+  mid_db: 0,
+  high_db: 0,
+  compressor_threshold_db: -18,
+  compressor_ratio: 3,
+  reverb_mix: 0.12,
+  output_gain_db: 0,
+};
+type VcMonitor = NonNullable<SpeechRoute['monitor']>;
+type StoredVcSettings = {
+  reference?: string;
+  source?: string;
+  input?: string;
+  output?: string;
+  host_api?: string;
+  rvcParameters?: Record<string, string | number>;
+  monitor?: VcMonitor;
+  postfx?: VcPostFx;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function finiteNumber(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? clamp(value, min, max) : fallback;
+}
+
+function normalizeMonitor(value: unknown): VcMonitor | undefined {
+  if (!isRecord(value) || typeof value.enabled !== 'boolean') return undefined;
+  return {
+    enabled: value.enabled,
+    output: optionalString(value.output) ?? '',
+    host_api: optionalString(value.host_api) ?? '',
+  };
+}
+
+function normalizePostFx(value: unknown): VcPostFx | undefined {
+  if (!isRecord(value)) return undefined;
+  return {
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : defaultVcPostFx.enabled,
+    wet: finiteNumber(value.wet, defaultVcPostFx.wet, 0, 1),
+    low_db: finiteNumber(value.low_db, defaultVcPostFx.low_db, -12, 12),
+    mid_db: finiteNumber(value.mid_db, defaultVcPostFx.mid_db, -12, 12),
+    high_db: finiteNumber(value.high_db, defaultVcPostFx.high_db, -12, 12),
+    compressor_threshold_db: finiteNumber(value.compressor_threshold_db, defaultVcPostFx.compressor_threshold_db, -48, 0),
+    compressor_ratio: finiteNumber(value.compressor_ratio, defaultVcPostFx.compressor_ratio, 1, 8),
+    reverb_mix: finiteNumber(value.reverb_mix, defaultVcPostFx.reverb_mix, 0, 0.5),
+    output_gain_db: finiteNumber(value.output_gain_db, defaultVcPostFx.output_gain_db, -12, 6),
+  };
+}
+
+function normalizeRvcParameters(value: unknown): Record<string, string | number> | undefined {
+  if (!isRecord(value)) return undefined;
+  const result: Record<string, string | number> = {};
+  for (const [name, fallback] of Object.entries(defaultRvcParameters)) {
+    const stored = value[name];
+    if (typeof fallback === 'number') {
+      if (typeof stored === 'number' && Number.isFinite(stored)) result[name] = stored;
+      else result[name] = fallback;
+    } else {
+      result[name] = typeof stored === 'string' ? stored : fallback;
+    }
+  }
+  return result;
+}
+
+function readVcSettings(): StoredVcSettings {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(vcSettingsStorageKey);
+    if (!raw) return {};
+    const value: unknown = JSON.parse(raw);
+    if (!isRecord(value)) return {};
+    const route = isRecord(value.route) ? value.route : value;
+    return {
+      reference: optionalString(value.reference),
+      source: optionalString(value.source),
+      input: optionalString(route.input),
+      output: optionalString(route.output),
+      host_api: optionalString(route.host_api),
+      rvcParameters: normalizeRvcParameters(value.rvcParameters),
+      monitor: normalizeMonitor(value.monitor),
+      postfx: normalizePostFx(value.postfx),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function isPhysicalAudioDevice(name: string): boolean {
+  return !/CABLE|Voicemeeter|VB-Audio/i.test(name);
+}
+
+function isOutputAlias(name: string): boolean {
+  return /^(Microsoft (Sound Mapper|音效對應表) - Output|Primary Sound Driver|主要音效驅動程式)$/i.test(name.trim());
+}
+
+function isSelectablePhysicalOutput(device: AudioDevices['outputs'][number]): boolean {
+  return device.selectable && isPhysicalAudioDevice(device.name) && !isOutputAlias(device.name);
+}
+
+function hasSelectableDevice(devices: AudioDevices, direction: 'inputs' | 'outputs', name: string, hostApi: string): boolean {
+  return !!name && devices[direction].some((device) => device.selectable && device.name === name && device.host_api === hostApi);
+}
+
+function preferredHost(devices: AudioDevices, currentHost: string, currentInput: string, currentOutput: string): string {
+  const hasPair = (hostApi: string) => devices.inputs.some((device) => device.selectable && device.host_api === hostApi)
+    && devices.outputs.some((device) => device.selectable && device.host_api === hostApi);
+  if (hasPair(currentHost)
+    && hasSelectableDevice(devices, 'inputs', currentInput, currentHost)
+    && hasSelectableDevice(devices, 'outputs', currentOutput, currentHost)) return currentHost;
+  const hosts = Array.from(new Set([
+    ...devices.inputs.filter((device) => device.selectable).map((device) => device.host_api),
+    ...devices.outputs.filter((device) => device.selectable).map((device) => device.host_api),
+  ]));
+  const rank = (hostApi: string) => {
+    const hasPhysical = devices.outputs.some((device) => device.host_api === hostApi && isSelectablePhysicalOutput(device));
+    const index = ['Windows DirectSound', 'Windows WASAPI'].indexOf(hostApi);
+    return (hasPhysical ? 0 : 10) + (index < 0 ? 99 : index);
+  };
+  return hosts.filter(hasPair).sort((left, right) => rank(left) - rank(right))[0] ?? '';
+}
+
+function preferredInput(devices: AudioDevices, hostApi: string, currentInput: string): string {
+  const candidates = devices.inputs.filter((device) => device.selectable && device.host_api === hostApi);
+  if (candidates.some((device) => device.name === currentInput)) return currentInput;
+  return (candidates.find((device) => /HyperX/i.test(device.name))
+    ?? candidates.find((device) => device.is_default && isPhysicalAudioDevice(device.name))
+    ?? candidates.find((device) => isPhysicalAudioDevice(device.name))
+    ?? candidates[0])?.name ?? '';
+}
+
+function preferredOutput(devices: AudioDevices, hostApi: string, currentOutput: string): string {
+  const candidates = devices.outputs.filter((device) => device.selectable && device.host_api === hostApi);
+  if (candidates.some((device) => device.name === currentOutput)) return currentOutput;
+  const physical = candidates.filter(isSelectablePhysicalOutput);
+  const localDefault = physical.find((device) => device.is_default);
+  if (localDefault) return localDefault.name;
+  const physicalNames = new Set(physical.map((device) => device.name.trim()));
+  const crossApiDefault = devices.outputs.find((device) => device.host_api !== hostApi
+    && device.is_default
+    && isSelectablePhysicalOutput(device)
+    && physicalNames.has(device.name.trim()));
+  const corresponding = crossApiDefault && physical.find((device) => device.name.trim() === crossApiDefault.name.trim());
+  if (corresponding) return corresponding.name;
+  return (physical.find((device) => /HyperX/i.test(device.name))
+    ?? physical[0]
+    ?? candidates.find((device) => device.is_default)
+    ?? candidates[0])?.name ?? '';
+}
 
 function App() {
   const defaultAppShell: ShellWithQuickInput = { ...defaultShell, quick_input: false };
+  const [storedVcSettings] = useState(readVcSettings);
   const [shell, setShell] = useState<ShellWithQuickInput>(defaultAppShell);
   const [manifests, setManifests] = useState<Manifest[]>(previewManifests);
   const [mode, setMode] = useState('streaming_vc');
-  const [engine, setEngine] = useState('seed-vc');
+  const [engine, setEngine] = useState('rvc');
   const [page, setPage] = useState('LIVE');
   const [status, setStatus] = useState<Status>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [validation, setValidation] = useState('');
-  const [reference, setReference] = useState('D:\\AetherTune\\dataset\\reference-voices\\voice-female-f1.wav');
-  const [source, setSource] = useState('D:\\AetherTune\\dataset\\reference-voices\\voice-male-m1.wav');
-  const [input, setInput] = useState('麥克風 (HyperX QuadCast S)');
-  const [output, setOutput] = useState('CABLE Input (VB-Audio Virtual Cable)');
-  const [host, setHost] = useState('Windows DirectSound');
-  const [rvcParameters, setRvcParameters] = useState(defaultRvcParameters);
-  const [vcMonitor, setVcMonitor] = useState({ enabled: false, output: '', host_api: '' });
+  const [reference, setReference] = useState(storedVcSettings.reference ?? 'D:\\AetherTune\\dataset\\reference-voices\\voice-female-f1.wav');
+  const [source, setSource] = useState(storedVcSettings.source ?? 'D:\\AetherTune\\dataset\\reference-voices\\voice-male-m1.wav');
+  const [input, setInput] = useState(storedVcSettings.input ?? '');
+  const [output, setOutput] = useState(storedVcSettings.output ?? '');
+  const [host, setHost] = useState(storedVcSettings.host_api ?? '');
+  const [rvcParameters, setRvcParameters] = useState(storedVcSettings.rvcParameters ?? defaultRvcParameters);
+  const [vcMonitor, setVcMonitor] = useState<VcMonitor>(storedVcSettings.monitor ?? { enabled: false, output: '', host_api: '' });
+  const [postfx, setPostfx] = useState<VcPostFx>(storedVcSettings.postfx ?? defaultVcPostFx);
   const [showAllVcOutputs, setShowAllVcOutputs] = useState(false);
   const [speechRoute, setSpeechRoute] = useState<SpeechRoute>({ output: '', host_api: '', monitor: { enabled: false, output: '', host_api: '' } });
   const [audioDevices, setAudioDevices] = useState<AudioDevices | null>(null);
@@ -96,22 +263,20 @@ function App() {
   const selected = manifests.find((manifest) => manifest.id === engine) ?? previewManifests.find((manifest) => manifest.id === engine) ?? previewManifests[0];
   const available = manifests.filter((manifest) => manifest.capabilities.includes(capabilities[mode]));
   const isSpeechMode = ttsModes.has(mode);
+  const isStreamingVc = mode === 'streaming_vc';
   const active = !!status.service_alive;
   const locked = active || busy;
   const isRvc = engine === 'rvc';
   const rvcFile = isRvc && rvcParameters.source_mode === 'file';
   const implemented = ['skeleton', 'implemented'].includes(selected.implementation);
-  const request = { reference, source, input, output, host_api: host, parameters: isRvc ? rvcParameters : {}, ...(isRvc ? { monitor: vcMonitor } : {}) };
-  const hostApis = Array.from(new Set([...(audioDevices?.inputs ?? []), ...(audioDevices?.outputs ?? [])].map((device) => device.host_api)));
+  const request = { reference, source, input, output, host_api: host, parameters: isRvc ? rvcParameters : {}, monitor: vcMonitor, postfx };
   const inputDevices = (audioDevices?.inputs ?? []).filter((device) => device.host_api === host);
   const outputDevices = (audioDevices?.outputs ?? []).filter((device) => device.host_api === host);
-  const vcOutputChoices = outputDeviceChoices(outputDevices, { output, host_api: host }, showAllVcOutputs);
-  const monitorValid = !vcMonitor.enabled || (audioDevices?.outputs ?? []).some((device) => device.selectable && device.name === vcMonitor.output && device.host_api === vcMonitor.host_api);
-  const vcRouteValid = (selected.adapter !== 'temporary_gui' && !isRvc) || (
-    (rvcFile || inputDevices.some((device) => device.name === input && device.selectable))
+  const monitorValid = !vcMonitor.enabled || (audioDevices?.outputs ?? []).some((device) => device.selectable && isPhysicalAudioDevice(device.name) && device.name === vcMonitor.output && device.host_api === vcMonitor.host_api);
+  const vcRouteValid = !isStreamingVc || (!!audioDevices
+    && (rvcFile || inputDevices.some((device) => device.name === input && device.selectable))
     && outputDevices.some((device) => device.name === output && device.selectable)
-    && (!isRvc || monitorValid)
-  );
+    && monitorValid);
 
   async function reloadAudioDevices() {
     setAudioDeviceBusy(true);
@@ -119,6 +284,16 @@ function App() {
     try {
       const next = await getAudioDevices();
       setAudioDevices(next);
+      const nextHost = preferredHost(next, host, input, output);
+      const nextInput = preferredInput(next, nextHost, input);
+      const nextOutput = preferredOutput(next, nextHost, output);
+      setHost(nextHost);
+      setInput(nextInput);
+      setOutput(nextOutput);
+      setVcMonitor((previous) => {
+        if (!previous.enabled || hasSelectableDevice(next, 'outputs', previous.output, previous.host_api)) return previous;
+        return { ...previous, output: '', host_api: '' };
+      });
       setSpeechRoute((previous) => {
         if (next.outputs.some((device) => device.selectable && device.name === previous.output && device.host_api === previous.host_api)) return previous;
         const choices = outputDeviceChoices(next.outputs);
@@ -212,9 +387,35 @@ function App() {
     if (native) void reloadAudioDevices();
   }, []);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(vcSettingsStorageKey, JSON.stringify({
+        route: { input, output, host_api: host },
+        reference,
+        source,
+        rvcParameters,
+        monitor: vcMonitor,
+        postfx,
+      }));
+    } catch {
+      // 儲存空間不可用時不阻止即時控制；設定仍只存在目前工作階段。
+    }
+  }, [input, output, host, reference, source, rvcParameters, vcMonitor, postfx]);
+
   const modes = <div className="window-modes" aria-label="視窗模式">{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini'}</button>)}</div>;
   const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>▶ START</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>■ STOP</button></div>;
-  const meters = <div className="metrics"><div><span>LATENCY</span><strong>N/A <small>ms</small></strong></div><div><span>GPU</span><strong>N/A</strong></div><div><span>MIC / OUTPUT</span><strong className="waiting">WAITING</strong></div><div><span>STT</span><strong>OFFLINE</strong></div></div>;
+  const formatDb = (value: unknown, alreadyDb = false): string => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'N/A';
+    if (alreadyDb) return `${value.toFixed(1)} dB`;
+    if (value === 0) return '-∞ dB';
+    return `${(20 * Math.log10(Math.abs(value))).toFixed(1)} dB`;
+  };
+  const formatMs = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} ms` : 'N/A';
+  const metrics = status.metrics;
+  const inputPeak = formatDb(metrics?.input_peak_db ?? metrics?.input_peak, metrics?.input_peak_db !== undefined);
+  const outputPeak = formatDb(metrics?.output_peak_db ?? metrics?.output_peak, metrics?.output_peak_db !== undefined);
+  const formatRtf = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)}×${value > 1 ? ' · 較慢' : ''}` : 'N/A';
+  const meters = <><div className="metrics"><div><span>MODEL P95</span><strong>{formatMs(metrics?.p95_ms)}</strong></div><div><span>RTF（速度比；&gt;1 較慢）</span><strong>{formatRtf(metrics?.rtf)}</strong></div><div><span>GPU</span><strong>{status.runtime?.gpu ?? status.runtime?.device ?? 'N/A'}</strong></div><div><span>INPUT PEAK</span><strong>{inputPeak}</strong></div><div><span>OUTPUT PEAK</span><strong>{outputPeak}</strong></div></div><p className="hint">p95 為模型處理時間，不代表端到端延遲。Blocks {typeof metrics?.blocks === 'number' ? metrics.blocks : 'N/A'} · Input drops {typeof metrics?.input_drops === 'number' ? metrics.input_drops : 'N/A'} · Output drops {typeof metrics?.output_drops === 'number' ? metrics.output_drops : 'N/A'} · Underruns {typeof metrics?.underruns === 'number' ? metrics.underruns : 'N/A'}</p></>;
 
   const speechProps = isSpeechMode ? {
     mode: mode as 'speech_reconstruction' | 'text_to_speech',
@@ -239,7 +440,7 @@ function App() {
   return <main className={`shell ${shell.mode}`} style={{ opacity: shell.mode === 'full' ? 1 : shell.opacity }} data-native={native}>
     <header><div className="brand" onPointerDown={beginDrag} onPointerMove={updateDrag} onPointerUp={(event) => { updateDrag(event); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}><span className="mark">≈</span><b>AetherTune</b><span className="version">DESKTOP · v0.1</span></div><div className="window-tools"><button aria-label="收進 Tray" disabled={!native} onClick={() => void command('hide')}>─</button><button aria-label="關閉至 Tray" disabled={!native} onClick={() => void command('hide')}>×</button></div></header>
     {shell.mode === 'mini' ? <>
-      <div className="mini-row"><span className="dot"/><strong>{selected.name}</strong><span>{isSpeechMode ? 'TTS' : status.value}</span><span>N/A ms</span><span title="Mic WAITING">Mic ?</span><button disabled={!native || !implemented || busy || isSpeechMode} aria-label={active ? 'Stop runner' : 'Start runner'} onClick={() => void (active ? stop() : start())}>{active ? '■' : '▶'}</button><button className="mini-quick-trigger" disabled={!isSpeechMode} aria-label="開啟 TTS Quick Input" onClick={() => void changeShell({ quick_input: true })}>[T]</button><button aria-label="展開 Compact" onClick={() => void changeShell({ mode: 'compact', click_through: false, quick_input: false })}>↗</button></div>
+      <div className="mini-row"><span className="dot"/><strong title={selected.name}>{isRvc ? 'RVC' : selected.name}</strong><span>{isSpeechMode ? 'TTS' : status.value}</span>{!isSpeechMode && <span>{formatMs(status.metrics?.p95_ms)}</span>}<span title={isSpeechMode ? '輸入文字後播放' : rvcFile ? source : input}>{isSpeechMode ? '文字' : rvcFile ? 'WAV' : 'Mic'}</span><button disabled={!native || !implemented || !vcRouteValid || busy || isSpeechMode} aria-label={active ? 'Stop runner' : 'Start runner'} onClick={() => void (active ? stop() : start())}>{active ? '■' : '▶'}</button>{isSpeechMode && <button className="mini-quick-trigger" aria-label="開啟 TTS Quick Input" onClick={() => void changeShell({ quick_input: true })}>[T]</button>}<button aria-label="展開 Compact" onClick={() => void changeShell({ mode: 'compact', click_through: false, quick_input: false })}>↗</button></div>
       {isSpeechMode && shell.quick_input && miniQuickWorkspace}
       {error && <div role="alert" className="error">{error}</div>}
     </> : <>
@@ -248,25 +449,23 @@ function App() {
       <div className="content">
         {(page === 'LIVE' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
           <div className="headline"><div><span className="eyebrow">VOICE WORKSPACE</span><h1>{shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode]}</h1></div><span className="state"><i className="dot"/>{status.value}</span></div>
-          <div className="live-grid"><section className="panel setup"><h2>Quick controls <span>M2 skeleton</span></h2>
+          <div className="live-grid"><section className="panel setup"><h2>變聲控制</h2>
             <label>Mode<select aria-label="Mode" disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
             <label>Engine <span className="classification">{selected.classification}</span><select aria-label="Engine" disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(''); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
-            {shell.mode === 'full' && <>
-              {!isRvc && <label>Voice / Reference WAV<input aria-label="Reference WAV" disabled={locked} value={reference} onChange={(event) => setReference(event.target.value)}/></label>}
-              {isRvc && <RvcControls parameters={rvcParameters} onParameters={setRvcParameters} monitor={vcMonitor} onMonitor={setVcMonitor} audioDevices={audioDevices} locked={locked} native={native}/>}
-              {(selected.adapter === 'file_runner' || rvcFile) && <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label>}
-              {(selected.adapter === 'temporary_gui' || isRvc) ? <div className="device-fields"><label>Host API<select aria-label="Host API" disabled={locked || !audioDevices} value={hostApis.includes(host) ? host : ''} onChange={(event) => { setHost(event.target.value); setInput(''); setOutput(''); }}><option value="">選擇 Host API</option>{hostApis.map((api) => <option key={api} value={api}>{api}</option>)}</select></label>{!rvcFile && <label>麥克風／輸入裝置<select aria-label="Input device" disabled={locked || !audioDevices} value={inputDevices.some((device) => device.name === input && device.selectable) ? input : ''} onChange={(event) => setInput(event.target.value)}><option value="">選擇輸入裝置</option>{inputDevices.map((device, index) => <option key={`${device.name}-${index}`} value={device.name} disabled={!device.selectable}>{device.name}{device.is_default ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label>}<label>輸出裝置<select aria-label="Output device" disabled={locked || !audioDevices} value={outputDevices.some((device) => device.name === output && device.selectable) ? output : ''} onChange={(event) => setOutput(event.target.value)}><option value="">選擇輸出裝置</option>{vcOutputChoices.map(({ device, index, label, isDefault }) => <option key={`${device.name}-${index}`} value={device.name} disabled={!device.selectable}>{label}{isDefault ? ' · 系統預設' : ''}{!device.selectable ? ' · 名稱重複' : ''}</option>)}</select></label><label className="check"><input aria-label="VC 顯示進階輸出裝置" type="checkbox" checked={showAllVcOutputs} disabled={locked} onChange={(event) => setShowAllVcOutputs(event.target.checked)}/>顯示進階輸出裝置</label><button type="button" className="text-button" disabled={audioDeviceBusy || !native} onClick={() => void reloadAudioDevices()}>重新掃描裝置</button>{audioDeviceError && <p role="alert" className="error">裝置清單讀取失敗：{audioDeviceError}</p>}</div> : null}
-            </>}
-            <p className="adapter-label">{isRvc ? 'RVC · 選擇登錄角色模型、來源與輸出後啟動' : selected.adapter === 'temporary_gui' ? 'TEMPORARY · 官方 GUI；請在該 GUI 開啟音訊' : selected.adapter === 'file_runner' ? 'WAV runner · 即時音訊整合 WAITING' : 'PLANNED · 本輪僅描述契約'}</p>
+            <p className="adapter-label">{rvcFile ? '來源 WAV 模式 · START 轉換並播放音檔，不讀取麥克風。' : '麥克風模式 · START 後等待 RUNNING，再開始說話；STOP 後可切換引擎。'}</p>
             {controls}
+            {shell.mode === 'full' && <>
+              {isRvc && <RvcControls parameters={rvcParameters} onParameters={setRvcParameters} locked={locked}/>}
+              {isStreamingVc && <VcAudioControls reference={reference} onReference={setReference} showReference={!isRvc} showInput={!rvcFile} input={input} onInput={setInput} output={output} onOutput={setOutput} host={host} onHost={setHost} monitor={vcMonitor} onMonitor={setVcMonitor} postfx={postfx} onPostfx={setPostfx} audioDevices={audioDevices} locked={locked} native={native} showAllOutputs={showAllVcOutputs} onShowAllOutputs={setShowAllVcOutputs} audioDeviceError={audioDeviceError} audioDeviceBusy={audioDeviceBusy} onReloadAudioDevices={() => void reloadAudioDevices()}/>}
+              {isRvc && rvcFile && <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label>}
+            </>}
             {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || !vcRouteValid || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation(`${result.valid ? '預檢 PASS · ' : '預檢 BLOCKED · '}${result.events.at(-1)?.reason ?? ''}`); })}>檢查啟動條件</button>}
             {validation && <p role="status" className="hint">{validation}</p>}
-          </section><section className="panel monitoring"><h2>狀態監控 <span>AUDIO WAITING</span></h2>{meters}<p className="hint">{status.reason}</p><div className="route"><span>INPUT</span><b>{selected.adapter === 'file_runner' || rvcFile ? 'Source WAV' : input}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>OUTPUT</span><b>{selected.adapter === 'file_runner' ? 'artifacts/desktop/runs/' : output}</b></div><p className="hint">{selected.limitations.join(' ')}</p></section></div>
-          <section className="panel transcript"><div><h2>Transcript</h2><span className="waiting">M4 · WAITING</span></div><p>ME / REMOTE 語音紀錄尚未啟用。切換 Engine 的流程預留獨立 STT service。</p></section>
+          </section><section className="panel monitoring"><h2>串流狀態</h2>{meters}<p className="hint">{status.reason}</p><div className="route"><span>INPUT · {host || '未選擇 Host API'}</span><b>{isRvc && rvcFile ? `Source WAV · ${source}` : input || '未選擇輸入裝置'}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>OUTPUT · {host || '未選擇 Host API'}</span><b>{output || '未選擇輸出裝置'}</b></div><details><summary>驗收與使用限制</summary><p className="hint">{selected.limitations.join(' ')} 即時字幕／ME／REMOTE 語音紀錄尚未提供。</p></details></section></div>
         </> : <>{isSpeechMode && speechSettings}{overlaySettings}</>}
         {error && <div role="alert" className="error">{error}</div>}
       </div>
-      <footer><span>ENGINE {selected.name} · {status.value}</span><span>音訊 WAITING</span><button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{shell.locked ? '解鎖位置' : '鎖定位置'}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>Click-through</button>}</footer>
+      <footer><span>ENGINE {selected.name} · {isSpeechMode ? '文字發聲' : status.value}</span>{!isSpeechMode && <span>{rvcFile ? '來源 WAV' : '麥克風輸入'}</span>}<button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{shell.locked ? '解鎖位置' : '鎖定位置'}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>Click-through</button>}</footer>
     </>}
   </main>;
 }

@@ -62,6 +62,8 @@ impl EngineManager {
                 }
                 Some("process_started") => { let mut s=snapshot.lock().unwrap(); s["runner_pid"]=event["pid"].clone(); s["adapter"]=event["adapter"].clone(); }
                 Some("artifact") => { snapshot.lock().unwrap()["artifact"]=event["path"].clone(); }
+                Some("metrics") => { snapshot.lock().unwrap()["metrics"]=event["metrics"].clone(); }
+                Some("runtime") => { snapshot.lock().unwrap()["runtime"]=event["runtime"].clone(); }
                 Some("error") => { let mut s = snapshot.lock().unwrap(); s["error"] = event.clone(); }
                 Some("service_exit") if !*stopping.lock().unwrap() => {
                     let mut s = snapshot.lock().unwrap(); if s["value"] != "ERROR" { s["value"] = json!("ERROR"); s["reason"] = json!("service 非預期結束；可重新啟動"); }

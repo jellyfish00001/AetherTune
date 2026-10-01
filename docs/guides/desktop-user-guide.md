@@ -10,7 +10,17 @@
 | 瀏覽器預覽 | 檢查版面、輸入與 UI；沒有真實 backend／視窗控制 | `app/` 下 `npm run dev`，開 `http://127.0.0.1:1420/` |
 | 離線腳本 | 直接執行單一 backend 或 STT → TTS WAV 流程 | [user-guide.md](user-guide.md)、[tools/README.md](../../tools/README.md) |
 
-要使用文字發聲或 RVC，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue／START 停用是預期行為。舊 Tk 控制台已移除；Seed 官方 GUI 與 MeanVC2／X-VC 的獨立 CLI 仍可依[後端手冊](user-guide.md)操作。RVC 已接入角色模型、參數與裝置控制；其他 VC 的完整通用參數編輯仍在開發中。
+要使用文字發聲或麥克風變聲，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue／START 停用是預期行為。Streaming VC 的 RVC 麥克風模式／Seed-VC／MeanVC2／X-VC 按 START 直接啟動音訊串流；RVC 來源 WAV 模式則轉換播放音檔，不讀麥克風。切換引擎前先 STOP。Text → Voice 與目前的 Speech Reconstruction 都是輸入文字按 Speak，不能按 START 說話。Seed 官方 GUI 與獨立 CLI 仍可依[後端手冊](user-guide.md)操作。
+
+### 麥克風變聲與音效
+
+1. 保持 `Mode = Streaming VC`，選 Engine。RVC 使用已登錄角色模型；其他三個引擎沿用預選 Reference WAV。裝置清單載入後，App 自動選實體麥克風與實體播放端；合法的已保存選擇會保留，不改 Windows 預設裝置。
+2. 首屏按 START，等待模型載入與預熱完成、狀態變成 RUNNING，再說話。首次啟動／切換可能等待數十秒，不能看到 LOADING 就判定無聲故障。輸出必須選實際接耳機／喇叭的裝置；有 OUTPUT PEAK 但聽不到時先查播放端。切換 Engine 或參數前按 STOP。
+3. 若主輸出選 `CABLE Input` 或 Voicemeeter，聲音會送到虛擬線路；勾「自己監聽」並選耳機，才能同時直接聽見。各 Engine 共用此設定。
+4. 展開「音效與乾濕混合」，可啟用 EQ、壓縮、殘響及輸出增益。wet=0 為變聲後乾聲，wet=1 為音效處理聲；關閉音效完全 bypass。主輸出與監聽使用同一效果鏈。設定需 STOP 後再 START。
+5. INPUT PEAK 無變化時查麥克風／靜音；有輸入而 OUTPUT PEAK 無變化時查 backend error；RTF>1 表示模型處理慢於輸入，會斷續。MODEL P95 只表示模型處理，不能當成端到端延遲。
+
+本機當輪可用程度、輸出證據與仍待聽評的範圍見 [Desktop VC 驗證](../verification/desktop/realtime-vc-verification-latest.md)；模式差異與畫面未完成項目見 [操作畫面審查](../verification/desktop/usability-audit-latest.md)。外部 VST／Light Host 與 600 秒 LIVE 驗收另行記錄。
 
 目前 CosyVoice2／Breeze 的 Manual TTS 是 **offline**：先生成完整 WAV，再播放。首次使用某個 Engine 時會載入模型；同一 App session 內連續使用相同 Engine，後續句子重用已載入的模型。切換 Engine、Stop Speaking 取消正在生成的句子、worker 異常或 Exit 後再次使用，會重新載入。前版逐句重載時，CosyVoice2 的 20 次批次實測約 30 分鐘，單句 generation 約 61～134 秒；這不是新版熱模型的保證時間。排隊也會增加等待。不要因為數秒沒有聲音而重複提交。這不是已驗收的直播即時系統。
 

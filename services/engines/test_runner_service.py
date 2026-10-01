@@ -105,12 +105,25 @@ class AdapterTests(unittest.TestCase):
             with self.subTest(patch=patch), self.assertRaises(ValueError if "monitor" not in patch else RuntimeError):
                 validate(self.root, "rvc", {**self.request, **patch})
 
-    def test_three_existing_runner_commands(self):
+    def test_three_engines_start_microphone_runtime_without_source_wav(self):
         for engine in ("seed-vc","meanvc2","xvc"):
-            _,values=validate(self.root,engine,self.request)
+            request = {**self.request, "source": "missing.wav"}
+            _,values=validate(self.root,engine,request)
             command=build_command(self.root,engine,self.request,values,self.root)
-            self.assertTrue(any(f"{engine}-" in c or "seed-vc-gui-run" in c for c in command))
-            self.assertNotIn("--realtime",command)
+            self.assertIn(str(self.root / "services/engines/stream_runtime.py"), command)
+            self.assertIn("--engine", command)
+            self.assertNotIn("--source", command)
+            self.assertNotIn("seed-vc-gui-run.ps1", " ".join(command))
+
+    def test_all_engines_validate_microphone_output_and_postfx(self):
+        for engine in ("seed-vc", "meanvc2", "xvc", "rvc"):
+            for change in ({"input": "missing"}, {"output": "missing"}, {"postfx": {"wet": 2}}):
+                with self.subTest(engine=engine, change=change), self.assertRaises(ValueError):
+                    validate(self.root, engine, {**self.request, **change})
+
+    def test_xvc_rejects_offline_in_microphone_mode(self):
+        with self.assertRaisesRegex(ValueError, "current"):
+            validate(self.root, "xvc", {**self.request, "parameters": {"current": 0}})
 
     def test_rvc_rejects_cable_feedback_alias(self):
         import sounddevice as sd

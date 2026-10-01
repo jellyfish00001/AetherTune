@@ -2,6 +2,10 @@
 
 **文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
 
+2026-10-01 Desktop 畫面審查：四 VC 的 START 移至首屏，修正 Mic／WAV／文字模式提示，移除工程佔位、空白 VC Transcript 與無作用的 Mini 文字按鈕。內建 Browser、Edge preview／mock 與原生 WebView2 UI 專項 PASS，根目錄 exe 已更新；實體耳機接點與人耳聽評仍未確認。未完成功能與測試邊界見 [操作畫面審查](verification/desktop/usability-audit-latest.md)。
+
+2026-10-01 Desktop 四 VC 無聲修復：Seed／Mean／X 已從 GUI-only／Source WAV 啟動改為常駐麥克風串流；四引擎共用監聽與內建 EQ／壓縮／殘響／乾濕混合。三個共用 worker 的 20 秒注入音訊與 CABLE 回錄 PASS，RVC File CABLE 與 duplex 核心分項 PASS；Voicemeeter B1、實體聽評及長時間 LIVE 仍另驗。新版根目錄 exe、數值與未解項見 [Desktop VC 驗證](verification/desktop/realtime-vc-verification-latest.md)；[VoiceStudio 比較](reference/voicestudio-comparison.md)是固定 revision 唯讀研究。
+
 2026-10-01 Desktop RVC 更新：已接入 headless RVC + FCPE／RMVPE、登錄角色、Mic／WAV、block 參數與自己監聽；原生 block／音訊、虛擬來源 duplex callback 與路由擷取分項結果見 [RVC 驗證](verification/backends/vcclient-rvc-probe-latest.md)。實體 Mic、外部 Rack／Discord、人耳聽評、600 秒與模型來源／授權仍另驗；既有 VCClient gate 不因 Desktop 修正改判。
 
 2026-09-30 Manual TTS 更新：CosyVoice2 與 Breeze TTS 2 在 Desktop service 內各保留一個已載入模型的 WSL worker；同引擎後續句子重用模型，切換引擎或關閉服務時釋放 worker。兩引擎各兩句的真實 WAV 驗證顯示第二句 `load_seconds=0`、相同 worker identity，CosyVoice2 生成時間約 `62.9 → 4.1 秒`，Breeze 約 `170.4 → 8.2 秒`。根目錄 exe 的原生中文送出與播放 callback 連續兩次 PASS，生成 `182.5 → 3.3 秒`；首句仍慢。中文文字預設改用中文參考聲音，日語樣本明確標示；WORKSPACE 僅留聲音與輸入操作，送出設定集中在 SETTINGS。詳細證據與限制見[Manual TTS 驗證](verification/desktop/manual-tts-verification-latest.md)。

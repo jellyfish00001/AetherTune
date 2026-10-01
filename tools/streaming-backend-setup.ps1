@@ -76,6 +76,8 @@ if ($VerifyOnly) {
     }
     & $runtime -m pip check
     if ($LASTEXITCODE -ne 0) { throw '既有環境 dependencies 檢查失敗' }
+    & $runtime -c 'import sounddevice,soundfile,numpy,scipy; print("Desktop audio imports OK")'
+    if ($LASTEXITCODE -ne 0) { throw 'Desktop 音訊依賴不完整；請重新執行 setup' }
     & $runtime $downloadScript --backend $Backend --verify-only
     if ($LASTEXITCODE -ne 0) { throw '既有資產 hash 檢查失敗' }
     Write-Output "PASS：$Backend VerifyOnly（Python $expectedVersion 64-bit、固定 revision、pip check、資產 hash）。未執行 checkout、pip install 或下載。"
@@ -130,7 +132,7 @@ if ($Backend -eq 'meanvc2') {
     $packages = @('numpy==1.26.4','einops==0.8.0','x-transformers==2.2.11','s3prl==0.4.18','soundfile==0.14.0','librosa==0.11.0','soxr==1.1.0','scipy==1.12.0','matplotlib==3.7.5','huggingface-hub==1.33.0','omegaconf==2.3.1','safetensors==0.8.0','gdown==6.4.0','sounddevice==0.5.6')
 } else {
     # 只裝已驗證的 inference dependencies；不需 DeepSpeed、PESQ 或訓練環境。
-    $packages = @('numpy==1.26.4','einops==0.8.0','x-transformers==1.40.2','hydra-core==1.3.2','julius==0.2.7','librosa==0.10.2','matplotlib==3.7.5','omegaconf==2.3.0','scipy==1.12.0','soundfile==0.12.1','soxr==0.3.7','tqdm==4.66.5','wandb==0.18.5','einx==0.3.0','transformers==4.44.1','torchmetrics==1.8.0','ema-pytorch==0.7.7','packaging==24.2','lightning==2.2.4','gdown==5.1.0','tensorboard==2.20.0','descript_audiotools==0.7.2','modelscope==1.40.1','huggingface-hub==0.36.2','hf-xet==1.6.0')
+    $packages = @('numpy==1.26.4','einops==0.8.0','x-transformers==1.40.2','hydra-core==1.3.2','julius==0.2.7','librosa==0.10.2','matplotlib==3.7.5','omegaconf==2.3.0','scipy==1.12.0','soundfile==0.12.1','sounddevice==0.5.6','soxr==0.3.7','tqdm==4.66.5','wandb==0.18.5','einx==0.3.0','transformers==4.44.1','torchmetrics==1.8.0','ema-pytorch==0.7.7','packaging==24.2','lightning==2.2.4','gdown==5.1.0','tensorboard==2.20.0','descript_audiotools==0.7.2','modelscope==1.40.1','huggingface-hub==0.36.2','hf-xet==1.6.0')
 }
 & $runtime -m pip install @packages
 if ($LASTEXITCODE -ne 0) { throw '推論 dependencies 安裝失敗' }

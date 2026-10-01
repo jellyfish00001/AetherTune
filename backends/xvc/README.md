@@ -12,4 +12,4 @@
 
 來源與 reference 為可解碼 WAV；輸出為 16 kHz WAV 與 `run-evidence.json`。預設 `current=160ms / chunk=2400ms / future=80ms / smooth=20ms`，`--current 0` 為 offline（本輪使用 streaming）。output directory 必須沒有舊 WAV。
 
-本 profile 的入口是 CLI；是否有 GUI 或常駐 web server 應依當次 source 與驗證確認。實際執行命令、hash 與限制見[後端驗證](../../docs/verification/backends/backend-install-test-latest.md)。
+CLI 保留檔案轉換。Desktop START 另使用 `services/engines/stream_runtime.py`，直接開啟明確麥克風與輸出；`streaming_adapters.py` 重用官方 `run_stream_chunk_forward`，同一 session 常駐模型與 reference conditions。rolling window 等待 smooth/future，再取 current 區段；48 kHz host PCM 與 16 kHz codec PCM 分開重取樣，current/chunk/future 要對齊 80 ms codec hop。`current=0` 只可用於 CLI offline。Desktop 所需 `sounddevice` 由 setup 安裝；監聽與 Post-FX 操作見 [Desktop 手冊](../../docs/guides/desktop-user-guide.md)，實測 hash／速度與限制見 [Desktop VC 驗證](../../docs/verification/desktop/realtime-vc-verification-latest.md)。

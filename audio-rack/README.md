@@ -20,6 +20,8 @@ backend output
 
 ## 目前狀態
 
+Desktop 內建的 EQ／壓縮／殘響／乾濕混合由 `services/engines/postfx.py` 擁有，四個 VC 在變聲後共用，主輸出與監聽使用同一鏈。操作看 [Desktop 手冊](../docs/guides/desktop-user-guide.md)，當輪實測看 [Desktop VC 驗證](../docs/verification/desktop/realtime-vc-verification-latest.md)。以下 Light Host／Graillon 狀態仍是外部 VST Rack 的獨立驗收。
+
 - `PASS`（契約／路由 smoke）：已登記 Seed-VC virtual route、Graillon candidate profile、neutral preset 與 rack evidence schema；VB-CABLE／Voicemeeter synthetic route 有可重跑證據。
 - `WAITING`（runtime）：目前尚未以同一 source、同一輸出、同一 route 完成 Light Host plugin bypass/full-chain A/B、Δ latency 與人工聽測。
 - 既有 Light Host、Graillon、VB-CABLE、Voicemeeter 文件與實際部署保留；它們只是目前 Windows 實作候選，不是所有 backend 的架構定義。

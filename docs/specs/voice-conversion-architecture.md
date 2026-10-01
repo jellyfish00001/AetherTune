@@ -30,8 +30,8 @@ RVC 的角色模型採 `.pth/.index` 配對與 f0；Seed-VC、MeanVC2、X-VC 使
 | Adapter | 自己負責 | 下游仍需另驗 |
 |---|---|---|
 | RVC + FCPE／RMVPE | `.pth/.index` 配對、CUDA f0、rolling block／SOLA、來源 WAV／Mic duplex callback；訓練流程由[訓練手冊](../guides/model-training-guide.md)擁有 | physical Mic、Rack、600 秒；另選 VCClient 時其 slot／chunk 另驗 |
-| Seed-VC upstream | source/reference 的離線或官方 GUI profile；資產由[seed-vc-assets.md](../reference/seed-vc-assets.md)登記 | GUI 有效 callback、physical mic、Rack |
-| MeanVC2／X-VC | 各自 source/reference、固定模型、file-driven streaming runner 輸出 | mic/virtual route／600 秒 |
+| Seed-VC upstream | source/reference 的離線、官方 GUI 或 Desktop headless realtime-tiny profile；資產由[seed-vc-assets.md](../reference/seed-vc-assets.md)登記 | 各 profile 分開驗證、physical mic、Rack |
+| MeanVC2／X-VC | 各自 source/reference、固定模型、CLI WAV 或 Desktop resident capture/worker/output | physical mic、600 秒與人工聽評 |
 | CosyVoice2／Breeze | 文字、prompt/reference、完整 TTS WAV 與 generation evidence | 實際 playback、外部 Post-FX、STT provenance |
 
 每個 backend 的實際參數、安裝與限制只由 `backends/<name>/README.md` 擁有；桌面編排的 IPC／程序所有權由[app-architecture.md](app-architecture.md)與[Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md)擁有。Adapter 的 `PASS` 不會自動傳遞成下游的 `PASS`。

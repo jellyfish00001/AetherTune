@@ -390,12 +390,13 @@ export function SpeechWorkspace({
         <section className="panel speech-controls">
           <div className="speech-panel-title"><h2>聲音選擇 <span>先選引擎與參考聲音</span></h2></div>
           <div className="speech-control-grid">
-            <label>模式<select aria-label="Mode" value={mode} onChange={(event) => onModeChange(event.target.value)}><option value="speech_reconstruction">語音重建</option><option value="text_to_speech">文字發聲</option><option value="streaming_vc">即時變聲</option></select></label>
+            <label>模式<select aria-label="Mode" value={mode} onChange={(event) => onModeChange(event.target.value)}><option value="speech_reconstruction">語音重建（目前僅文字）</option><option value="text_to_speech">文字發聲</option><option value="streaming_vc">即時變聲</option></select></label>
             <label>引擎<select aria-label="Engine" value={ttsEngine.id} onChange={(event) => onEngineChange(event.target.value)}>{supportedEngines.map((engine) => <option key={engine.id} value={engine.id}>{engine.name}</option>)}</select></label>
             <VoiceProfileSelect profiles={profiles} profileId={profileId} engineId={ttsEngine.id} onChange={setProfileId}/>
           </div>
           {japaneseReference && <p className="draft-note">這是日語參考聲音，中文文字可能帶日語發音；請改選中文參考聲音。</p>}
           <p className="hint">首次使用會載入模型；同一引擎的下一句會直接推論。切換引擎或取消生成後需重新載入。</p>
+          {mode === 'speech_reconstruction' && <p className="hint">目前與文字發聲共用流程：輸入文字後按 Speak；麥克風語音重建尚未提供。</p>}
         </section>
         {composer}
         {(localError || (snapshot.state === 'ERROR' && snapshot.queue[0]?.error)) && <p role="alert" className="error speech-error">{localError || snapshot.queue[0]?.error}</p>}

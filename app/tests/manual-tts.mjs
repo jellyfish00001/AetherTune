@@ -323,7 +323,7 @@ async function mockPass() {
   assert.ok(await page.getByLabel('Source WAV').isVisible());
   assert.equal(await page.getByLabel('Input device').count(), 0);
   await page.getByLabel('RVC pitch').fill('3');
-  await page.getByLabel('RVC 自己監聽').check();
+  await page.getByLabel('自己監聽', { exact: true }).check();
   await page.getByRole('button', { name: '▶ START', exact: true }).click();
   await page.waitForFunction(() => window.__rvcMockStarts.length === 1);
   const rvcRequest = await page.evaluate(() => window.__rvcMockStarts[0]);

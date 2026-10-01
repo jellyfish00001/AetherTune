@@ -33,14 +33,45 @@ assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).count(
 await page.getByLabel('Mode',{exact:true}).selectOption('text_to_speech');
 assert.deepEqual(await page.getByLabel('Engine',{exact:true}).locator('option').allTextContents(),['CosyVoice','Breeze TTS 2']);
 await page.getByLabel('Mode',{exact:true}).selectOption('streaming_vc');
-await page.getByLabel('Engine',{exact:true}).selectOption('meanvc2');
-assert.ok(await page.getByLabel('Source WAV',{exact:true}).isVisible());
+for(const engine of ['seed-vc','meanvc2','xvc']){
+  await page.getByLabel('Engine',{exact:true}).selectOption(engine);
+  const startRect=await page.getByRole('button',{name:'▶ START',exact:true}).boundingBox();
+  const viewportHeight=await page.evaluate(()=>innerHeight);
+  assert.ok(startRect&&startRect.y>=0&&startRect.y+startRect.height<=viewportHeight,`${engine} START 位於首屏`);
+  assert.equal(await page.getByLabel('Host API',{exact:true}).count(),1,`${engine} route host API`);
+  assert.equal(await page.getByLabel('Input device',{exact:true}).count(),1,`${engine} route input`);
+  assert.equal(await page.getByLabel('Output device',{exact:true}).count(),1,`${engine} route output`);
+  assert.equal(await page.getByLabel('自己監聽',{exact:true}).count(),1,`${engine} shared monitor`);
+  assert.equal(await page.getByText('音效與乾濕混合',{exact:true}).count(),1,`${engine} shared post-fx`);
+  assert.equal(await page.getByLabel('Reference WAV',{exact:true}).count(),1,`${engine} reference`);
+  assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0,`${engine} has no source WAV`);
+  if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
+}
 await page.getByLabel('Engine',{exact:true}).selectOption('rvc');
 assert.equal(await page.getByLabel('RVC model_id').inputValue(),'Sage_CN_HeroicFemale');
 assert.equal(await page.getByLabel('Reference WAV',{exact:true}).count(),0);
+assert.equal(await page.getByLabel('自己監聽',{exact:true}).count(),1);
+assert.equal(await page.getByText('音效與乾濕混合',{exact:true}).count(),1);
+await page.getByLabel('RVC source_mode').selectOption('microphone');
+assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0);
+await page.getByLabel('RVC source_mode').selectOption('file');
+assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),1);
+assert.equal(await page.getByLabel('Input device',{exact:true}).count(),0);
+await page.getByRole('button',{name:'Mini',exact:true}).click();
+await page.waitForFunction(()=>document.querySelector('main').classList.contains('mini'));
+assert.equal(await page.getByText('WAV',{exact:true}).count(),1,'RVC File 的 Mini 不得誤顯示 Mic');
+assert.equal(await page.getByRole('button',{name:'開啟 TTS Quick Input',exact:true}).count(),0,'變聲 Mini 不顯示無作用的文字輸入按鈕');
+await page.getByRole('button',{name:'展開 Compact'}).click();
+await page.getByRole('button',{name:'Full',exact:true}).click();
+await page.waitForFunction(()=>document.querySelector('main').classList.contains('full'));
+if(!native)await page.setViewportSize({width:1040,height:740});
 if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
 await page.getByLabel('Engine',{exact:true}).selectOption('seed-vc');
+assert.equal(await page.getByLabel('Source WAV',{exact:true}).count(),0);
 if(!native)assert.equal(await page.getByRole('button',{name:'▶ START',exact:true}).isEnabled(),false);
+const storedVcSettings=await page.evaluate(()=>JSON.parse(localStorage.getItem('aethertune.vc-settings.v1')||'null'));
+assert.ok(storedVcSettings?.route&&storedVcSettings?.monitor&&storedVcSettings?.postfx&&storedVcSettings?.rvcParameters);
+assert.equal(storedVcSettings.metrics,undefined);
 if(native){
   let shell=await invoke('shell_status');
   await invoke('set_shell',{shell:{...shell,mode:'compact',locked:false,click_through:false}});
@@ -65,5 +96,5 @@ if(native){
   await invoke('set_shell',{shell:{...shell,mode:'full',click_through:false}});
 }
 assert.deepEqual(errors,[]);assert.deepEqual(network,[]);
-await writeFile(new URL(`${native?'native':'preview'}-report.json`,dir),JSON.stringify({status:'PASS',surface:native?'Tauri WebView2 CDP':'Playwright Edge preview',url:page.url(),results,assertions:['3 modes + native dimensions','mode capability filtering','planned engines disabled','no fake audio metrics',...(native?['frameless/topmost/tray registered','native click-through flag on/off','hide native window']:['preview start disabled'])],consoleErrors:errors,networkErrors:network},null,2));
+await writeFile(new URL(`${native?'native':'preview'}-report.json`,dir),JSON.stringify({status:'PASS',surface:native?'Tauri WebView2 CDP':'Playwright Edge preview',url:page.url(),results,assertions:['3 modes + native dimensions','mode capability filtering','all streaming VC routes + shared monitor/Post-FX controls','RVC source mode only','no fake audio metrics',...(native?['frameless/topmost/tray registered','native click-through flag on/off','hide native window']:['preview start disabled'])],consoleErrors:errors,networkErrors:network},null,2));
 await browser.close();console.log(`PASS: ${native?'native WebView2':'browser preview'} UI; screenshots/report in artifacts/desktop/ui`);

@@ -228,6 +228,11 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
         load_started = time.perf_counter()
         processor = RvcProcessor(root, model, values)
         report.update(runtime=processor.runtime, load_seconds=time.perf_counter() - load_started)
+        sys.path.insert(0, str(root))
+        from services.engines.postfx import PostFx
+        fx = PostFx(48000, request.get("postfx"))
+        report["postfx"] = fx.settings
+        print(json.dumps({"type": "runtime", "runtime": processor.runtime}, ensure_ascii=False), flush=True)
         # Windows CRT 的阻塞 stdin reader 會卡住 Faiss DLL 初始化；warmup 完成後
         # 才啟用控制執行緒。載入中的 Stop 仍由 service timeout／Job cleanup 保證。
         threading.Thread(target=control, name="rvc-control", daemon=True).start()
@@ -258,7 +263,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                     report["status"] = "CANCELLED"
                     return 0
                 started = time.perf_counter()
-                converted.append(processor.process(padded[start:start + processor.block]))
+                converted.append(fx.process(processor.process(padded[start:start + processor.block])))
                 timings.append((time.perf_counter() - started) * 1000)
             rendered = np.concatenate(converted)[:len(mono)]
             if not np.any(rendered):
@@ -292,7 +297,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                     if stop.is_set():
                         raise sd.CallbackStop
                     started = time.perf_counter()
-                    converted = processor.process(indata.mean(axis=1))
+                    converted = fx.process(processor.process(indata.mean(axis=1)))
                     outdata[:] = converted[:, None]
                     callback_digest.update(outdata.tobytes())
                     stats["blocks"] += 1
@@ -346,7 +351,11 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                                dtype="float32", blocksize=processor.block, callback=callback):
                     event("RUNNING", "RVC duplex stream 已啟動；輸入與主輸出使用明確裝置")
                     while not stop.wait(0.5):
-                        report.update(metrics=dict(stats))
+                        metrics = {**stats, "p95_ms": float(np.percentile(list(timings), 95)) if timings else None,
+                                   "rtf": float(np.mean(timings)) / (processor.block / 48) if timings else None,
+                                   "input_drops": 0, "output_drops": 0}
+                        report.update(metrics=metrics)
+                        print(json.dumps({"type": "metrics", "metrics": metrics}), flush=True)
                         save()
                 if errors:
                     raise ValueError("CALLBACK_FAILED: " + errors[0])

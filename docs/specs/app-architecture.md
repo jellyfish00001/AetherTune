@@ -9,14 +9,14 @@ flowchart TB
   T --> EM[EngineManager: one active engine]
   EM --> PM[ProcessManager: Windows Job Object]
   PM --> B[services/engines/runner_service.py]
-  B --> S[既有 Seed GUI launcher: TEMPORARY]
-  B --> M[既有 MeanVC2 WAV runner]
-  B --> X[既有 X-VC WAV runner]
+  B --> C[共用 capture / worker / output]
+  C --> P[Seed / Mean / X 常駐 processors]
+  P --> F[共用 Post-FX / dry-wet]
   B --> V[RVC headless block / duplex runner]
-  V -->|PCM 保留在 Python| R[共用 Audio Rack → Virtual Output]
+  V --> F
+  F -->|PCM 保留在 Python| R[主輸出 + 自己監聽]
   UI -. M4 .-> STT[獨立 Transcription Service]
   STT -.-> DB[SQLite + session exports]
-  S -. 未驗證完整鏈路 .-> R
 ```
 
 ## 責任與依賴
@@ -29,6 +29,9 @@ flowchart TB
 | `app/src-tauri/src/process_manager/` | suspended spawn → assign Job → resume；stdout／stderr；crash／cleanup |
 | `services/engines/runner_service.py` | JSONL bridge、參數／reference／端點預檢、受限制的 runner argv |
 | `services/engines/rvc_runtime.py` | 登錄 `.pth/.index`、固定 RVC core、CUDA F0 warmup、rolling buffer／SOLA、Mic／WAV、PortAudio 與監聽 |
+| `services/engines/stream_runtime.py` | Seed／Mean／X 共用 capture callback、推論 worker、bounded PCM queue、輸出／監聽、metrics 與 evidence |
+| `services/engines/streaming_adapters.py` | 三個常駐模型、reference conditioning、固定 source、48 kHz host block 與各自 rolling cache |
+| `services/engines/postfx.py` | 四個 VC 共用 EQ／壓縮／殘響／乾濕混合；關閉時完整 bypass |
 | `contracts/engines/` | 六個 manifest；VC 可啟動 Seed／Mean／X／RVC，TTS 另走 speech service |
 | `contracts/schemas/` | manifest、state、Transcript、Session 的版本 1 契約 |
 
@@ -42,7 +45,7 @@ Windows Job 開啟 `KILL_ON_JOB_CLOSE`；service 以 suspended 狀態建立，�
 
 切換先 stop 舊 job，再啟動新 job，reader threads join 後才能復用 snapshot。UI 執行中鎖定 Engine 選擇；沒有無縫 hot swap。
 
-`VALIDATING` = 資產、WAV、參數、Seed PortAudio 端點預檢。預檢 PASS 不是 READY；`LOADING` = runner 初始化。Mean 的既有 `Model load seconds:` 可推進 READY → RUNNING（僅 WAV operation）。Seed GUI 沒有模型 readiness ACK，X 沒有結構化 load ACK，保持 LOADING，不用 PID 假造 RUNNING。完成 file runner 後 OFFLINE，但 bridge 需 Stop 才釋放。`audio_verified` 本輪固定 false；不產生 LIVE 或音訊 PASS。
+`VALIDATING` = 資產、reference／WAV、參數、四引擎 PortAudio 端點與 Post-FX 預檢。預檢 PASS 不是 READY；`LOADING` = resident model 初始化與 warmup。模型完成預熱才 READY；真實 capture/output streams 開啟才 RUNNING。`vc_runtime`／`rvc_runtime` 由 bridge 轉成七狀態，不能用 PID 推論 RUNNING。`audio_verified` 固定 false，非零輸出與 physical listening／LIVE 驗收分開。
 
 RVC 必須完成角色模型、HuBERT 及 FCPE／RMVPE CUDA warmup 才發 READY；WAV 處理／duplex stream 開啟後才發 RUNNING。Windows 阻塞 stdin 控制 reader 在 DLL 初始化後啟動，載入 watchdog 120 秒會保留堆疊並退出；載入中 Stop 由 bridge 的 2 秒 grace 與 Rust Job cleanup 回收。證據寫在 run 的 `rvc-evidence.json`，分別記錄模型／F0／HuBERT hash、device、block timing、callback／播放與監聽；不把這些升為 physical Mic 或 LIVE。
 
@@ -59,7 +62,9 @@ App → bridge：
 
 非 runtime 可調參數回 `restart_required`。RVC 已提供 manifest 參數編輯，執行時鎖定，Stop 後重新啟動才套用。其他 VC 使用目前 defaults，完整通用編輯／Presets 留 M3。
 
-bridge → App：state（嚴格七狀態）、validation、artifact、process_started、process_exit、log、error、restart_required。process_started 是程序事件，不是新的 BackendState。非 JSON 行只能作 log。此通道不允許 PCM；STT／Metrics 日後也只傳 metadata。
+bridge → App：state（嚴格七狀態）、validation、artifact、process_started、process_exit、log、error、restart_required、runtime、metrics。後兩者只傳 device／模型身分、音量、處理時間、RTF、backlog 與 drops；Rust 保存到 snapshot，UI 定時呈現。process_started 是程序事件，不是新的 BackendState；此通道不允許 PCM。
+
+Seed／Mean／X 的 PortAudio callback 只搬運 PCM，模型由 worker 執行；input queue 有界，output queue 最多保留 500 ms。超量捨棄最舊樣本並明確計數，避免慢推論造成無限延遲。X-VC 等待真實 lookahead；Seed Desktop 沒有官方 GUI 的 VAD 靜音 gate。實測速度與缺口見 [Desktop VC 驗證](../verification/desktop/realtime-vc-verification-latest.md)。
 
 ## Overlay 與逃生入口
 
@@ -75,7 +80,7 @@ Windows WebView2、Rust MSVC／C++ Build Tools 與 Node/npm 是目前 Desktop bu
 
 ## 後續架構邊界
 
-M2 下一片完成 headless readiness／start／stop 與 canonical audio devices，再由 M3 產生分級動態控制項與 Preset。Seed GUI branch 明列 TEMPORARY，不宣稱日常 MVP。
+四個 VC 的 Desktop START 使用音訊 runtime；獨立 Seed 官方 GUI 仍由其 launcher 管理。通用引擎參數編輯／Preset、外部 VST Rack 與 physical／600 秒 LIVE 仍依各自契約擴充。
 
 M4 的常駐 STT 不掛在 EngineManager job 下；Mic self 與 Remote loopback 分 source。重建使用 backend_stt provider 避免雙重辨識。SQLite transaction 在 completed utterance 後立即 commit，export 可由 canonical DB 重建；Clear View 不刪 DB。GPU 預設保留 VC，STT CPU。
 

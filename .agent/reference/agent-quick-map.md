@@ -12,7 +12,8 @@ flowchart LR
   MODEL --> PLAY[WAV / Playback / Output]
   PLAY --> STORE[Transcript / SQLite / exports]
   IPC --> VC[services/engines: VC runner]
-  VC -. 共用契約，鏈路待驗證 .-> RACK[audio-rack / benchmarks]
+  VC --> FX[共用 Post-FX / 主輸出 / 監聽]
+  FX -. physical / LIVE 另驗 .-> RACK[audio-rack / benchmarks]
 ```
 
 Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音鏈路。Streaming VC 與 Speech Reconstruction 是不同路線；共用 audio-rack 與 benchmark 契約不代表完整 LIVE 已通過。
@@ -29,7 +30,7 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 | WSL 啟動與取消的程序所有權 | `services/tts/wsl_job.py` | job log、取消測試、`app/tests/audit-speech-processes.py` |
 | Windows 播放與輸出裝置 | `services/tts/playback.py` | Output endpoint、CABLE capture、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |
 | Session、Favorites、SQLite、exports | `services/tts/storage.py` | storage tests、`app/tests/verify-speech-artifacts.mjs` |
-| Seed／Mean／X 的 runner 與 CLI | `services/engines/`、對應 `backends/<name>/README.md` | [backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
+| Seed／Mean／X 的 runner 與 CLI | `services/engines/stream_runtime.py`、`streaming_adapters.py`、對應 `backends/<name>/README.md` | [Desktop VC](../../docs/verification/desktop/realtime-vc-verification-latest.md)、[CLI backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
 | Desktop 圖形入口與建置 | 根目錄 `AetherTune.exe`（build 產物）、`app/dev.ps1` | [Desktop 手冊](../../docs/guides/desktop-user-guide.md)、[App 實測](../../docs/verification/desktop/app-verification-latest.md) |
 | Audio Rack、路由、LIVE 分類 | `audio-rack/`、`benchmarks/`、[LIVE gate](../../docs/specs/live-gate.md) | 對應實際 artifact；不要由檔案存在推論 PASS |
 | 未來 Mic／Agent Reply 擴充 | [需求](../../docs/specs/app-requirements.md)、[架構](../../docs/specs/app-architecture.md)、`contracts/` | 先定輸入權限／來源證據；現況 `WAITING`／`PLANNED` |
