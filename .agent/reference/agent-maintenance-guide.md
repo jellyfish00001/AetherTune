@@ -181,6 +181,20 @@ Set-Location D:\AetherTune
 
 `dev.ps1 -Test` 跑 contracts、runner／cache fixtures、TTS lifecycle／storage／ownership 及 Rust lifecycle。它含真實短 WSL ownership fixture，但不生成模型聲音，不代表 GUI／CABLE PASS。
 
+<a id="storage-baseline"></a>
+### 隔離資料效能基準（不操作桌面）
+
+```powershell
+Set-Location D:\AetherTune
+& .\.venv\Scripts\python.exe app\tests\baseline-storage.py
+```
+
+工具預設建立新的 `artifacts/desktop/storage-baseline-<uuid>/`，也可用 `--output` 指定尚不存在的 artifacts 子目錄；既有 evidence 與 artifacts 外路徑均拒絕。10／100／1,000 筆各 3 案例，使用真實 service／SQLite／export 與隔離的合成 terminal history，不執行 generation 或開音訊。它直接存取 service 私有 fixture seam；MOD-02 改內部介面時要同步維護，不能把 fixture 注入加進產品 API。
+
+每案例關閉 service 後檢查 DB integrity、request identity／文字與匯出一致、worker 已回收，再記錄最終 bytes／hash；`close()` 會更新 session 結束時間，不能提前 hash。`report.json` 保存 source／catalogue fingerprints、raw samples、起迄時間及 PASS／FAILED；失敗案例與舊 report 要保留。重跑規則與證據解讀見[資料效能報告](../../docs/verification/desktop/performance-baseline-latest.md)，未量 UI／模型／資源的項目不可升級狀態。
+
+### UI regression 與原生程序
+
 UI 改動用兩個終端：第一個 `Set-Location D:\AetherTune\app` 後 `npm run dev`；第二個在同目錄跑 `npm run test:ui`、`npm run test:manual-tts-ui`。後者是 explicit mocked Tauri IPC，配合內建 Browser／Chrome 複核畫面，按 AGENTS 記錄 URL、viewport、actions、console／network、screenshots。native layer 未測就明列 WAITING。純文件改動只檢查連結、檔案覆蓋、指令與 source 一致，不重跑模型或錄音。
 
 原生 WebView2 測試需當次 App PID，不能拿舊 PID 或只依瀏覽器預覽。只在測試 shell 設定 CDP port；啟動時隱藏視窗，測試後用受控 Exit 回收本輪程序：

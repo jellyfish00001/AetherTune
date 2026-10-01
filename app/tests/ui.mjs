@@ -16,6 +16,39 @@ setUiLocale(await page.locator('html').getAttribute('lang'));
 assert.equal(await page.locator('main').getAttribute('data-native'),String(native));
 const invoke=(name,args)=>page.evaluate(({name,args})=>window.__TAURI_INTERNALS__.invoke(name,args),{name,args});
 const results=[];
+// CDP mouse 座標相對 WebView；視窗移動後需換算，才能模擬固定螢幕上的游標軌跡。
+// 若直接以 steps 移動 client 座標，screenX/Y 會累加視窗本身的位移，造成假的拖曳失敗。
+async function dragNativeWindow(origin, {locked=false}={}) {
+  const start={x:90,y:24}, delta={x:40,y:20};
+  async function pointAt(fraction) {
+    const current=await invoke('window_status');
+    await page.mouse.move(
+      start.x+delta.x*fraction-(current.position.x-origin.position.x)/origin.scale_factor,
+      start.y+delta.y*fraction-(current.position.y-origin.position.y)/origin.scale_factor,
+    );
+  }
+  await pointAt(0);await page.mouse.down();
+  try {
+    for(let step=1;step<=8;step++) {
+      await pointAt(step/8);
+      const expected={
+        x:origin.position.x+(locked?0:delta.x*step/8*origin.scale_factor),
+        y:origin.position.y+(locked?0:delta.y*step/8*origin.scale_factor),
+      };
+      let current;
+      for(let attempt=0;attempt<30;attempt++) {
+        current=await invoke('window_status');
+        if(Math.abs(current.position.x-expected.x)<=2&&Math.abs(current.position.y-expected.y)<=2)break;
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
+      assert.ok(Math.abs(current.position.x-expected.x)<=2&&Math.abs(current.position.y-expected.y)<=2,
+        `native drag step ${step}: actual=${JSON.stringify(current.position)} expected=${JSON.stringify(expected)}`);
+    }
+  } finally {
+    // mouse.up 也使用最後一個 client 座標；釋放前同步位置，避免額外產生一次位移。
+    await pointAt(1);await page.mouse.up();
+  }
+}
 if(native){const s=await invoke('shell_status');await invoke('set_shell',{shell:{...s,mode:'full',click_through:false}});await page.waitForFunction(()=>document.querySelector('main').classList.contains('full'));}
 for(const mode of ['full','compact','mini']){
   if(mode!=='full')await page.getByTestId(`window-mode-${mode}`).click();
@@ -81,13 +114,14 @@ if(native){
   await invoke('set_shell',{shell:{...shell,mode:'compact',locked:false,click_through:false}});
   await page.waitForFunction(()=>document.querySelector('main').classList.contains('compact'));
   const dragOrigin=await invoke('window_status');
-  await page.mouse.move(90,24);await page.mouse.down();await page.mouse.move(130,44,{steps:8});await page.mouse.up();
+  await dragNativeWindow(dragOrigin);
   // invoke 是非同步：以 Node polling 等待位置，不能用 async waitForFunction 的 Promise truthiness。
   let moved;for(let n=0;n<30;n++){moved=await invoke('window_status');if(moved.position.x!==dragOrigin.position.x)break;await new Promise(r=>setTimeout(r,100));}
   assert.ok(Math.abs(moved.position.x-dragOrigin.position.x-40*dragOrigin.scale_factor)<=2);
+  assert.ok(Math.abs(moved.position.y-dragOrigin.position.y-20*dragOrigin.scale_factor)<=2);
   results.push({assertion:'native drag',before:dragOrigin.position,after:moved.position});
   await invoke('set_shell',{shell:{...shell,mode:'compact',locked:true,click_through:false}});
-  await page.mouse.move(90,24);await page.mouse.down();await page.mouse.move(130,44,{steps:8});await page.mouse.up();
+  await dragNativeWindow(moved,{locked:true});
   assert.deepEqual((await invoke('window_status')).position,moved.position);
   results.push({assertion:'Lock Position prevents drag',position:moved.position});
   await invoke('set_shell',{shell:{...shell,mode:'compact',locked:false,click_through:false}});

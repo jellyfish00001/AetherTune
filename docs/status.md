@@ -2,7 +2,7 @@
 
 **文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
-整理日期：2026-10-01（Asia/Taipei）。盤點基準：`60c1c89`（介面語言更新）及目前 source；本次只整理規格／進度，沒有重跑模型、原生 UI 或 LIVE。下列既有測試結果是報告記載的限定結果，不是本次重新驗收。
+更新日期：2026-10-02（Asia/Taipei）。規格整理已於 `d478ee2` 推送；後續完成隔離資料 baseline 與原生 CDP 拖曳測試修正，詳見分項報告。沒有修改產品 UI／效能程式或重跑模型／LIVE；原生實際操作因使用者正在使用電腦而暫緩。舊報告仍只代表原日期的限定結果。
 
 ## 怎麼看與追蹤
 
@@ -31,7 +31,7 @@
 | [F05 聲音／模型／Preset](specs/app-requirements.md#f05) | 部分交付：TTS catalogue、RVC register／模型選擇、來源 audit 工具 | Voice Library 管理、完整 Preset Save／Load、三個 VC 參數表單；來源限制另驗 | [操作審查](verification/desktop/usability-audit-latest.md)、[模型 audit](verification/backends/rvc-model-audit-latest.md)；FEAT-01、SOURCE-01 |
 | [F06 裝置／音效／路由](specs/app-requirements.md#f06) | 部分交付：精簡裝置、監聽、六引擎音效保存；有 callback／指定 CABLE 分項證據 | RVC duplex 的 B1 近零問題、外部 VST bypass/full-chain、接收端及聽評 | [音效](verification/desktop/audio-effects-verification-latest.md)、[VC](verification/desktop/realtime-vc-verification-latest.md)；AUDIO-01／02、LIVE-01 |
 | [F07 Session／歷史](specs/app-requirements.md#f07) | 部分交付：TTS SQLite、當前 Session Transcript、JSONL／TXT exports | 跨 Session GUI、搜尋／分頁、SRT、版本 migration、保留期限／復原 | [儲存 owner](../services/tts/storage.py)、[維護手冊](../.agent/reference/agent-maintenance-guide.md)；DATA-01、FEAT-02 |
-| [F08 診斷／效能](specs/app-requirements.md#f08) | 部分交付：狀態／錯誤、部分 metrics、TTS warm worker、VC bounded queue | 同配置 cold／warm baseline、UI／DB／長 Session 成本、端到端量測；尚無整體效能達標結論 | [VC](verification/desktop/realtime-vc-verification-latest.md)、[Manual TTS](verification/desktop/manual-tts-verification-latest.md)；BASE-01、UI-02、PERF-01／02 |
+| [F08 診斷／效能](specs/app-requirements.md#f08) | 部分交付：狀態／metrics、TTS warm worker、VC bounded queue；已補合成 DB／export／snapshot 基準 | 同配置 cold／warm、UI／IPC／資源與端到端量測；尚無整體效能達標結論 | [資料基準](verification/desktop/performance-baseline-latest.md)、[VC](verification/desktop/realtime-vc-verification-latest.md)、[Manual TTS](verification/desktop/manual-tts-verification-latest.md)；BASE-01、UI-02、PERF-01／02 |
 | [F09 設定／安裝](specs/app-requirements.md#f09) | 部分交付：本機開發版 exe、語言／音效／視窗偏好 | installer／portable、新機驗證、auto update、migration／失敗回復 | [Desktop 手冊](guides/desktop-user-guide.md)、[語言](verification/desktop/ui-language-verification-latest.md)；DATA-01、SHIP-01 |
 | [F10 Agent Reply](specs/app-requirements.md#f10) | 未交付：只有停用契約，service 拒絕 agent source | API／Personality／Auto Reply、Phrase Hotkeys、來源與權限驗證 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[service](../services/tts/service.py)；FUT-01 |
 | N01～N04 品質與維護 | 已有 UI 專項回歸、Agent 規則／owner 地圖／維護手冊；本輪補功能 ID 與追蹤 | UI、量測、程式／資料解耦依下列任務逐項交付 | DOC-01、BASE-01、MOD-01／02／03、DATA-01 |
@@ -45,11 +45,11 @@
 
 ## 工作順序與每批出口
 
-這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent；除 DOC-01 外，目前任務尚未開工。依賴尚未完成的工作仍列 PLANNED，不虛報正在執行。
+這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 已修正自動化座標問題，等待桌面可供實際操作。其餘依賴尚未完成的工作仍列 PLANNED。
 
 | 批次 | 目的／工作 | 出口 |
 |---|---|---|
-| 0：本輪 | DOC-01 規格、進度、架構邊界與 Agent 交接 | 人能讀功能／進度，Agent 能由 ID 找 owner／驗收；文件檢核通過 |
+| 0：已完成 | DOC-01 規格、進度、架構邊界與 Agent 交接 | 人能讀功能／進度，Agent 能由 ID 找 owner／驗收；文件檢核通過 |
 | 1：先能看懂、量得準 | BASE-01、UI-01；再做 MOD-01、UI-02 | 保留現有 UI／音訊行為，有 baseline、可核對的載入／錯誤操作，原生拖曳問題有結論 |
 | 2：處理根因 | MOD-02／03、DATA-01；依量測做 PERF-01／02 | 模組依賴與資料 writer 清楚，舊資料可升級／復原；改善前後有同條件數字 |
 | 3：補產品缺口 | FEAT-01／02／03、AUDIO-02 | 可保存設定、找歷史、使用常駐 STT；各自有真實功能驗收，不能只靠 UI |
@@ -63,9 +63,9 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 
 | ID／優先度 | 功能與交付 | 責任模組／依賴 | 狀態 | 完成條件／證據 |
 |---|---|---|---|---|
-| DOC-01／首要 | N04：功能分層、任務、程式／資料邊界、Agent 最小讀取與交接 | `docs/`、`.agent/`；無 | DONE | 本輪文件差異、功能／任務 ID、相對連結與檔案地圖核對；未改 runtime |
-| BASE-01／首要 | F08、N02：固定 UI／cold／warm／長 Session baseline | app tests、TTS／VC metrics、storage；無 | PLANNED | 記錄 commit／模型／裝置／參數／樣本數、分階段時間、資源／品質指標與重跑入口；達到驗證計畫的 baseline 條件 |
-| UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | PLANNED | fresh PID 的原生 Full／Compact／Mini、拖曳／lock／click-through 恢復與 Tray／hotkey 有逐項證據；先判根因再修 |
+| DOC-01／首要 | N04：功能分層、任務、程式／資料邊界、Agent 最小讀取與交接 | `docs/`、`.agent/`；無 | DONE | `d478ee2` 已推送；功能／任務 ID、相對連結與檔案地圖核對；未改 runtime |
+| BASE-01／首要 | F08、N02：固定 UI／cold／warm／長 Session baseline | app tests、TTS／VC metrics、storage；無 | IN_PROGRESS | [資料子範圍 PASS](verification/desktop/performance-baseline-latest.md)：隔離 DB、export、snapshot 及最終檔案核對。尚缺 UI／IPC／CPU／RSS、cold／warm／切換與品質矩陣；完整達到驗證計畫條件才 DONE |
+| UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | WAITING | [CDP 座標根因與修正](verification/desktop/usability-audit-latest.md#window-regression-20261002)已驗；未改產品拖曳。使用者正在使用電腦，Computer Use 暫緩；仍需 fresh PID 可視 Full／Compact／Mini、實際 drag／lock、click-through 解除、Tray／hotkey／Quick Input |
 | MOD-01／高 | F01／03、N03：抽離 UI 狀態／訂閱與操作元件 | `app/src/main.tsx`、`components/SpeechWorkspace.tsx`、`services/`；BASE-01、UI-01 | PLANNED | 保持 command／testid／草稿／IME／queue 行為；元件不直接管原生程序，訂閱集中且可清理；UI 交叉回歸與不退步比較 |
 | UI-02／高 | F08.1／3：載入階段、等待、取消與錯誤復原 | UI、speech／engine snapshot；MOD-01 | PLANNED | 三 layout 都能看到目前階段與可用下一步；取消結果明確、未知 ETA 不造數、ACK timeout 不重複送出；Browser＋native 情境證據 |
 | MOD-02／高 | F03、N03：拆出 request validation、queue policy、執行協調、evidence 組裝 | `services/tts/service.py` 及同目錄；BASE-01 | PLANNED | adapter／playback／storage 可注入；無循環依賴；FIFO、取消、accepted ACK、完成播放才寫稿及 cleanup failure 行為不變，契約／生命週期回歸通過 |
@@ -114,6 +114,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 
 ## 需要人提供或決定的條件
 
+- UI-01：待使用者電腦可供操作後，從 fresh window state 補原生可視／Tray／hotkey 複核；目前不以替代工具接管桌面。資料與文件工作可先行。
 - LIVE-01：實際 Mic／耳機接點、首個驗收接收端（例如 Discord 或 OBS）、使用者聽評；Agent 可先準備量測與路由證據。
 - SOURCE-01：所採模型／聲音的可查證來源與使用範圍；現有未知項不影響文件及一般重構先行。
 - BASE-01：先取得 baseline 再定個人可接受的 cold start／切換等待與音質取捨。完整 LIVE 的既有門檻不改寫。

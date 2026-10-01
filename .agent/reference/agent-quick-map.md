@@ -31,7 +31,7 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 | Engine／Voice profile／reference 選擇 | `contracts/engines/`、`contracts/voices/`、`services/tts/adapters.py` | 對應 manifest／hash、真實輸出 WAV |
 | WSL 啟動與取消的程序所有權 | `services/tts/wsl_job.py` | job log、取消測試、`app/tests/audit-speech-processes.py` |
 | Windows 播放與輸出裝置 | `services/tts/playback.py` | Output endpoint、CABLE capture、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |
-| Session、Favorites、SQLite、exports | `services/tts/storage.py` | storage tests、`app/tests/verify-speech-artifacts.mjs` |
+| Session、Favorites、SQLite、exports | `services/tts/storage.py` | storage tests、`app/tests/verify-speech-artifacts.mjs`；[隔離資料 baseline](agent-maintenance-guide.md#storage-baseline) |
 | 四 VC 的 runner 與 CLI | `services/engines/stream_runtime.py`、`streaming_adapters.py`、`rvc_runtime.py`、對應 `backends/<name>/README.md` | [Desktop VC](../../docs/verification/desktop/realtime-vc-verification-latest.md)、[CLI backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
 | Desktop 圖形入口與建置 | 根目錄 `AetherTune.exe`（build 產物）、`app/dev.ps1` | [Desktop 手冊](../../docs/guides/desktop-user-guide.md)、[App 實測](../../docs/verification/desktop/app-verification-latest.md) |
 | Audio Rack、路由、LIVE 分類 | `audio-rack/`、`benchmarks/`、[LIVE gate](../../docs/specs/live-gate.md) | 對應實際 artifact；不要由檔案存在推論 PASS |
