@@ -1,8 +1,98 @@
-# AetherTune Desktop App — 產品需求與實作規格 v1
+# AetherTune 產品規格：大功能、小功能與驗收範圍
 
-**文件邊界：**本頁是 Desktop 的**預期產品行為與里程碑**，不是已完成功能清單。實作分層看[app-architecture.md](app-architecture.md)，實際操作看[Desktop 手冊](../guides/desktop-user-guide.md)，哪些測試通過看[Desktop](../verification/desktop/app-verification-latest.md)與[Manual TTS](../verification/desktop/manual-tts-verification-latest.md)的分項驗證；不能把本頁的 M4～M8 計畫當成 runtime PASS。
+**文件邊界：**本頁是功能範圍與預期行為的唯一權威；功能 ID 用於追蹤，不代表已完成。實作／驗收進度與工作順序只記在[目標與任務進度](../status.md)；程式、資料與效能設計看[App 架構](app-architecture.md)，測試條件看[驗證計畫](verification-plan.md)，操作看[Desktop 手冊](../guides/desktop-user-guide.md)。
 
-日期：2026-09-27。依使用者提供的 v1 規格建立；首次交付 M0、M1、M2 skeleton。後續 Manual TTS 增量範圍以下節為準。
+規格整理日期：2026-10-01（Asia/Taipei）。保留 2026-09-27 v1 與後續增量要求，補上可供人與 Agent 共用的功能目錄。這次整理不代表新增音訊、UI 或效能實作。
+
+## 功能目錄：先了解能做什麼
+
+以下小功能是使用目的摘要；精確流程、限制與欄位由後半部行為規格及 `contracts/` 定義。依 F01～F10 到[進度表](../status.md)查看實作程度、證據與未完成項。
+
+<a id="f01"></a>
+### F01 統一工作區與桌面操作
+
+- **F01.1 模式切換：**區分即時變聲、語音重建、文字發聲；畫面明確告知輸入來源與下一步操作。
+- **F01.2 三種視窗：**Full 做完整設定，Compact 用於日常控制，Mini 保留狀態、停止與展開；主操作在各自視窗內可達。
+- **F01.3 系統整合：**置頂、透明度、拖曳、鎖定、穿透、Tray、快捷鍵與完整退出；穿透必須有恢復操作入口。
+- **F01.4 雙語與可及性：**繁中／英文即時切換、鍵盤操作、可讀標籤，切換不遺失草稿或重送工作。
+
+<a id="f02"></a>
+### F02 即時變聲與引擎控制
+
+- **F02.1 四引擎：**Seed-VC／MeanVC2／X-VC 以 reference 轉換聲線；RVC 使用登錄角色模型與 index，不能混用素材流程。
+- **F02.2 明確來源：**Mic 用於說話，RVC File 用於指定 WAV；不能把檔案播放誤標為麥克風即時變聲。
+- **F02.3 生命週期：**預檢、載入、預熱、執行、停止、失敗與程序回收各有明確狀態；切引擎先釋放舊資源。
+- **F02.4 參數控制：**依 manifest 呈現實際支援的參數，執行中不可改的項目鎖定並提示下次啟動套用。
+
+<a id="f03"></a>
+### F03 文字發聲與語音佇列
+
+- **F03.1 手動文字：**CosyVoice2／Breeze TTS 2 使用所選聲音生成 WAV，再送指定播放端；不依賴 Mic 開啟。
+- **F03.2 排程與取消：**Speak、FIFO、立即插播、拒絕新請求、排序、移除、停止目前工作與清除等待工作各自有明確語意。
+- **F03.3 快速輸入：**完整 Composer、Compact 輸入、Mini popup、Recent／Favorites 與 IME 防誤送。
+- **F03.4 結果追蹤：**顯示生成／播放／錯誤；只把完成播放的內容寫成已發聲 Transcript，保留每次送出的聲音、路由與音效快照。
+
+<a id="f04"></a>
+### F04 麥克風／遠端轉文字與語音重建
+
+- **F04.1 Self STT：**physical Mic → VAD → STT，不擷取變聲後輸出或 TTS 回授。
+- **F04.2 Remote STT：**擷取一個指定 playback source 的 WASAPI loopback，以 ME／REMOTE 區分來源；多人分離另期處理。
+- **F04.3 重建：**STT → Text → TTS 共用文字發聲佇列，以 backend_stt 提供逐字稿，避免同一句跑兩次辨識。
+- **F04.4 獨立服務：**切換或停止 VC 不停止 STT；GPU 資源優先給 VC，STT 預設 CPU。常駐 Desktop 與既有離線 CLI 分開驗收。
+
+<a id="f05"></a>
+### F05 聲音、模型與情境預設
+
+- **F05.1 聲音目錄：**用 VoiceProfile 選 reference／逐字內容或 RVC 角色，保留來源、hash、語言及使用限制。
+- **F05.2 Voice Library：**提供匯入、檢查與管理，讓使用者不必每次手填路徑；已附 catalogue 不等於完整管理功能。
+- **F05.3 Preset：**保存、載入及辨識失效的 Mode／Engine／參數／聲音／裝置／音效／STT 組合；不能只保存名稱。
+- **F05.4 模型準備：**沿用現有 RVC 資料 audit、訓練及 register 工具；Desktop 管理不自行重寫訓練算法。
+
+<a id="f06"></a>
+### F06 裝置、自己監聽、音效與輸出路由
+
+- **F06.1 裝置選擇：**區分輸入、主輸出、監聽；精簡重複顯示但保留 exact name／Host API 與進階清單。
+- **F06.2 自己監聽：**獨立開關與實體耳機／喇叭，不將虛擬輸出再回送造成迴授；停播同步回收。
+- **F06.3 六引擎音效：**各自保存 EQ、壓縮、殘響、乾濕與增益；只重設選定引擎，已排隊工作不跟隨後續修改。
+- **F06.4 外部 Rack／接收端：**沿用 Light Host／VST／VB-CABLE／Voicemeeter；不能自動控制的項目標為人工操作，Discord／OBS 等需逐段驗證。
+
+<a id="f07"></a>
+### F07 Session、逐字稿與歷史資料
+
+- **F07.1 即時逐字稿：**保留來源、時間、provider 與已發聲狀態，支援捲動、暫停、篩選、複製與清畫面。
+- **F07.2 歷史查詢：**跨 Session 搜尋、時間／來源篩選及分頁；清畫面不刪資料。
+- **F07.3 持久化與匯出：**SQLite 保存 canonical records；JSONL／TXT 為可重建輸出，SRT 為選配；crash 不遺失已提交紀錄。
+- **F07.4 資料生命週期：**資料版本、升級、備份還原、保留期限與使用者確認的清理；不能因 artifacts 被 ignored 就刪除。
+
+<a id="f08"></a>
+### F08 執行狀態、診斷與效能
+
+- **F08.1 等待回饋：**分開排隊、冷載入、預熱、生成、播放與停止；顯示已等待時間，沒有可靠量測就不提供假 ETA。
+- **F08.2 效能觀測：**區分載入時間、首音、模型 p50／p95、RTF、端到端延遲、drops、CPU／GPU／記憶體；缺值顯示 N/A。
+- **F08.3 錯誤復原：**可理解的原因、下一步操作與詳細 log；提交逾時先確認是否已接受，避免重複發聲。
+- **F08.4 同條件改善：**分開 cold／warm、不同引擎／模型／路由，比較改善前後；速度不得以音質、來源證據或取消清理退步換取。
+
+<a id="f09"></a>
+### F09 設定、安裝與更新
+
+- **F09.1 偏好保存：**視窗、語言、音訊、Voice、Transcript 與進階設定各有清楚 owner；草稿不冒充可靠持久化。
+- **F09.2 安裝交付：**開發版 exe、完整 installer、portable package 分別驗證；新機需檢查 runtime／模型與裝置條件。
+- **F09.3 更新復原：**版本相容性、設定／資料 migration、失敗回復、OOM／crash recovery 與開機啟動；未實作選項不能假裝已生效。
+
+<a id="f10"></a>
+### F10 Agent Reply 與自動回覆擴充
+
+- **F10.1 回覆來源：**AgentReplyProvider 產生可追溯文字，再交由既有 SpeechRequest／Queue／TTS 流程發聲。
+- **F10.2 控制與權限：**Agent API、Personality、Auto Reply 與 Phrase Hotkeys 分項開發；未完成授權、取消及防回授前不得啟用自動發聲。
+
+## 跨功能品質要求
+
+- **N01 UI 可用性：**主流程能辨認來源、目的地及下一步；空白、載入、忙碌、錯誤都有可操作回饋。每次 UI 改善需自動化與實際畫面交叉驗證。
+- **N02 執行效率：**先建立固定案例與 baseline，再優化冷啟動、warm 重用、UI 更新、資料匯出與記憶體；量測及判定規則由[驗證計畫](verification-plan.md#optimization-acceptance)擁有。
+- **N03 程式／資料模組化：**沿用 React → Rust → service → adapter／audio／storage 分層；單向依賴、資料唯一 writer、版本與遷移按[架構邊界](app-architecture.md#modular-boundaries)執行，不能只靠拆檔宣稱完成解耦。
+- **N04 人與 Agent 共用進度：**每個工作有功能 ID、責任模組、依賴、完成條件與證據；只在[進度頁](../status.md)維護工作狀態。Agent 交接流程在[維護手冊](../../.agent/reference/agent-maintenance-guide.md#task-handoff)。
+
+## 詳細行為規格
 
 ## 產品目的與使用流程
 
@@ -14,7 +104,7 @@
 
 | Mode | 音訊／控制流程 | Engines |
 |---|---|---|
-| Streaming VC | Mic → VC → Post FX → Virtual Output | Seed-VC、MeanVC2、X-VC、RVC + FCPE Legacy |
+| Streaming VC | Mic → VC → Post FX → Virtual Output | Seed-VC、MeanVC2、X-VC、RVC + FCPE／RMVPE |
 | Speech Reconstruction | Mic → VAD → STT → Text → TTS → Post FX → Virtual Output | CosyVoice2／3、Breeze TTS 2 |
 | Text → Voice | Typed Text → TTS → Post FX → Virtual Output | 與重建共用 TTS Engine |
 
@@ -119,7 +209,7 @@ Settings：General（Windows startup、start minimized、overlay、opacity、hot
 |---|---|
 | M0 | requirements／architecture；六個 Engine Manifest、state／transcript／session schema |
 | M1 | Tauri desktop shell、三種顯示、Overlay／Tray／Hotkey；不碰 AI 算法 |
-| M2 | Seed／Mean／X EngineManager、ProcessManager、validate／start／stop／status／log／crash；本輪 skeleton |
+| M2 | VC EngineManager、ProcessManager、validate／start／stop／status／log／crash；早期由 Seed／Mean／X skeleton 起步，後續接入 RVC |
 | M3 | manifest 動態參數與 Preset Save／Load |
 | M4 | Mic + Remote、VAD、STT abstraction、SQLite／JSONL／TXT、history |
 | M5 | Voice Library／VoiceProfile |
@@ -127,7 +217,7 @@ Settings：General（Windows startup、start minimized、overlay、opacity、hot
 | M7 | existing Audio Rack adapter／routing |
 | M8 | installer、auto update、startup、migration、OOM／recovery、packaging／portable |
 
-日常 MVP = Overlay + Seed／Mean／X 即時統一控制 + Mic／Remote STT + history + Preset。可先發布 MVP 而不等 TTS、RVC、Diarization、VST automation；但本輪 skeleton **不是該 MVP**。
+原始日常 MVP = Overlay + Seed／Mean／X 即時統一控制 + Mic／Remote STT + history + Preset。M0～M8 保留需求分組用途；後續 TTS／RVC 提早接入不代表 STT／history／Preset 已完成。目前交付程度與優先順序以[任務進度](../status.md)為準，不以最高 M 編號推定 MVP 完成。
 
 驗收須分開列：三種 UI、置頂、半透明、drag、click-through、Tray／遊戲滑鼠；三個 engine 的實際啟停、crash／AppExit cleanup；schema forms／presets；ME／REMOTE 即時轉文字、crash durability／exports；canonical device、PCM datapath；既有 verification 相容性。每個 milestone 要有可重跑檢核及 PASS／WAITING／BLOCKED 證據，UI 可開與音訊可用不能合併為整體 PASS。
 

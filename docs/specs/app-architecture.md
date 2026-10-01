@@ -1,6 +1,6 @@
 # AetherTune Desktop App — 架構與開發入口
 
-**文件邊界：**本頁只定義 Desktop React／Tauri／Python 的分層、程序生命週期與 IPC 設計。產品預期行為由 [app-requirements.md](app-requirements.md) 擁有；建置、測試與除錯命令由 [agent-maintenance-guide.md](../../.agent/reference/agent-maintenance-guide.md) 擁有；真實結果見對應驗證報告。`backends/`、`tools/`、`models/`、`audio-rack/`、`benchmarks/` 與已驗證 runner 保持各自責任。
+**文件邊界：**本頁定義 Desktop React／Tauri／Python 的程式分層、資料所有權、程序生命週期與 IPC 設計，區分現況和目標。產品行為由 [app-requirements.md](app-requirements.md) 擁有；工作順序／狀態只在[任務進度](../status.md)；建置、測試與除錯命令由 [Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md) 擁有；真實結果見分項驗證。`backends/`、`tools/`、`models/`、`audio-rack/`、`benchmarks/` 保持各自責任。
 
 ```mermaid
 flowchart TB
@@ -36,6 +36,68 @@ flowchart TB
 | `contracts/schemas/` | manifest、state、Transcript、Session 的版本 1 契約 |
 
 同一個 Python bridge 接各 VC Adapter；argv routing 受 engine allowlist 限制，模型用各自 venv。RVC 的 UI 參數從 manifest 呈現、JSON request 傳遞，runner 再驗範圍及 register hash。headless RVC 不啟動上游 GUI、不經 IPC 傳 PCM。
+
+<a id="modular-boundaries"></a>
+## 程式模組化：現況、目標與不可變條件
+
+2026-10-01 以 `60c1c89` source 盤點：已有 UI service、Rust managers、Python adapter／playback／storage 分層，無須另造平台。以下是靜態責任／依賴觀察，**不是已量測的效能瓶頸或已完成的重構**；執行狀態由 MOD-01～03、DATA-01、PERF-01～02 的[任務列](../status.md)維護。
+
+| 邊界 | 現況與待處理原因 | 目標責任／對外介面 |
+|---|---|---|
+| 畫面／UI controller | `main.tsx` 同時包含 layout、VC 設定、事件／polling、commands 與顯示；`SpeechWorkspace.tsx` 同時管草稿、訂閱、route、queue 操作及 JSX | 沿用 `components/` 與 `services/`；controller／hook 擁有訂閱與 actions，元件以 props／callbacks 呈現。layout 不建立第二套服務狀態 |
+| IPC／原生 | `desktop.ts`／`speech.ts` 與 Rust managers 已作邊界 | IPC client 驗 payload／ACK，Rust 管 allowlist、互斥及 owned process；不把模型或 DB 規則搬進 UI／Rust command |
+| TTS 協調 | `SpeechService` 同時做 validation、queue policy、狀態轉移、generation／playback 協調、persistence／evidence | 保留既有 service 入口，在 `services/tts/` 逐步抽出 validation／queue policy／evidence 模組；協調器注入 generation、playback、storage 介面，獨立模組不反向 import service |
+| VC runtime／模型 | 共用 capture worker 與三個模型 adapter 已分離，RVC 有獨立 block／duplex | callback 僅搬 PCM、推論在 worker；adapter 不決定 UI、Session 或資料清理策略；保留 backend venv 隔離 |
+| 共用 Post-FX | `services/tts/postfx.py` 與 TTS service 直接依賴 `services/engines/postfx.py`，共用 DSP 的 owner 名稱仍屬 VC | 目標為 `services/audio/postfx.py` 的單一純 DSP owner；這是規劃路徑，尚未建立。VC／TTS 向共用層依賴，共用層不 import 任一 orchestration；不另複製算法 |
+| 儲存／匯出 | `TranscriptStore` 同時管理 schema、query、settings、exports | 同一 canonical DB，由 repository 控制 transaction／schema；query 與 export 可拆成同目錄模組，export 只讀已提交資料，不自行更改 request／播放狀態 |
+| 設定 | shell JSON、localStorage、sessionStorage 與 TTS DB 各保存部分內容 | 以既有領域提供 typed settings 介面及版本驗證；保留各 writer 邊界，不為「統一」直接搬空既有資料或複製一份全域設定 |
+
+目標依賴方向（本圖含待重構的部分，不能當現況檔案圖）：
+
+```mermaid
+flowchart LR
+  View[UI 元件] --> Controller[UI controller / IPC client]
+  Controller --> Native[Rust managers]
+  Native --> Orchestrator[TTS / VC orchestration]
+  Orchestrator --> Adapter[模型 adapter]
+  Orchestrator --> Audio[共用 audio / Post-FX]
+  Orchestrator --> Store[資料 repository]
+  Export[Export / history query] --> Store
+  Contracts[contracts schema / manifest] -. 驗證 .-> Controller
+  Contracts -. 驗證 .-> Orchestrator
+```
+
+拆分必須保留：command ID／ACK 行為、request 提交快照、FIFO／取消、完成播放才寫 Transcript、cleanup 未確認時阻擋新音訊、Windows Job／WSL group 所有權、PCM 不經 IPC。檔案變短不等於解耦；驗收要看依賴方向、可注入邊界、故障影響範圍與行為回歸。
+
+每次只抽一個責任，先維持舊公開入口與 payload；不在同一變更同時改 queue 語意、schema 與模型參數。舊 import 若有需要可短暫 re-export 同一實作，待 callers／tests／文件更新後移除，不長期保留兩份實作。source rollback 回退該變更；若有資料 migration，必須使用下節的資料復原流程，不能只回退程式。
+
+<a id="data-ownership"></a>
+## 資料模組化與生命週期
+
+| 資料領域 | 現行權威／writer | 誰能讀／不變條件 | 後續補強 |
+|---|---|---|---|
+| Engine／Voice schema 與 catalogue | `contracts/engines/`、`contracts/voices/`、`contracts/schemas/`；受控 source 更新 | UI／service 讀取；service 仍需驗證輸入，不信任 UI 已驗 | schema 相容性與 catalogue reload 策略；不能修改 manifest 就宣稱 runner 支援 |
+| 模型／reference 來源 | `models/`、`dataset/manifests/` registers；audit／register 工具 | adapters 解析路徑／hash；聲音檔不存 Git 或 SQLite blob | 匯入／替換時先驗來源、hash 及引用，舊 request 的 identity 不跟著改 |
+| Session／request／Transcript | `artifacts/tts/tts.sqlite3`；`TranscriptStore` | 只有 service／repository 寫 DB；UI 經 query／IPC 讀，不直接 SQL | DB schema version、順序 migration、索引／分頁、備份／restore；目前 `_create_schema()` 建表不能取代版本遷移 |
+| Recent／Favorites／TTS policy | 同一 SQLite 的專屬 tables；TTS settings／phrase methods | 與 session 資料分責任，跨 session 保留；不複製成 UI canonical list | typed API 與設定版本／invalid fallback，錯誤不得假回保存成功 |
+| 語言／VC／六引擎音效偏好 | 各自 localStorage key；對應 UI settings service／目前 `main.tsx` | 只代表下一次操作偏好；已接受 request 用快照 | 集中各領域讀寫入口、key／version／default／migration 規則；不得用新 key 靜默丟棄舊偏好 |
+| 原生外觀／快捷鍵 | `artifacts/desktop/shell.json`；Rust shell owner | UI 透過 IPC 更新；重啟不得恢復 click-through／quick popup | atomic 保存與版本檢查；註冊／保存失敗有復原，不混入 TTS DB writer |
+| Composer／暫時 UI 選擇 | WebView sessionStorage；UI controller | 只是暫存，不保證跨 process 恢復；不能當 durable request | 明確的 reset／reload 範圍，layout／語言切換不破壞草稿 |
+| Session exports | `artifacts/sessions/<id>/` JSON／JSONL／TXT；storage export | 由 DB 重建，不能反向自動覆蓋 DB；播放完成後 export 失敗不可重播 | 測量成本後再做有界／增量或 atomic export；提供重建及錯誤追蹤 |
+| WAV／logs／evidence | 每次 request／run 的 runner／evidence writer | source／processed WAV 分開；同輪 hash／run identity 可追溯；DB 只放 metadata／path | 保留／清理策略與引用檢查；不得因 ignored、failed 或 cancelled 就任意刪除 |
+
+目標 migration 流程：確認無 active writer → 使用能處理 SQLite WAL 的一致性備份（例如 SQLite backup API）→ 驗備份可開啟 → transaction 內逐版本升級 → 核對 row／identity／唯一約束 → 成功才更新版本。失敗 rollback；需要 restore 時先停止 writer，再還原已驗備份。直接複製正在寫入的單一 `.sqlite3` 檔不算有效備份。設定移轉也保留舊值及 failure evidence，不在失敗時寫回空白預設。
+
+新 request 以提交時的 engine／profile／route／FX 為準；未完成 queue 在重啟後只能列為待處理紀錄，不自動恢復播放。UI Clear View、刪歷史、刪 WAV 是不同操作；資料刪除必須有範圍、引用檢查與使用者確認。新增 STT 沿用 Session／Transcript 契約與 repository，不另建無法關聯的 STT DB。
+
+<a id="performance-design"></a>
+## 效率優化的設計約束
+
+- **模型生命週期：**保留同 engine 的 TTS resident worker 與 VC 常駐 processor；cold／warm／切換／取消後重新載入分開量測。不預載所有模型，不以延後取消或殘留 GPU worker 換取表面速度。
+- **UI 更新：**目前 engine events 加 1 秒 refresh，SpeechWorkspace 也有訂閱及 native 1 秒 refresh；這是重複工作的待量測點，尚不能斷言瓶頸。若改成 event 為主、poll 為恢復，需 single-flight、失聯重同步及 unmount cleanup，不能漏掉終態。
+- **Session 成長：**現行 snapshot 包含本 service 的 terminal requests；export 讀取本 session records 並重寫輸出。先測量資料量對 JSON、DB、I/O 與渲染的影響，再引入 bounded history／pagination 或增量 export；不能刪掉 canonical records 來縮短時間。
+- **音訊熱路徑：**callback 不做 DB／磁碟／hash／log flush；bounded buffer、backlog、drops 保留。模型 p95、RTF 與 microphone→terminal 延遲是不同指標，不以增加未顯示的 buffer 掩蓋 underrun。
+- **驗證：**固定輸入與硬體的 baseline／after、資源釋放、品質與耐久性條件見[優化驗收](verification-plan.md#optimization-acceptance)。沒有量測就只記「程式整理」，不記「效能提升」。
 
 ## 介面語言
 

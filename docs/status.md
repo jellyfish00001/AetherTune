@@ -1,121 +1,120 @@
-# Agent 實作與測試總表
+# AetherTune 目標與任務進度
 
-**文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
+**文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
-2026-10-01 介面語言：設定可切換繁中／英文，工作區、音效、TTS 佇列、視窗與系統匣共用文案，完整退出重開保留偏好；草稿、路由、音效與送出請求不變。Preview／mock／原生與重啟專項 PASS，詳細命令及畫面見 [介面語言驗證](verification/desktop/ui-language-verification-latest.md)。本輪沒有重跑模型或 LIVE 音訊。
+整理日期：2026-10-01（Asia/Taipei）。盤點基準：`60c1c89`（介面語言更新）及目前 source；本次只整理規格／進度，沒有重跑模型、原生 UI 或 LIVE。下列既有測試結果是報告記載的限定結果，不是本次重新驗收。
 
-2026-10-01 六引擎音效設定：音效移至 SETTINGS，六引擎各自保存紀錄、單項重設與重啟還原；TTS 加入生成後／播放前處理，queue 保留送出時的設定。41 個 service／WAV tests、preview／mock／原生設定與完整 App 重啟專項 PASS；既有雙引擎生成 WAV 處理及 Breeze 處理後 CABLE 回錄 PASS。新生成／原生 Speak＋FX 全鏈與實體人耳聽評沒有因此升格，詳見 [音效設定驗證](verification/desktop/audio-effects-verification-latest.md)。
+## 怎麼看與追蹤
 
-2026-10-01 Desktop 畫面審查：四 VC 的 START 移至首屏，修正 Mic／WAV／文字模式提示，移除工程佔位、空白 VC Transcript 與無作用的 Mini 文字按鈕。內建 Browser、Edge preview／mock 與原生 WebView2 UI 專項 PASS，根目錄 exe 已更新；實體耳機接點與人耳聽評仍未確認。未完成功能與測試邊界見 [操作畫面審查](verification/desktop/usability-audit-latest.md)。
+1. 想了解產品：讀[十項大功能與小功能](specs/app-requirements.md#f01)，用 F01～F10 對照下表。
+2. 想知道進度：先看「已交付／缺口」，再看任務的狀態、依賴與完成條件；不要把已寫程式等同驗收完成。
+3. 想安排下一輪：從第一批尚未完成且依賴已滿足的任務開始；Agent 只讀該功能、owner 與測試文件。
+4. 想核對成果：由證據欄開報告，確認日期、commit、場景及 artifact。歷史官方 GUI／VCClient 不與 Desktop runner 混用。
 
-2026-10-01 Desktop 四 VC 無聲修復：Seed／Mean／X 已從 GUI-only／Source WAV 啟動改為常駐麥克風串流；四引擎共用監聽與內建 EQ／壓縮／殘響／乾濕混合。三個共用 worker 的 20 秒注入音訊與 CABLE 回錄 PASS，RVC File CABLE 與 duplex 核心分項 PASS；Voicemeeter B1、實體聽評及長時間 LIVE 仍另驗。新版根目錄 exe、數值與未解項見 [Desktop VC 驗證](verification/desktop/realtime-vc-verification-latest.md)；[VoiceStudio 比較](reference/voicestudio-comparison.md)是固定 revision 唯讀研究。
+| 維度 | 詞彙與含意 |
+|---|---|
+| 功能交付 | 已交付＝該列範圍已具備；部分交付＝仍缺子功能；未交付＝僅規格／契約。三者都不代表完整 LIVE |
+| 任務狀態 | PLANNED 待做；IN_PROGRESS 已開始；WAITING 等明確外部條件；BLOCKED 已重現技術阻礙；DONE 達到該任務完成條件 |
+| 驗證狀態 | PASS／WAITING／BLOCKED 均須附測試範圍；fixture、preview、native、模型 WAV、CABLE、physical／LIVE 分開 |
+| 維護規則 | 完成後更新任務列及證據，不新增第二張待辦表；新任務追加 ID，舊 ID 不重用 |
 
-2026-10-01 Desktop RVC 更新：已接入 headless RVC + FCPE／RMVPE、登錄角色、Mic／WAV、block 參數與自己監聽；原生 block／音訊、虛擬來源 duplex callback 與路由擷取分項結果見 [RVC 驗證](verification/backends/vcclient-rvc-probe-latest.md)。實體 Mic、外部 Rack／Discord、人耳聽評、600 秒與模型來源／授權仍另驗；既有 VCClient gate 不因 Desktop 修正改判。
+不計算整體百分比：目前大小功能的工作量與驗收成本不同，尚無可信權重。以逐項完成條件與每批出口監控；本次沒有宣稱 UI、效能或架構重構已完成。
 
-2026-09-30 Manual TTS 更新：CosyVoice2 與 Breeze TTS 2 在 Desktop service 內各保留一個已載入模型的 WSL worker；同引擎後續句子重用模型，切換引擎或關閉服務時釋放 worker。兩引擎各兩句的真實 WAV 驗證顯示第二句 `load_seconds=0`、相同 worker identity，CosyVoice2 生成時間約 `62.9 → 4.1 秒`，Breeze 約 `170.4 → 8.2 秒`。根目錄 exe 的原生中文送出與播放 callback 連續兩次 PASS，生成 `182.5 → 3.3 秒`；首句仍慢。中文文字預設改用中文參考聲音，日語樣本明確標示；WORKSPACE 僅留聲音與輸入操作，送出設定集中在 SETTINGS。詳細證據與限制見[Manual TTS 驗證](verification/desktop/manual-tts-verification-latest.md)。
+## 功能進度總覽
 
-2026-09-30 Desktop 入口更新：根目錄 `AetherTune.exe` 已由當次 build 產生；舊 Tk 控制台已移除。啟動卡住的診斷鎖順序已修正，根目錄 exe 的視窗回應與原生 WebView2 畫面已複核；該次是啟動／UI 證據，沒有重跑音訊或 LIVE gate。命令與截圖見 [App 啟動驗證](verification/desktop/app-verification-latest.md)，日常操作見 [Desktop 手冊](guides/desktop-user-guide.md)。
-
-2026-09-30 Manual TTS 使用回報複核：三筆舊 request 在完整 WAV 產生前取消；修正手填裝置與重複分頁後，根目錄 exe 的原生單句測試走完生成、實體輸出 callback 與 Transcript，WAV 有限且非零。這是本機 `CosyVoice2 → HyperX／MME` 的單句證據，物理 loopback／人耳聽評、Mic STT、VC 即時鏈與 LIVE 仍 `WAITING`。精確 request、hash、命令與畫面見 [Manual TTS 2026-09-30 複核](verification/desktop/manual-tts-verification-latest.md)。
-
-本輪 2026-09-27 更新：realtime-tiny GUI lifecycle、reference／設定套用與 saved-reference restart `PASS`；有效變聲 callback WAV 與同期 CABLE loopback `WAITING`，獨立 VB-CABLE synthetic smoke `PASS` 不代表 GUI 音訊。七個專案 runtime 已統一 Python 3.10.x，重驗 MeanVC2／RVC／CosyVoice 有效 CUDA 音訊；當時的 Python／Tk 證據保留在[歷史報告](verification/desktop/python-ui-verification-latest.md)。人工聽評與完整 LIVE gate 另驗。
-
-前次 Manual TTS 增量日期：2026-09-28（Asia/Taipei）
-
-當時的 Manual TTS 增量：Desktop Composer／Queue／Transcript 與既有 CosyVoice2／Breeze 已接通；指定 CABLE 的真實生成／完成播放／非零擷取／hash／provider／程序清理 PASS。生成及播放取消後下一句完成亦 PASS；CosyVoice2 同一 service 的 20 次真實 request、男女 profile 各 10 次、20 個非零播放時窗及 Transcript／FIFO／退出清理全 PASS，Breeze 當時為單次鏈路驗證。詳細命令與 evidence 見 [`manual-tts-verification-latest.md`](verification/desktop/manual-tts-verification-latest.md)。當時為完整 WAV、每句重載模型；此重載限制已由上方 2026-09-30 更新修正。實體 Mic 共存、外部 Post-FX、LIVE 與人工聽評仍 WAITING；Agent Reply 僅停用契約。
-
-這份文件回答「目前哪些可以直接使用、哪些仍需要補條件」。`PASS` 只代表指定 gate 有可重跑證據；不代表音質一定符合個人偏好。`WAITING` 是尚未完成或需要人工／系統條件；`BLOCKED` 是目前有明確錯誤，不能當作可用。Seed-VC 開箱操作及本輪 readiness 見 [`seed-vc-readiness-latest.md`](verification/backends/seed-vc-readiness-latest.md)。
-
-## 既有驗證工作狀態
-
-| # | 工作 | 目前狀態 | 可以直接做什麼 | 尚未完成／限制 | 主要證據 |
-|---:|---|---|---|---|---|
-| 1 | 修復 VCClient packaged RVC 無效 WAV、實際角色模型 | `BLOCKED`／`DEGRADED` | 可用官方 repair 與 register 工具重現問題；RVC 專案離線路線可用 | 最新 Sage slot 7 v2 post-gate probe 已核對 requested／active／initial=`7/7/7`，30 chunks 僅 2 個 valid、28 個 invalid（全零 28）；仍不能用於穩定即時通話 | [`vcclient-packaged-repair-latest.md`](verification/backends/vcclient-packaged-repair-latest.md) |
-| 2 | RVC latency、buffer、斷音、10 分鐘矩陣 | `DEGRADED`／`BLOCKED` | 可執行 bounded 矩陣並取得 p50/p95、invalid/dropout、RMS，且報告 slot 核對證據 | Sage slot 7 v2 的 0.25／0.50／0.75／1.00 秒短測 invalid/dropout 為 58/60、28/30、19/20、15/15；1.00 秒為 `0/15` valid，stability=`stability_seconds=0` 為 `BLOCKED`，尚非 600 秒證據 | [`vcclient-rvc-latency-matrix-latest.md`](verification/backends/vcclient-rvc-latency-matrix-latest.md) |
-| 3 | Seed-VC realtime tiny、長音檔與 GUI 設定 | 60 秒 headless `PASS`；Phase 1 regressions／manifest preflight `PASS`；2026-09-27 GUI Start/Stop/Start/Stop 與 saved reference restart `PASS`；realtime-tiny GUI callback output `WAITING`；完整 live gate `WAITING` | 一般 Windows session 的 manifest GUI preflight 以 CPython 3.10.11、CUDA RTX 5060 Ti、明確 D: runtime/source/checkpoint/config/cache 與隔離 SessionRoot 通過。受控 GUI lifecycle 兩次 Start/Stop，CUDA stream log 停止增長；不帶 reference override 重啟後 `reference_source=saved`。新 harness 17/17 settings 欄位套用，但原始／增益 deterministic WAV 均未得到非零 realtime-tiny GUI output；獨立 VB-CABLE synthetic smoke `PASS`，不替代 GUI output。2026-09-26 四案 callback PASS 是 `offline-v1` | 尚未完成可驗證 realtime-tiny GUI callback audio output、真實麥克風 E2E、人工聽感、Light Host full-chain、10 分鐘穩定性與 mic → backend → rack → route latency；新機／新使用者 Tcl/Tk bootstrap、offline-v1 clean setup 尚未驗證 | [`seed-vc-readiness-latest.md`](verification/backends/seed-vc-readiness-latest.md)、[`seed-vc-verification-latest.md`](verification/backends/seed-vc-verification-latest.md)、[`wiring-verification-latest.md`](verification/audio/wiring-verification-latest.md)、[`seed-vc-gui-userflow-test.py`](../tools/seed-vc-gui-userflow-test.py) |
-| 4 | 四方法批次音質／音量／取樣率比較 | signal-level `PASS` | 可比較 11 個 WAV 的取樣率、RMS、peak、clipping、silence、DC 與 hash；BLOCKED row 不會被彙總成 PASS | 這不是 MOS、音色相似度或人工聽測；不同方法本來就有 22.05／24／40／48 kHz 差異 | [`audio-quality-comparison-latest.md`](verification/audio/audio-quality-comparison-latest.md) |
-| 5 | RVC 模型來源、授權、訓練版本與 metadata | hash／配對 `PASS`；provenance `WAITING` | 可用 audit 查看四組模型的檔案與 hash；checkpoint sample rate/version 已核對為 40/48 kHz、v2 | 現有四組仍是 `candidate`；source、license、f0、revision、dataset、trained-at 與 verification evidence 仍為 unknown；不得升成 `ready` | [`rvc-model-audit-latest.md`](verification/backends/rvc-model-audit-latest.md) |
-| 6 | Breeze `sox`、`flash-attn`、`fast-all`、project-local UI | eager UI resident runtime `PASS`；fast-all `PASS`；project-local SoX `PASS`；flash-attn `WAITING` | Breeze eager CLI、project-local UI、`-FastAll` 與 local SoX runtime 可用；同一 UI session 第二次生成已證明可重用模型 | system SoX 尚未安裝；`flash-attn==2.8.3` 尚未成功 import；人工聽測未完成；切換 fast-all／attention 會重新載入 | [`breeze-tts2-verification-latest.md`](verification/backends/breeze-tts2-verification-latest.md) |
-| 7 | CosyVoice frontend cuDNN 8 GPU／官方 UI | partial `PASS`；官方 upload UI flow `PASS` | 主模型 CUDA；官方 Gradio upload clone 已產生 24 kHz WAV；持久化專案 wrapper 可重跑隔離 cuDNN 8 probe | 預設主流程不載入隔離 cuDNN 8；CampPlus 上游明確固定 CPU；瀏覽器 microphone permission denied，因此錄音路徑仍 `WAITING` | [`cosyvoice-verification-latest.md`](verification/backends/cosyvoice-verification-latest.md) |
-| 8 | RVC training data audit、訓練命令、模型註冊 | tooling `PASS`；資料 `BLOCKED` | 可依 guide audit、dry-run register、驗證 hash、provenance 與 verification evidence | `dataset/raw` 目前沒有 WAV，audit 正確回傳 exit 2；ready gate 負向回歸會拒絕 unknown metadata、缺失或 FAIL artifact；必須放入有授權乾聲並補完整 metadata 才能訓練／ready | [`model-training-guide.md`](guides/model-training-guide.md)、[`rvc-model-audit-latest.md`](verification/backends/rvc-model-audit-latest.md) |
-
-## 本輪架構調整狀態
-
-| 工作 | 狀態 | 已完成 | 尚未完成 |
+| 功能 | 交付程度／已具備的小功能 | 尚缺什麼 | 證據／後續任務 |
 |---|---|---|---|
-| Research Workbench 定義與 backend 分組 | `PASS`（文件） | README、`docs/specs/architecture.md`、`docs/specs/voice-conversion-architecture.md` 已改為 Streaming VC／Speech Reconstruction 分層 | 文件重構不代表任何新 backend runtime PASS |
-| Common `audio-rack/` | 契約／route smoke `PASS`；runtime `WAITING` | 已登記 `seed-vc-neutral` preset、Graillon 3.2 profile、Seed-VC virtual route 與 `rack-evidence-v1` schema；VB-CABLE 與 Voicemeeter virtual route smoke 可重跑 | Light Host 實體 bypass/full-chain、plugin Δ latency、完整 backend → rack → route loopback 尚未完成 |
-| `LIVE_GATE <= 5s` | validator contract regression `PASS`；真實 evidence `WAITING` | `docs/specs/live-gate.md` 與 `tools/live-gate-validate.py` 可分類 `LIVE/LIVE_CANDIDATE/OFFLINE/WAITING/BLOCKED`；核對本 run WAV/metrics hashes 與 run/model/GPU/device/route identity | 尚無完整 mic → backend → rack → virtual route 的本機 evidence；synthetic source 只可 WAITING |
-| Seed-VC realtime fork | `PLANNED`／`candidate` | 完成 source／scope intake 文件 | 尚未固定本機 revision、建立獨立 environment 或驗證 |
-| MeanVC2 | `installed / candidate`，基本音訊 `PASS` | 固定 code/model revision、兩組 checkpoint、隔離 venv、雙向 CUDA file-driven streaming WAV、必要權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING` |
-| X-VC | `installed / candidate`，基本音訊 `PASS` | 主模型、GLM tokenizer、ERes2Net、隔離 venv、雙向 CUDA streaming WAV 與權重 hash 均完成 | mic／rack／600 秒與人工品質 `WAITING`；新 streaming 方法另行 intake |
-| CosyVoice3 | `PLANNED`／`candidate` | 在 speech-reconstruction backend 登記 A/B 方向 | 尚未安裝、確認 license／model snapshot 或本機 benchmark |
-| 三層 benchmark | schema／空白模板 `PASS`；實際資料 `PLANNED` | 加入只有 header 的 corpus sample register 與 anonymous listening template；未填入合成台詞、聲音或分數 | 固定 corpus、paired output、客觀比較與人工盲測尚未完成 |
+| [F01 工作區／視窗](specs/app-requirements.md#f01) | 部分交付：三種 layout、WORKSPACE／SETTINGS、首屏 START、雙語與偏好保存 | 完整原生拖曳／Tray／快捷鍵回歸；載入與錯誤流程再改善 | [UI](verification/desktop/usability-audit-latest.md)、[語言](verification/desktop/ui-language-verification-latest.md)；UI-01／02、MOD-01 |
+| [F02 四 VC](specs/app-requirements.md#f02) | 部分交付：Seed／Mean／X 常駐串流、RVC Mic／File、模型預熱及 Start／Stop；RVC 參數控制 | Seed／Mean／X 通用參數 UI、RVC index 覆蓋、physical／完整路由 | [Desktop VC](verification/desktop/realtime-vc-verification-latest.md)；FEAT-01、AUDIO-01、LIVE-01 |
+| [F03 Manual TTS](specs/app-requirements.md#f03) | 核心已交付：雙引擎、Queue／取消／快照、Recent／Favorites、完成播放寫 Transcript、同引擎 worker 重用 | 冷啟動與切換慢；完整 WAV 模式；近期新增音效仍需新生成原生 Speak 全鏈 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[音效](verification/desktop/audio-effects-verification-latest.md)；PERF-01、AUDIO-02 |
+| [F04 常駐 STT／重建](specs/app-requirements.md#f04) | Desktop 未交付；已有離線 CLI、provider／source 契約，畫面重建模式目前僅文字 | physical Mic／Remote capture、VAD、常駐 STT、backend_stt 串接及共存 | [操作審查](verification/desktop/usability-audit-latest.md)、[後端手冊](guides/user-guide.md)；FEAT-03 |
+| [F05 聲音／模型／Preset](specs/app-requirements.md#f05) | 部分交付：TTS catalogue、RVC register／模型選擇、來源 audit 工具 | Voice Library 管理、完整 Preset Save／Load、三個 VC 參數表單；來源限制另驗 | [操作審查](verification/desktop/usability-audit-latest.md)、[模型 audit](verification/backends/rvc-model-audit-latest.md)；FEAT-01、SOURCE-01 |
+| [F06 裝置／音效／路由](specs/app-requirements.md#f06) | 部分交付：精簡裝置、監聽、六引擎音效保存；有 callback／指定 CABLE 分項證據 | RVC duplex 的 B1 近零問題、外部 VST bypass/full-chain、接收端及聽評 | [音效](verification/desktop/audio-effects-verification-latest.md)、[VC](verification/desktop/realtime-vc-verification-latest.md)；AUDIO-01／02、LIVE-01 |
+| [F07 Session／歷史](specs/app-requirements.md#f07) | 部分交付：TTS SQLite、當前 Session Transcript、JSONL／TXT exports | 跨 Session GUI、搜尋／分頁、SRT、版本 migration、保留期限／復原 | [儲存 owner](../services/tts/storage.py)、[維護手冊](../.agent/reference/agent-maintenance-guide.md)；DATA-01、FEAT-02 |
+| [F08 診斷／效能](specs/app-requirements.md#f08) | 部分交付：狀態／錯誤、部分 metrics、TTS warm worker、VC bounded queue | 同配置 cold／warm baseline、UI／DB／長 Session 成本、端到端量測；尚無整體效能達標結論 | [VC](verification/desktop/realtime-vc-verification-latest.md)、[Manual TTS](verification/desktop/manual-tts-verification-latest.md)；BASE-01、UI-02、PERF-01／02 |
+| [F09 設定／安裝](specs/app-requirements.md#f09) | 部分交付：本機開發版 exe、語言／音效／視窗偏好 | installer／portable、新機驗證、auto update、migration／失敗回復 | [Desktop 手冊](guides/desktop-user-guide.md)、[語言](verification/desktop/ui-language-verification-latest.md)；DATA-01、SHIP-01 |
+| [F10 Agent Reply](specs/app-requirements.md#f10) | 未交付：只有停用契約，service 拒絕 agent source | API／Personality／Auto Reply、Phrase Hotkeys、來源與權限驗證 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[service](../services/tts/service.py)；FUT-01 |
+| N01～N04 品質與維護 | 已有 UI 專項回歸、Agent 規則／owner 地圖／維護手冊；本輪補功能 ID 與追蹤 | UI、量測、程式／資料解耦依下列任務逐項交付 | DOC-01、BASE-01、MOD-01／02／03、DATA-01 |
 
-## 本輪工具契約修正與可重跑檢查
+### 最需要注意的現況
 
-- Seed-VC MME endpoint 診斷（2026-09-27）：MME + HyperX QuadCast S 可開啟 `CABLE Output` loopback，但官方 GUI 找不到指定的 MME `CABLE Input` output，於 stream start 前 `BLOCKED`，沒有 callback/backend/loopback metrics。證據 `artifacts/seed-vc/gui-userflow/20260927-phase2-0ad07c8e/realtime-tiny-callback-mme-hyperx/diagnostic.json`，SHA-256 `64780A547D89F232F1617F0FD3DA4D2428E00B0D52C7888469B569C82A7265DB`。
+- 雙語與音效已有 preview／mock／native／重啟專項 PASS；不覆蓋全部原生操作。完整 `test:ui` 的拖曳斷言曾失敗，需 UI-01 重現後判明產品或測試問題。
+- TTS 同引擎第二句已有模型重用證據；cold start／engine switch 仍慢。不能把 warm 單句數字當每次啟動速度，也不能把完整 WAV 可用時間稱為 streaming 首包。
+- 四 VC 短測有輸出；Seed／Mean／X 的 callback 輸入使用 fixture，RVC duplex B1 擷取仍 WAITING。physical 說話、音質、600 秒與 Discord／外部 Rack 未通過完整驗收。
+- 舊 VCClient packaged 的 BLOCKED 與新版 Desktop headless RVC 是不同實作。前者不是後者的依賴；後者局部 PASS 也不修正前者。
 
-- `tools/rvc-ready-gate-regression.ps1`：PASS；register 與 audit 都拒絕 ready 的 unknown metadata、缺失、malformed、FAIL／DEGRADED artifact、錯誤 model／index path／hash 與 input／output hash。
-- `tools/vcclient-rvc-chunk-validation-regression.ps1`：PASS；逐 chunk 拒絕 empty、short、unaligned、全零、NaN 與 Infinity，只接受 finite non-zero float32 response。
-- `tools/rvc-model-audit.py`：現有四列仍為 `WAITING`／`candidate`；ready 需要可解析且 `status=PASS` 的 verification JSON，並核對 model／index／input／output 路徑與 SHA-256。
-- `tools/vcclient-rvc-probe.ps1` 與矩陣：最新 post-gate v2 artifact `artifacts/vcclient-rvc-test-postgate-v2/c0d00306-ce10-4746-9b81-9f0cff5d3ed5/vcclient-rvc-probe.json` 已保存 requested／active／initial slot 與 model evidence；Sage slot `7` runtime probe 為 `DEGRADED`（2/30 valid、28/30 invalid，且 28 個全零）。bounded 矩陣 `artifacts/vcclient-rvc-latency-matrix-postgate-v2/524e1a71-c00c-49c0-9127-82ae23aca119/vcclient-rvc-latency-matrix.json` 的短測 invalid/dropout 為 58/60、28/30、19/20、15/15，1.00 秒與 stability row 維持 `BLOCKED`。v1 Sage 與舊 Wukong／600 秒矩陣只作 historical/full-gate evidence。
-- `tools/speech-reconstruction-run.ps1`：`TextFile` 與 `ReferenceTextFile` 分流；不同 source/reference 音檔未提供 reference transcript 時，另做 reference STT draft；caller text 預設是 `caller_provided_unverified`，只有明確 `-ReferenceTextVerified` 才標 verified，workflow 保存 `reference_text_verified` 與 manual review gate。
-- `tools/audio-quality-batch-regression.py`：PASS；同一 backend 的 `PASS + BLOCKED` 彙總為 `BLOCKED`，`PASS + DEGRADED` 彙總為 `DEGRADED`。
-- `tools/audio-output-validation-regression.py`：PASS；共用 helper 與檔案 gate 覆蓋空檔、零 frame、非 finite、錯誤取樣率、PCM16 與有效訊號；CosyVoice／Breeze runner 的原始 chunk gate 另在實際 runner 執行時生效。
-- `tools/audio-runner-entry-regression.py`：PASS；實際啟動 Breeze／CosyVoice runner subprocess，覆蓋 `--help` 保留 stale PASS、四個明確 output 別名 (`--output`／`--out`／`--outp`／`--o`) 的分開與 `=` 形式（含 `--outp=path`、`--o path`）、重複 output 只清理最後目標、`--` 終止符、四個分開空值與既有 `--out=` 空值在 parser exit 2 時保留 stale output/manifest、非 0 parse failure 的 FAIL manifest 入口，以及 top-level dependency-safe import AST 契約。
-- `tools/audio-rack-evidence-regression.py`：本輪 contract regression `PASS`；建立隔離 tone fixture 核對 source/bypass/full-chain WAV、SHA-256、run/model/hardware/route identity、metrics hash、delta；未配對為 `WAITING`，缺檔/hash/identity/delta mismatch／silence 為 `BLOCKED`、超過 5 秒為 `OFFLINE`，同一 rack fixture 交給 live gate 仍 `WAITING`。這些 fixture 不是 corpus、mic evidence 或 LIVE 成績。
-- 本機 Tcl/Tk root-cause：官方 Python 3.10.11 Tcl/Tk MSI repair exit `0`，repair log SHA-256 `364414613B6E315AFEF0349FC3E1A56B6C421F6CD31B74EE58E53F50D6F2A3BE`，顯示 Tcl/Tk Support configuration completed；`tcl\tk8.6\pkgIndex.tcl` 嘗試從 `Python310\bin\tk86t.dll` 載入，但官方安裝 DLL 位於 `Python310\DLLs`。在目標原本不存在時，主控依安裝授權建立 per-user `Python310\bin` junction → `DLLs`；未覆寫既有路徑或修改 DLL。一般 Windows session 已證明 Tcl `8.6.12`、Tk package `8.6.12` 及 setup／GUI preflight 通過；2026-09-27 加入 manifest 後重驗亦為 exit `0`，核對 RTX 5060 Ti、CUDA、realtime checkpoint/VAD hashes 與 HyperX／VB-CABLE endpoint。另有 1110×660 官方 GUI 截圖目視核對設定，未開始音訊串流。乾淨新機 bootstrap 仍 `WAITING`。
-- `tools/seed-vc-gui-userflow-test.py --preflight`：受控非沙箱執行可核對 source、checkpoint、config、HF cache、reference、裝置配對與 `FreeSimpleGUI` import；本機最新 GUI preflight 另有上述 runtime evidence。受限 sandbox 的 Tcl lookup failure 是 sandbox-only `WAITING`，不覆蓋 host-session PASS。preflight 不啟動 GUI 或 stream；`--help` 與 `py_compile` 均通過。
-- Seed-VC GUI evidence：2026-09-26 四案 GUI settings／backend／CABLE callback `PASS` 是 `offline-v1`，artifact 為 `artifacts/seed-vc/gui-userflow/20260926-after-tcl-repair/gui-userflow-report.json`，不代表 realtime-tiny。2026-09-27 realtime-tiny GUI lifecycle、Stop 後 stream release 與 saved reference restart `PASS`；但兩次 realtime-tiny callback harness 的 backend output／同期 Cable loopback 均 `WAITING`，報告位於 `artifacts/seed-vc/gui-userflow/20260927-phase2-0ad07c8e/realtime-tiny-callback/gui-userflow-report.json` 與 `.../realtime-tiny-callback-normalized/gui-userflow-report.json`。獨立 WASAPI VB-CABLE smoke `PASS` 只證明線路。仍需定位 GUI callback output 缺失，之後再完成實體 mic → audio-rack → virtual route、first-packet timing、10 分鐘穩定性與人工聽測；不得以 deterministic callback 或 synthetic route `PASS` 取代完整 LIVE evidence。
-- `pwsh -NoProfile -File .\tools\seed-vc-assets-regression.ps1 -PythonRuntime D:\AetherTune\tools\venvs\seed-vc\Scripts\python.exe`：`PASS`；18 個 manifest setup/GUI 負測及 foreign-CWD project-root path、saved reference、drive/UNC/volume-root boundary regressions 通過。沒有真實 GUI/audio、安裝或下載。
-- Voicemeeter virtual route：`tools/virtual_cable_loopback.py` 以 WASAPI 合成音實測 `Voicemeeter Input → B1 → Voicemeeter Out B1` `PASS`，144000/144000 frames、RMS `0.0824916288`；`tools/voicemeeter-route-check.py` 另以 Remote API 讀取 `Strip[2].B1=1`、未 mute、15 個非零內部 level，並保存 `artifacts/voicemeeter-b1-route-check.json`。這是 virtual route smoke，不是實體麥克風、VST full-chain 或 `LIVE <= 5s` 證據。
-- `tools/speech-reconstruction-failure-regression.ps1`：PASS；缺少輸入音檔時仍先移除精確的舊 workflow，且不啟動 WSL／模型。
-- `tools/speech-reconstruction-run.ps1 -VoiceDesign`：Breeze wrapper smoke PASS；實際產生 24 kHz、10.48 秒非零 WAV，workflow 記錄 `voice_design=true` 與 `not_applicable_voice_design`。預設未加 switch 的 clone smoke 行為保留。
-- 最新 runner smoke：Breeze `artifacts/speech-reconstruction/breeze-output-gate-v2.json` 為 24 kHz／11.52 秒、`run_id` 與 `output_validation` 通過；CosyVoice `artifacts/speech-reconstruction/cosyvoice-output-gate-v2.json` 為 24 kHz／10.28 秒、`run_id` 與 `output_validation` 通過。兩者仍不是人工音質或 realtime E2E 證據。
+## 工作順序與每批出口
 
-可重跑：
+這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent；除 DOC-01 外，目前任務尚未開工。依賴尚未完成的工作仍列 PLANNED，不虛報正在執行。
 
-```powershell
-Set-Location D:\AetherTune
-& .\tools\rvc-ready-gate-regression.ps1
-& .\tools\vcclient-rvc-chunk-validation-regression.ps1
-& .\.venv\Scripts\python.exe .\tools\rvc-model-audit.py --fail-on-waiting
-& .\.venv\Scripts\python.exe .\tools\audio-quality-batch-regression.py
-& .\.venv\Scripts\python.exe .\tools\audio-output-validation-regression.py
-& .\.venv\Scripts\python.exe .\tools\live-gate-regression.py
-& .\.venv\Scripts\python.exe .\tools\audio-rack-evidence-regression.py
-& .\.venv\Scripts\python.exe .\tools\portaudio-callback-telemetry-regression.py
-```
+| 批次 | 目的／工作 | 出口 |
+|---|---|---|
+| 0：本輪 | DOC-01 規格、進度、架構邊界與 Agent 交接 | 人能讀功能／進度，Agent 能由 ID 找 owner／驗收；文件檢核通過 |
+| 1：先能看懂、量得準 | BASE-01、UI-01；再做 MOD-01、UI-02 | 保留現有 UI／音訊行為，有 baseline、可核對的載入／錯誤操作，原生拖曳問題有結論 |
+| 2：處理根因 | MOD-02／03、DATA-01；依量測做 PERF-01／02 | 模組依賴與資料 writer 清楚，舊資料可升級／復原；改善前後有同條件數字 |
+| 3：補產品缺口 | FEAT-01／02／03、AUDIO-02 | 可保存設定、找歷史、使用常駐 STT；各自有真實功能驗收，不能只靠 UI |
+| 4：日常使用與交付 | LIVE-01、SHIP-01；FUT-01 排後續 | 指定配置與安裝目標逐項通過；沒有證據的引擎／路由保持原分類 |
 
-這一行只驗證 classifier 契約；它不產生真實 LIVE evidence。實際 gate 要把真實 JSON 路徑傳給 `tools/live-gate-validate.py`，沒有 evidence 時不要用虛構資料補 PASS。
+AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在已有合格配置時安排，不必等待全部新功能。不同任務不可同時佔用同一 GPU／音訊線路。
 
-## 目前可直接使用的路線
+## 任務登錄：每列都是可交接單位
 
-在目前證據範圍內，可以直接使用：
+完成條件中的基準與方法連到[優化驗收](specs/verification-plan.md#optimization-acceptance)；歷史 M0～M8 只是功能分組，不能用「走到 M6」推算 M4／M5 已完成。
 
-1. RVC 專案離線推論：`tools/rvc-fcpe-gpu-infer.py`，使用 `FCPE + cuda:0`，輸入自己的 WAV 與現有 `candidate` 模型。
-2. Seed-VC 離線轉換：`tools/seed-vc-run.ps1`，用 male／female reference WAV 做雙向測試。
-3. CosyVoice2 離線 TTS／reference clone：`tools/speech-reconstruction-run.ps1 -Backend cosyvoice`。
-4. Breeze TTS 2 離線 Voice Design／reference clone：同一 wrapper 使用 `-Backend breeze-tts-2`；Voice Design 加 `-VoiceDesign -Instruction`，reference clone 需要人工核對 transcript。
+| ID／優先度 | 功能與交付 | 責任模組／依賴 | 狀態 | 完成條件／證據 |
+|---|---|---|---|---|
+| DOC-01／首要 | N04：功能分層、任務、程式／資料邊界、Agent 最小讀取與交接 | `docs/`、`.agent/`；無 | DONE | 本輪文件差異、功能／任務 ID、相對連結與檔案地圖核對；未改 runtime |
+| BASE-01／首要 | F08、N02：固定 UI／cold／warm／長 Session baseline | app tests、TTS／VC metrics、storage；無 | PLANNED | 記錄 commit／模型／裝置／參數／樣本數、分階段時間、資源／品質指標與重跑入口；達到驗證計畫的 baseline 條件 |
+| UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | PLANNED | fresh PID 的原生 Full／Compact／Mini、拖曳／lock／click-through 恢復與 Tray／hotkey 有逐項證據；先判根因再修 |
+| MOD-01／高 | F01／03、N03：抽離 UI 狀態／訂閱與操作元件 | `app/src/main.tsx`、`components/SpeechWorkspace.tsx`、`services/`；BASE-01、UI-01 | PLANNED | 保持 command／testid／草稿／IME／queue 行為；元件不直接管原生程序，訂閱集中且可清理；UI 交叉回歸與不退步比較 |
+| UI-02／高 | F08.1／3：載入階段、等待、取消與錯誤復原 | UI、speech／engine snapshot；MOD-01 | PLANNED | 三 layout 都能看到目前階段與可用下一步；取消結果明確、未知 ETA 不造數、ACK timeout 不重複送出；Browser＋native 情境證據 |
+| MOD-02／高 | F03、N03：拆出 request validation、queue policy、執行協調、evidence 組裝 | `services/tts/service.py` 及同目錄；BASE-01 | PLANNED | adapter／playback／storage 可注入；無循環依賴；FIFO、取消、accepted ACK、完成播放才寫稿及 cleanup failure 行為不變，契約／生命週期回歸通過 |
+| MOD-03／高 | F06、N03：共用音效脫離 VC 專用層 | `services/engines/postfx.py`、`services/tts/postfx.py`；BASE-01 | PLANNED | 單一 DSP 實作、不依賴 VC／TTS orchestration；callers／tests／文件同步；相同 PCM／設定的 bypass、wet、取消與輸出相容 |
+| DATA-01／高 | F07.4／09、N03：資料版本、writer、migration 與復原 | `services/tts/storage.py`、contracts、UI／shell settings；BASE-01 | PLANNED | 依架構資料表界定 owner；migration 前可用備份、重跑冪等、失敗可復原；舊 session／requests／favorites／設定保留；未完成 queue 不自動重播 |
+| PERF-01／高 | F02／03／08：縮短量測確認的冷載入／生成瓶頸 | adapters、WSL worker、streaming adapters；BASE-01、MOD-02 | PLANNED | 依 baseline 選一個最大成本改善；cold／warm 分報，品質／取消／GPU 回收不退步；沒有顯著改善則不宣稱成功 |
+| PERF-02／高 | F07／08：降低重複更新與長 Session I/O 成本 | UI 訂閱、service snapshot、storage exports；BASE-01、MOD-01、MOD-02、DATA-01 | PLANNED | 先量測事件＋polling、全量 snapshot／export；按瓶頸做有界更新／分頁或可重建匯出；漏事件恢復、durability、queue identity 不退步 |
+| FEAT-01／中 | F02.4／05：通用參數、Voice Library、Preset Save／Load | manifests／voices、UI forms、settings repository；MOD-01、DATA-01 | PLANNED | 六引擎只顯示支援欄位；round-trip 保留 exact route／profile／FX；缺檔／舊版本／不相容 engine 有明確錯誤；不混用 RVC 與 reference |
+| FEAT-02／中 | F07.2／3：Session history、搜尋、分頁與匯出 | storage query／export、Transcript UI；MOD-01、DATA-01 | PLANNED | 跨 session 篩選／分頁穩定；Clear View 不刪 DB；DB 可重建 TXT／JSONL，SRT 有時間檢查；長資料量案例與失敗恢復 |
+| FEAT-03／中 | F04：Mic／Remote capture、VAD、STT、重建串接 | 新增模組限既有 `services/`、contracts、Rust／UI adapter；MOD-02、DATA-01 | PLANNED | physical Self 與 Remote source 分離；切 VC 不停 STT；backend_stt 不重跑辨識；CPU／GPU 共存及回授、取消、durability 驗收 |
+| AUDIO-01／高 | F02／06：RVC duplex B1 與 index 警告定位 | RVC runtime、route、model register；無 | PLANNED | 分別重現路由近零與 index blend skip，不能混判；同輪 callback／獨立接收端證據及固定樣本品質比較；保留失敗報告 |
+| AUDIO-02／高 | F03／06：新增 TTS FX 的完整原生發聲驗收 | Rust SpeechManager → generation → FX → playback；無，可在第三批前執行 | PLANNED | 兩個 TTS 引擎新 request 的原生 Speak、raw／processed hash、指定回錄、Transcript／cleanup 同輪證據；不能以舊 WAV replay 代替 |
+| SOURCE-01／高 | F05.1／4：角色／reference 來源補齊 | models／dataset registers；需要可查證來源或使用者提供資料 | WAITING | 每個採用資產的 license／revision／dataset／hash 與人工採納記錄明確；未知維持 candidate，Agent 不代填 |
+| LIVE-01／高 | F02／06／08：指定配置的 physical／Rack／接收端／600 秒／聽評 | audio-rack／benchmarks／終端；AUDIO-01（若採 RVC B1）、SOURCE-01（採用資產），需實體接點與使用者聽評 | WAITING | 依 [LIVE gate](specs/live-gate.md) 逐配置驗；首包、持續穩定、路由、identity、human review 齊備才改分類 |
+| SHIP-01／後續 | F09：安裝、更新、migration／復原與新機驗證 | app packaging／backend detection；DATA-01，發布清單需對應已驗收功能 | PLANNED | 固定發布功能清單與安裝前置；乾淨環境 install／upgrade／rollback 可重跑，不把 checkout exe 當 portable |
+| FUT-01／後續 | F10：Agent Reply／Phrase Hotkeys | contracts／provider → 既有 speech queue；MOD-02，先確定權限及發聲觸發規格 | PLANNED | 來源、explicit enable、停止／取消、防回授、失敗不自動重送與測試案例先完備，再解除停用 |
 
-5. Breeze TTS 2 project-local UI：啟動 `tools/breeze-tts2-webui.py` 後，在 `http://127.0.0.1:50081` 使用文字、instruction、CFG、seed、reference audio 與 exact transcript；同一 eager／Fast-all 設定會重用 resident runtime。
-6. CosyVoice2 官方 Gradio UI：啟動 `tools/external/CosyVoice/webui.py` 後，在 `http://127.0.0.1:50080` 使用 upload reference clone；瀏覽器麥克風錄音需另外處理權限與 frontend 限制。
+## M0～M8 舊里程碑對照
 
-其中第 1 項是「可測試」而不是「模型已獲授權的 ready preset」；第 2～4 項是離線輸出路線，不等於麥克風即時變聲。
+這張表只連回同一批功能與任務，沒有另一套待辦或百分比。
 
-## Agent 還能繼續做的工作
+| 舊里程碑 | 目前判讀 | 對照 |
+|---|---|---|
+| M0 需求／契約 | 已有；本輪補人與 Agent 共用索引 | DOC-01；契約不表示 runtime 全完成 |
+| M1 Desktop shell | 部分驗收，原生完整回歸仍待補 | F01、UI-01 |
+| M2 engine lifecycle | 四 VC 已有實作與短測，完整鏈路未過 | F02、AUDIO-01、LIVE-01 |
+| M3 參數／Preset | RVC 有參數；完整動態表單／Preset 未交付 | F05、FEAT-01 |
+| M4 STT／history | TTS persistence 已有，常駐 STT／history GUI 未交付 | F04／07、DATA-01、FEAT-02／03 |
+| M5 Voice Library | catalogue 部分交付，管理介面未完成 | F05、FEAT-01、SOURCE-01 |
+| M6 TTS | CosyVoice2／Breeze Manual 已接通，Mic 重建未完成；CosyVoice3 未安裝 | F03／04、FEAT-03；CosyVoice3 另行 intake |
+| M7 Rack／routing | 內建 FX 與指定線路分項通過，外部 full-chain 未完成 | F06、AUDIO-01／02、LIVE-01 |
+| M8 發行 | 本機開發版可建置；正式交付未完成 | F09、SHIP-01 |
 
-- VCClient：可繼續追查上游 packaged binary／版本相容性，或改用另一個已支援 RTX 5060 Ti 的 runtime；在沒有新 binary 或 source 修復前，不能由文件把 `BLOCKED` 改成 `PASS`。
-- RVC realtime：可在 VCClient 修復後重跑矩陣；目前短測 dropout 已足以阻擋 10 分鐘測試，不應反覆把同一份失敗證據重命名成通過。
-- Seed-VC：可補 PortAudio／官方 GUI、實體 loopback 與長時間穩定性；目前 headless 測試不涵蓋麥克風權限與裝置 buffer。
-- Seed-VC GUI：2026-09-27 manifest-enabled setup／GUI preflight、Start/Stop lifecycle 與 saved reference restart `PASS`；realtime-tiny synthetic callback 的 backend WAV 與同步 CABLE capture `WAITING`，必須先定位輸出缺口。既有四案 GUI settings/backend/CABLE loopback `PASS` 使用 `offline-v1`，不代表 realtime-tiny 推論。之後仍需真實麥克風、Light Host audio-rack bypass/full-chain、first-packet timing、10 分鐘穩定性與人工聽測。不得以 deterministic callback 或 synthetic route `PASS` 取代完整 LIVE evidence。
-- 四方法比較：可加入人工聽測表或固定評分規則，但需要使用者實際聽音與確認評分，不應由 Agent 代填主觀音質結論。
-- 共用 audio-rack：先以 Seed-VC 作第一個 mic／loopback candidate，分別測 `bypass` 與 `full-chain`，再把同一 profile 套到其他 backend。
-- MeanVC2／X-VC 已完成下載安裝、固定 revision、必要權重 hash 與雙向 CUDA WAV；基本測試見 [`backend-install-test-latest.md`](verification/backends/backend-install-test-latest.md)。Python 已統一 3.10.x；mic／rack／穩定與人工聽評另驗。Seed-VC realtime fork 保持獨立候選。
-- RVC provenance：可在使用者提供有授權的 raw WAV、來源、license、訓練設定後重新 audit、register 與 ready gate。
-- Breeze／CosyVoice：system SoX、flash-attn、人工音質與預設 runtime 仍有可選優化；CosyVoice 隔離 cuDNN 8 probe 已有可重跑 GPU 證據，但不會覆蓋預設 PyTorch cuDNN 9 runtime。
+## 歷史與獨立路線的證據入口
 
-## 建議下一步
+下列報告保留原日期與範圍，不用來覆蓋上方 Desktop 進度。細部命令、測量值與失敗輪次只留報告，不在本頁複製。
 
-現在可先使用 README 的 Seed-VC tiny GUI 或 MeanVC2／X-VC 本機 WAV 命令；安裝與有效輸出證據见 [`backend-install-test-latest.md`](verification/backends/backend-install-test-latest.md)。完整 Live 主線的下一階段是 mic／audio-rack／virtual route／600 秒與人工聽評；MeanVC2／X-VC 已無「尚未下載安裝」缺口。RVC packaged HTTP 500／全零仍是獨立 baseline 阻塞。
+| 範圍 | 權威報告／限制 |
+|---|---|
+| VCClient packaged／矩陣 | [packaged repair](verification/backends/vcclient-packaged-repair-latest.md)、[latency matrix](verification/backends/vcclient-rvc-latency-matrix-latest.md)：原 packaged 阻礙未由 Desktop 修正 |
+| Seed 官方 GUI／離線與 CLI backend | [Seed readiness](verification/backends/seed-vc-readiness-latest.md)、[Seed GUI](verification/backends/seed-vc-verification-latest.md)、[backend 安裝音訊](verification/backends/backend-install-test-latest.md) |
+| RVC 模型／訓練 | [audit](verification/backends/rvc-model-audit-latest.md)、[訓練手冊](guides/model-training-guide.md)：ready 與音訊通過分開 |
+| CosyVoice／Breeze 官方與 project-local UI | [CosyVoice](verification/backends/cosyvoice-verification-latest.md)、[Breeze](verification/backends/breeze-tts2-verification-latest.md)：各自 runtime／最佳化結果不直接套用 Desktop |
+| 線路、音訊品質與 Rack | [wiring](verification/audio/wiring-verification-latest.md)、[客觀 WAV 比較](verification/audio/audio-quality-comparison-latest.md)、[Rack 契約](../audio-rack/README.md) |
+| 候選／研究 | [來源審核](reference/source-audit.md)、[多後端架構](specs/voice-conversion-architecture.md)、[VoiceStudio 比較](reference/voicestudio-comparison.md)：未安裝候選不列為已交付 |
+
+## 需要人提供或決定的條件
+
+- LIVE-01：實際 Mic／耳機接點、首個驗收接收端（例如 Discord 或 OBS）、使用者聽評；Agent 可先準備量測與路由證據。
+- SOURCE-01：所採模型／聲音的可查證來源與使用範圍；現有未知項不影響文件及一般重構先行。
+- BASE-01：先取得 baseline 再定個人可接受的 cold start／切換等待與音質取捨。完整 LIVE 的既有門檻不改寫。
+- SHIP-01／FUT-01：發布目標與自動發聲權限在開始該任務時確定，不阻擋第一批工作。

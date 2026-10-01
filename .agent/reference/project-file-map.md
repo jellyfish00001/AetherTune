@@ -430,15 +430,15 @@
 | [docs/README.md](../../docs/README.md) | 按 Agent、開發者、一般使用者任務查找文件，並說明權威順序；不保存操作或測試數字。 | 新增、刪除、分拆文件時更新路由，再同步各入口與本索引。 |
 | [docs/specs/architecture.md](../../docs/specs/architecture.md) | 系統研究目標、分層和跨路線不變條件；不保存 runtime 狀態。 | backend、rack 或 evidence boundary 改動同步 `AGENTS.md`、`voice-conversion-architecture.md`、相關 contracts。 |
 | [docs/specs/voice-conversion-architecture.md](../../docs/specs/voice-conversion-architecture.md) | Streaming VC 與 Speech Reconstruction 的 adapter 分工、輸入輸出及下游 handoff；不保存當次狀態。 | 新增 backend/profile 時同步 `backends/README.md`、engine manifests、model/backend register。 |
-| [docs/specs/app-requirements.md](../../docs/specs/app-requirements.md) | Desktop M0/M1/M2 及 Manual TTS 需求，包含 Mode → Engine → Voice → Devices 統一流程與功能邊界。 | UI/contract/native orchestration 變更同步 `app/src`、`contracts/schemas`、app verification。 |
-| [docs/specs/app-architecture.md](../../docs/specs/app-architecture.md) | Desktop React/Tauri/Python orchestration、IPC 與 shell lifecycle 設計；測試命令在 Agent 維護手冊。 | app/native/service protocol 變更同步 `app/src/services/desktop.ts`、Rust commands、`docs/verification/desktop/app-verification-latest.md`。 |
+| [docs/specs/app-requirements.md](../../docs/specs/app-requirements.md) | F01～F10 大／小功能、N01～N04 品質要求與詳細產品行為；進度只記在 status。 | UI/contract/native orchestration 變更同步對應 source／schema／verification 及任務 ID。 |
+| [docs/specs/app-architecture.md](../../docs/specs/app-architecture.md) | Desktop 分層、IPC／lifecycle、模組依賴、資料 writer／migration 與效能設計約束；區分現況／目標。 | app/native/service protocol、資料 owner 變更同步 contracts、Agent 維護手冊與對應 tests／verification。 |
 | [docs/guides/user-guide.md](../../docs/guides/user-guide.md) | 人類 backend 路線選擇、共同 preflight／輸入與對應 CLI 文件入口；單一 backend 的細節由其 README 擁有。 | 路線或入口變更同步 README、對應 backend README。 |
 | [docs/guides/quick-start.md](../../docs/guides/quick-start.md) | Desktop／Manual TTS 快速上手。 | 使用者流程變更時同步 Desktop 手冊與 UI。 |
 | [docs/guides/desktop-user-guide.md](../../docs/guides/desktop-user-guide.md) | Desktop／Manual TTS 詳細操作。 | UI 與 route 變更時同步需求和分項驗證。 |
 | [docs/guides/operation-guide.md](../../docs/guides/operation-guide.md) | Backend 後段 Windows audio rack、VCClient、VST、VB-CABLE／Voicemeeter 接線與排錯；不重述訓練。 | device/route 變更同步 `tools/verify_wiring.ps1`、rack evidence、wiring report。 |
 | [docs/guides/model-training-guide.md](../../docs/guides/model-training-guide.md) | RVC dataset/training/register workflow、metadata、source/provenance gates。 | dataset/model register 或 RVC workflow 變更同步 `models/*register.csv`、dataset audit、RVC tools。 |
 | [docs/specs/live-gate.md](../../docs/specs/live-gate.md) | LIVE/LIVE_CANDIDATE/OFFLINE/WAITING/BLOCKED 的嚴格分類、首包 <=5s、600 秒與 human evidence 要求。 | gate schema/validator 或 evidence 欄位變更同步 `benchmarks/live/live-gate-v1.schema.json`、LIVE tools。 |
-| [docs/specs/verification-plan.md](../../docs/specs/verification-plan.md) | P0–P3 evidence levels 與 Definition of Done，區分環境/匯入/訊號/完整 live/人工驗收。 | 新驗收層或 gate 變更同步所有 verification docs、`AGENTS.md`。 |
+| [docs/specs/verification-plan.md](../../docs/specs/verification-plan.md) | P0–P3 evidence levels、UI／效能 baseline／模組化／migration 的驗收方法與完成條件；不保存實測狀態。 | 驗收條件變更同步受影響任務、tests 與報告模板；LIVE 分類仍由 live-gate 擁有。 |
 | [docs/reference/decision-log.md](../../docs/reference/decision-log.md) | backend、runtime、routing 與 architecture choices 的原因、取捨及日期記錄。 | 重大架構或 source decision 先新增決策，再同步 architecture/source audit。 |
 | [docs/reference/open-questions.md](../../docs/reference/open-questions.md) | 尚未決定的 backend/license/audio/runtime 問題與待釐清事項。 | 問題結案或狀態變更同步 decision log、相關 verification，不把 open item 改寫成 ready。 |
 
@@ -453,7 +453,7 @@
 | [docs/verification/desktop/audio-effects-verification-latest.md](../../docs/verification/desktop/audio-effects-verification-latest.md) | 六引擎音效設定、獨立紀錄、TTS 處理與當輪 native／WAV／CABLE 證據。 | 同步 UI/storage、TTS/engine PostFx、schema、tests；實體音訊與 LIVE 另驗。 |
 | [docs/verification/desktop/ui-language-verification-latest.md](../../docs/verification/desktop/ui-language-verification-latest.md) | 繁中／英文、語言保存、原生系統匣與雙語 UI 專項證據。 | 同步共用文案、i18n context、原生 command 與 UI tests；不升格音訊。 |
 | [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 2026-09-27 Python 3.10 runtime 與已移除 Tk 控制台的歷史驗證；不能作為目前 UI 操作入口。 | runtime 變更看現行 runtime check；Desktop 操作以 user guide 與當輪 app verification 為準。 |
-| [docs/status.md](../../docs/status.md) | 本輪 Agent implementation/test status 集中表，標示 PASS/WAITING/PLANNED 邊界；不能取代各 verifier。 | 每輪實作或驗證後同步相關詳細 report，維持狀態詞彙一致。 |
+| [docs/status.md](../../docs/status.md) | 功能交付摘要、任務 ID／狀態／依賴／完成條件、優先批次與人工條件的唯一追蹤表；證據只連 owner report。 | 實作／驗證後先更新分項 report，再回寫相同任務列；不另建平行 backlog。 |
 | [docs/archive/local-environment.md](../../docs/archive/local-environment.md) | 歷史本機 runtime/device/environment inventory，並指向現行 Python UI verification。 | 本機環境證據改動同步 current verification，不以歷史 inventory 覆蓋新 artifact。 |
 | [docs/reference/parameter-matrix-template.csv](../../docs/reference/parameter-matrix-template.csv) | backend 比較用的 parameter/result template，供 reproducible run 填寫輸入、裝置、route、metrics 與 status。 | 欄位或 backend 增刪同步 benchmark README、quality/live evidence schema。 |
 

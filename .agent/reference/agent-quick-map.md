@@ -22,6 +22,8 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 
 | 任務 | 先看這裡 | 再看／檢核 |
 |---|---|---|
+| 看需求／目前進度、接續優化工作 | [功能規格](../../docs/specs/app-requirements.md)、[任務進度](../../docs/status.md)的單一 F／任務 ID | [交接流程](agent-maintenance-guide.md#task-handoff)；不要把歷史 M 編號當完成順序 |
+| UI／TTS 解耦、共用 DSP、資料 migration／效能 | [模組邊界](../../docs/specs/app-architecture.md#modular-boundaries)、[資料 owner](../../docs/specs/app-architecture.md#data-ownership)及任務列中的 source | [優化驗收](../../docs/specs/verification-plan.md#optimization-acceptance)；先 baseline，保持公開契約 |
 | 使用者操作、文案、視窗可見行為 | `app/src/components/SpeechWorkspace.tsx`、`app/src/main.tsx`、`app/src/style.css` | [Desktop 操作手冊](../../docs/guides/desktop-user-guide.md)、`app/tests/manual-tts.mjs` |
 | Speak／Queue 的前端 ACK 與 snapshot | `app/src/services/speech.ts` | `app/src-tauri/src/speech_manager/mod.rs`、`app/tests/manual-tts.mjs` |
 | Native command、Tray／Exit、程序清理 | `app/src-tauri/src/main.rs`、`app/src-tauri/src/speech_manager/mod.rs`、`app/src-tauri/src/process_manager/mod.rs` | `app/src-tauri/` tests、[維護手冊](agent-maintenance-guide.md) |
@@ -30,7 +32,7 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 | WSL 啟動與取消的程序所有權 | `services/tts/wsl_job.py` | job log、取消測試、`app/tests/audit-speech-processes.py` |
 | Windows 播放與輸出裝置 | `services/tts/playback.py` | Output endpoint、CABLE capture、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |
 | Session、Favorites、SQLite、exports | `services/tts/storage.py` | storage tests、`app/tests/verify-speech-artifacts.mjs` |
-| Seed／Mean／X 的 runner 與 CLI | `services/engines/stream_runtime.py`、`streaming_adapters.py`、對應 `backends/<name>/README.md` | [Desktop VC](../../docs/verification/desktop/realtime-vc-verification-latest.md)、[CLI backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
+| 四 VC 的 runner 與 CLI | `services/engines/stream_runtime.py`、`streaming_adapters.py`、`rvc_runtime.py`、對應 `backends/<name>/README.md` | [Desktop VC](../../docs/verification/desktop/realtime-vc-verification-latest.md)、[CLI backend 實測](../../docs/verification/backends/backend-install-test-latest.md) |
 | Desktop 圖形入口與建置 | 根目錄 `AetherTune.exe`（build 產物）、`app/dev.ps1` | [Desktop 手冊](../../docs/guides/desktop-user-guide.md)、[App 實測](../../docs/verification/desktop/app-verification-latest.md) |
 | Audio Rack、路由、LIVE 分類 | `audio-rack/`、`benchmarks/`、[LIVE gate](../../docs/specs/live-gate.md) | 對應實際 artifact；不要由檔案存在推論 PASS |
 | 未來 Mic／Agent Reply 擴充 | [需求](../../docs/specs/app-requirements.md)、[架構](../../docs/specs/app-architecture.md)、`contracts/` | 先定輸入權限／來源證據；現況 `WAITING`／`PLANNED` |

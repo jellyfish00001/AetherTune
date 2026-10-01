@@ -1,6 +1,16 @@
 # AetherTune 文件入口
 
-本頁按 **Agent 查找 → 開發狀態與規劃 → 一般使用** 排列。Agent 的共用規則與 Skill 在 [`.agent/`](../.agent/README.md)；本頁只指向資訊 owner，不複製操作步驟或實測數字。
+本頁讓人與 Agent 共用相同規格與進度，再依任務找到唯一 owner。Agent 規則與 Skill 在 [`.agent/`](../.agent/README.md)；本頁不複製功能表、待辦、操作步驟或實測數字。
+
+## 先了解產品與目標進度
+
+| 想了解什麼 | 唯一完整內容 |
+|---|---|
+| 有哪些大功能？每個小功能做什麼？ | [產品規格 F01～F10／品質要求 N01～N04](specs/app-requirements.md) |
+| 現在做到哪裡？下一批優先做什麼？ | [目標與任務進度](status.md)：交付程度、證據、任務 ID、依賴、完成條件及人工條件 |
+| UI、效能、程式／資料架構如何改善？ | [App 架構](specs/app-architecture.md#modular-boundaries)：現況、依賴邊界、資料 writer／migration；執行順序只看進度頁 |
+| 怎樣才算完成，而不是只有畫面或程式？ | [驗證計畫](specs/verification-plan.md#optimization-acceptance)：UI、baseline／after、行為相容、資料復原與各證據層 |
+| 下一位 Agent 如何接手？ | [快速地圖](../.agent/reference/agent-quick-map.md)找 owner → [維護手冊交接流程](../.agent/reference/agent-maintenance-guide.md#task-handoff) |
 
 ## Agent：先找 owner
 
@@ -19,7 +29,7 @@
 
 | 要查什麼 | 文件 |
 |---|---|
-| 目前分項狀態與未解項 | [集中狀態索引](status.md)；以各分項報告的日期與 artifact 為準 |
+| 功能進度、工作順序與未解項 | [目標與任務進度](status.md)；驗證結果以分項報告的日期與 artifact 為準 |
 | 待驗收條件 | [驗證計畫](specs/verification-plan.md)、[LIVE gate](specs/live-gate.md) |
 | 已採納與未定案選擇 | [決策紀錄](reference/decision-log.md)、[未決問題](reference/open-questions.md) |
 | 來源、資產、模型 | [來源審核](reference/source-audit.md)、[Seed 資產](reference/seed-vc-assets.md)、[RVC 模型盤點](reference/current-rvc-model-inventory.md)、[參數模板](reference/parameter-matrix-template.csv) |

@@ -22,7 +22,7 @@ git log -1 --format="%H %s"
 | WAV 有聲但沒有播放 | `services/tts/playback.py`、route／PortAudio endpoint | WAV replay diagnostic → real TTS CABLE capture |
 | Transcript／Settings／Favorites 不見 | `services/tts/storage.py`、SQLite／exports | storage fixtures、artifact verifier |
 | Tray／視窗／全域快捷鍵／App Exit | `app/src-tauri/src/main.rs`、process_manager | Rust lifecycle、native UI／Exit 驗證 |
-| VC（Seed／Mean／X）的 Start／Stop | Rust engine_manager → `services/engines/runner_service.py` | runner／cache negatives、desktop probe／engine tests |
+| 四 VC 的 Start／Stop | Rust engine_manager → `services/engines/runner_service.py` → 共用 stream runtime／RVC runtime | runner／cache negatives、desktop probe／engine tests |
 | backend 的實際模型推論 | 對應 `tools/*-infer.py`／`*-run.*` 與 `backends/<name>/README.md` | 指定 backend 的真實 WAV／runtime manifest |
 
 最新可重跑 artifact／verifier 優先於報告文字；報告文字優先於單純檔案存在或 UI 色點。`app-verification-latest.md` 保留首次 M0/M1/M2 歷史，Manual 增量以 [manual-tts-verification-latest.md](../../docs/verification/desktop/manual-tts-verification-latest.md) 為準。集中表只是導航，不覆蓋分項結果。
@@ -46,7 +46,7 @@ flowchart TD
 - React／IPC 只傳文字、選擇與 metadata，不傳 PCM，不提供任意 executable／shell command。
 - Rust `SpeechManager` 懶啟動 Windows Seed Python：`-u -B -m services.tts.service --root <root>`。初始 snapshot 最多等 30 秒；action ACK 最多等 5 秒。ACK timeout 不等於一定沒有接受，先查 Queue，避免再送一次。
 - Python service 只有一個 worker，生成與播放依序完成，不並行跑兩個 request。`TTSOrchestrator` 是 `SpeechService` 的別名，Queue 目前是同一服務內的 deque，沒有另一個隱藏程序。
-- 每個 generation 由 WSL `Ubuntu` 的 `setsid --wait` 啟動自有 process group。取消使用 job-local token／PID record／cancel script 驗證身分；不得改成全域 `pkill python`／`taskkill /IM python.exe`。
+- TTS adapter 使用 WSL `Ubuntu` 的 `setsid --wait` 啟動自有 resident worker process group；同引擎下一句共用 worker，每筆 request 仍保存自己的生成結果。切引擎先關閉舊 adapter，生成中取消回收該 worker，App Exit 也要回收 idle worker。取消使用 worker 所屬 WslJob 的 token／PID record／cancel script 驗證身分；不得改成全域 `pkill python`／`taskkill /IM python.exe`。
 - Windows Job 管理 Windows 衍生程序；**不能證明 Linux group 已退出**。Stop 的 group audit 與退出後的 process audit 都要保留。
 - VC 與 TTS 有分開 manager，Rust 的 `audio_control` mutex 與 active／blocked 檢查防止交疊啟動。`Ctrl+Alt+V`／Tray toggle 仍是 VC runner 操作，不是 TTS shortcut。
 - App Exit 先送 TTS shutdown，再等 Windows Job（TTS grace 12 秒），然後 stop VC。一般 VC Stop grace 為 3 秒。隱藏視窗沒有執行這個 Exit 路徑。
@@ -115,18 +115,18 @@ Rust snapshot 額外帶 `service_alive`／`service_pid`，不是 Python tts-stat
 1. 核對 reference 音訊來源／可用範圍，保持 [dataset/manifests/reference-register.csv](../../dataset/manifests/reference-register.csv) 與必要 provenance 一致，不存私人授權資料／credentials。
 2. 參照 `contracts/voices/reference-female.json`，提供唯一 id、name、engines、references（每個 engine 的 audio_path／text_path）及審核狀態。CosyVoice／Breeze 的 prompt text 可以不同；必須對應 reference 的逐字內容。
 3. 在 root-relative 路徑放已準備資產；WAV 不加入 Git。DRAFT／WAITING 不能自行升為人類通過。
-4. service 的 profile catalogue 在啟動時讀取；正常 Exit／重開才載入修改。UI 的 Browser fallback 三個 profile 是 `speech.ts` 的靜態 imports，新增項目若要在 preview 出現也需同步；native 正式 catalogue 以 service snapshot 為準。
+4. service 的 profile catalogue 在啟動時讀取；正常 Exit／重開才載入修改。UI 的 Browser fallback profiles 是 `speech.ts` 的靜態 imports，新增項目若要在 preview 出現也需同步；native 正式 catalogue 以 service snapshot 為準。
 5. contracts／service tests 通過後，跑真實生成，檢查 runner prompt hash 等於所選 reference、輸出非零、播放與 provider，再另做人工聽評。
 
 每個 accepted request 保存 profile／route／policy metadata 快照，修改下拉選擇只影響新 request。但 reference 路徑指向的檔案不是逐 request 複製鎖定：有 current／pending 時不要覆寫 reference 或模型內容。Voice ID 切換 PASS 是 reference 契約切換證據，不等於聲線相似度通過。
 
 ### 調整參數或新增 Engine
 
-目前 UI 支援兩個 TTS Engine。新增 manifest **不足以**啟動新 engine；還需要 service `ALLOWED_ENGINES`、`default_adapters()`、實際 adapter／runner、profile 支援、UI `supportedEngines`／型別與 tests。不要把 TTS 掛到只允許 Seed／Mean／X 的 VC bridge，或把 CosyVoice3 標成 installed。新增 backend 還需按 AGENTS 更新所有入口／register。
+目前 UI 支援兩個 TTS Engine。新增 manifest **不足以**啟動新 engine；還需要 service `ALLOWED_ENGINES`、`default_adapters()`、實際 adapter／runner、profile 支援、UI `supportedEngines`／型別與 tests。TTS 走 speech service，不能掛到四 VC 使用的 runner bridge，或把 CosyVoice3 標成 installed。新增 backend 還需按 AGENTS 更新所有入口／register。
 
 CosyVoice2 adapter 使用既有 zero-shot runner、fp16 與離線 cache env。Breeze adapter 支援 metadata 的 `instruction`、`cfg_scale`、`seed`、`fast_all`、`attention_implementation`；目前 UI 不送這些控制欄位，實際預設為 cfg=1、seed=42、fast_all=false、eager。manifest parameter 不能被當作 UI 已送值的證明。要補控制項，從 UI payload、validation、adapter argv 到 runner evidence 都核對，且新增非預設值回歸。
 
-`supports_streaming_tts=false` 是現在 adapter 的能力。若補 streaming／warm residency，需同時改 buffer／取消／播放生命週期與首包 metrics，不能只把 manifest flag 改 true。修改基本延遲來源時，保留舊 evidence 並產生新 run。
+`supports_streaming_tts=false` 是現在 adapter 的能力；resident worker 重用已存在，不等於 streaming TTS。若新增 streaming 或改常駐策略，需核對 buffer／取消／播放生命週期與首包 metrics，不能只把 manifest flag 改 true。修改基本延遲來源時，保留舊 evidence 並產生新 run。
 
 ## 5. 存放位置、持久化與 metrics
 
@@ -238,7 +238,32 @@ if ($LASTEXITCODE -ne 0) { throw 'Owned process audit failed' }
 
 不在沒有改動／異常時無理由重跑 20 次。下列層級分開回報：contract／fixture PASS、實際 generation WAV PASS、指定 playback／capture PASS、physical Mic／rack／LIVE／聽評。下載、import、CUDA available、模型存在、HTTP 200、GUI 開啟都不能單獨證明後面的層級。
 
-## 8. 文件與交接維護
+<a id="task-handoff"></a>
+## 8. 任務讀取、完成判定與交接
+
+以[任務進度](../../docs/status.md)的單一任務 ID 開始，不自行建立平行 backlog。先確認任務的 F／N 功能、依賴、owner、完成條件，以及使用者這輪授權的是文件、實作、驗證或發布。Owner 指模組責任，不代表某 Agent 已開始工作。
+
+### 最小讀取與執行
+
+1. 規則 → 任務列 → [規格](../../docs/specs/app-requirements.md)對應功能與必要詳細行為 → [快速地圖](agent-quick-map.md)定位 source。不要預讀全庫或所有報告。
+2. 只讀直接相關契約、source／tests、最近分項報告；有分層／資料變更才讀[模組邊界](../../docs/specs/app-architecture.md#modular-boundaries)與[資料 owner](../../docs/specs/app-architecture.md#data-ownership)。確認原狀 `git status`、commit 與現有變更。
+3. 開始實作才將任務改 IN_PROGRESS，記錄具體子範圍。效能任務先按[驗收計畫](../../docs/specs/verification-plan.md#optimization-acceptance)收 baseline；沒有基準不能在事後挑有利樣本宣稱改善。
+4. 每次只改一個可回退責任；遇契約／權威邊界變更先回到規格與架構判讀，再擴充實作。若委派，遵守使用者模型分工、精確可改路徑與單一 writer，不因有 task ID 就自動建立 sidebar chat。
+5. 執行受影響檢核；UI 用 Browser＋自動化交叉檢查，資料改動驗 migration／restore，audio 變更依真實範圍收 artifact。某層未驗就明列，不以 compile／mock 升格。
+6. 結果先寫分項 owner report，再更新 `docs/status.md` 的同一任務列及功能摘要。完成條件全滿足才 DONE；實作完成但缺指定 native／physical／人工條件時保持 WAITING 並寫清缺項；實際技術錯誤用 BLOCKED，未開工用 PLANNED。
+
+### 交接記錄格式
+
+將以下欄位填入相關報告／任務列及當輪回覆，不另外建立空泛的「Agent 摘要」文件：
+
+| 欄位 | 必填內容 |
+|---|---|
+| 任務與範圍 | 任務 ID、F／N 功能、開始／完成日期、commit／工作樹差異；這次做到哪個子範圍 |
+| 修改 | exact source／schema／docs 路徑、行為與依賴前後、保留的公開契約 |
+| 驗證 | 真實命令、exit／結果、測試層與未跑原因；效能 before／after 的配置與樣本數 |
+| 證據 | report、run／request／session ID、artifact／hash、UI URL／viewport／截圖或 trace；不存 credentials 或私人聲音授權文件 |
+| 風險與復原 | 未解問題、migration／rollback、剩餘 WAITING／BLOCKED 的精確條件 |
+| 下一步 | 下一個任務 ID、先讀文件或可重跑命令；需要使用者實體操作／聽評時寫具體需求 |
 
 新增／刪除／更名檔案時同步 [project-file-map.md](project-file-map.md) 的逐檔連結。操作改變同步操作手冊；協定／ownership 改變同步本手冊與 app architecture／schemas；實測狀態改變更新對應 verification 與集中狀態，附命令、hash、device、artifact、限制。驗證報告只記該輪事實，不替所有新機背書。
 

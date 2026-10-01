@@ -13,6 +13,46 @@
 
 每項測試都要記錄 run id、輸入與模型 hash、runtime、裝置／provider、命令、輸出 artifact、判定及未解事項。編譯、HTTP 200、UI 可開啟、provider 清單或合成 tone 只回答它們自己的檢查，不能提升其他層級。
 
+<a id="optimization-acceptance"></a>
+## UI、效能與模組化的驗收
+
+本節定義[任務進度](../status.md)中 BASE／UI／MOD／DATA／PERF 的共同完成條件；這些是接下來的檢核規格，不是已量測成果。各任務可只執行受影響的測試，不要求每次文件修改重跑模型。
+
+### UI 與操作流程
+
+| 情境 | 驗收重點 |
+|---|---|
+| Full／Compact／Mini | 基準 logical viewport 1040×740、420×490、420×74，TTS Quick Input 420×260；另核對 Windows 125% DPI。主操作可達，長裝置名稱與英文不遮擋控制，沒有水平溢出 |
+| 輸入與切換 | 鍵盤／IME 不誤送，草稿、已接受 Queue、route／FX 快照不因語言／layout／頁面切換而改變；繁中／英文標籤與可及性名稱一致 |
+| 空白／載入／忙碌／錯誤 | 說明目前輸入與去向；真實狀態呈現排隊／載入／生成／播放／停止。不可用按鈕有原因；失敗提供可執行下一步，不靜默成功或盲目重送 |
+| 原生系統操作 | fresh App PID 驗證 drag／lock、click-through 解除、Tray、hotkey、Exit／重啟；失敗需分辨產品缺陷與測試定位問題，不能只移除斷言 |
+| 實際發聲 | preview／mock 只驗畫面及 payload；新增或改音訊流程需另用 native request、生成 WAV、output／capture、Transcript 及 cleanup 串起證據 |
+
+先用內建 Browser／一般 Browser 重現可見狀態，再用 Playwright／CDP 做可重跑斷言，修改後兩者複核。每份報告記工具、URL／route、viewport／DPI、actions、assertions、console／network、screenshots／trace、native 或 mock 邊界。某層不可用明列 WAITING；沒有操作的系統匣不能由物件文字讀回推定實體點擊通過。
+
+### 效能 baseline 與改善判定
+
+| 範圍 | 固定案例／資料 | 必須量的指標 |
+|---|---|---|
+| VC 載入／處理 | 相同 commit、engine、模型／reference hash、precision、block／lookahead、端點與 FX；cold 與 RUNNING 後分報 | load／warmup、首個非零輸出、model p50／p95、RTF、backlog／drops、underrun／overrun、CPU／GPU memory；端到端另量 |
+| TTS cold／warm／切換 | 固定文字、voice／reference、seed、引擎參數、route／FX；cold、同 worker warm、切 engine、取消後重載各獨立案例 | queue wait、model load、generation、完整 WAV 可用、postfx、first playback callback、完成播放、Stop 清理時間與 worker identity |
+| UI 更新 | Full／Compact／Mini、idle／active／hidden，各記錄 60 秒；包含事件湧入與漏事件恢復 | IPC 次數／bytes、in-flight 數、update／render 時間、CPU／RSS；訂閱卸載與終態到達，不因停 poll 失去更新 |
+| DB／長 Session | 隔離測試 DB 的 10／100／1000 筆 request／Transcript，固定文字長度；同一程式與磁碟 | snapshot bytes／耗時、query／commit／export latency、檔案 bytes、UI render／RSS；1000 筆是合成儲存測試，不跑 1000 次模型或冒充音訊穩定 |
+
+初始量測方法：每個受影響配置至少 3 次 cold 記 median／range，warm 至少 20 次記 median／p95 與樣本數；不足就明列樣本限制，不混池推算 p95。UI／storage 案例重跑 3 次。原始 samples、失敗輪次、測量工具與起迄事件都需保留；不同引擎、硬體、DPI、路由不能直接平均。昂貴案例只跑本次受影響配置，已通過且未變動者不反覆重跑。
+
+效能任務開始時由 BASE-01 鎖定目標指標與容許波動，再做修改。初始工程評估準則是：目標 latency 或工作量降低至少 10%，且大於 baseline 的重跑波動；其他關鍵 latency 不惡化超過 10%，無新增音訊失敗／drops／程序殘留。這是待 baseline 校準的內部準則，**不是使用者已承諾接受的等待時間，也不修改 LIVE gate**；若量測波動大於差異，結論只能是無法證明改善。單純拆檔以行為不變及無可辨識效能退步驗收，不強求速度提升。
+
+品質與資源 gate 同時適用：輸出 finite／nonzero、sample rate／frame／hash evidence 完整，保留取消／錯誤 recovery；涉及音色／index／precision／buffer 的改善要成對聽評。Stop／Exit 後 audit 本輪 Windows／WSL ownership；長時間記憶體與音訊穩定按該任務時長與 [LIVE gate](live-gate.md) 分別報告。單次 VRAM 截圖或 60 秒 UI idle 不證明沒有 memory leak 或 600 秒 LIVE。
+
+### 程式與資料模組化
+
+- **依賴與介面：**按[架構](app-architecture.md#modular-boundaries)核對 import／call graph；共用模組不反向依賴 UI／orchestrator。原公開入口、ACK／error、request snapshot 與 schema 相容；變更前後相同 contract fixtures。
+- **故障隔離：**用注入 adapter／playback／storage 驗 FIFO、取消、普通失敗後下一句、cleanup failure 阻擋、完成播放後 storage failure 不重播；共用 Post-FX 比較 bypass／wet／聲道／frames，不能只測模組可 import。
+- **資料 migration：**舊 schema／設定 fixtures → 備份 → 升級 → 重開 → 重跑 migration，驗 row／identity、unique request transcript、favorites／settings；注入中斷驗 rollback／restore。未知版本明確拒絕，不靜默清空。
+- **匯出與效能：**DB commit 成功後 export failure 仍可重建且不重播；改增量／分頁時覆蓋中斷、重試、不重複、不漏資料；先記錄 10／100／1000 baseline 再比較。
+- **交付範圍：**報告給出改動模組、依賴前後、相容／migration 與 rollback；UI／native／音訊是否需補驗按實際影響判斷。實際命令集中於[Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md)，結果回寫 owner report，再更新任務列。
+
 ## Phase 0：環境與來源
 
 1. 固定上游 source／revision／license；登記模型、reference、依賴與本機位置。權威登錄在 [source-audit.md](../reference/source-audit.md)、`models/*register.csv` 和 `dataset/manifests/`。

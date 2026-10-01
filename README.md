@@ -12,13 +12,14 @@ AetherTune 是 Windows 本地的語音轉換與語音重建研究工作台。現
 | RVC 資料、訓練與模型交接 | [RVC 訓練手冊](docs/guides/model-training-guide.md) |
 | Windows 虛擬音訊、VST、VCClient 與下游接線 | [音訊路由操作手冊](docs/guides/operation-guide.md) |
 | 按任務找文件、狀態與驗證 | [文件入口](docs/README.md) |
+| 了解大／小功能與目標進度 | [產品規格](docs/specs/app-requirements.md) → [功能與任務進度](docs/status.md) |
 | Agent 尋找規則與修改位置 | [Agent 控制中心](.agent/README.md) → [Agent 快速地圖](.agent/reference/agent-quick-map.md) |
 
 在已準備的 Windows 工作目錄，從根目錄開啟 **`AetherTune.exe`**。執行 `app/dev.ps1 -Build` 會把新的 Desktop build 複製到這個入口；舊 Tk 控制台已移除。這仍是依賴完整 checkout 與本機模型／runtime 的開發版，沒有正式 installer／portable 發行包。新電腦須按[詳細操作手冊](docs/guides/desktop-user-guide.md)與對應[backend 文件](backends/README.md)準備。
 
 ## 路線與目前邊界
 
-- **Streaming VC**：使用來源聲音和 reference 改變聲線，目標是保留原始表演。Seed-VC 是 baseline；MeanVC2、X-VC 已有檔案驅動 CUDA WAV 證據；RVC 是需訓練模型的歷史對照。各 backend 的實際命令與限制由[後端使用手冊](docs/guides/user-guide.md)及對應 `backends/<name>/README.md` 負責。
+- **Streaming VC**：使用來源聲音改變聲線，目標是保留原始表演。Desktop 已接入 Seed-VC／MeanVC2／X-VC 的 reference 路線與 RVC 訓練角色模型路線；分項證據與未完成驗收見[功能進度](docs/status.md)。各 backend 的實際命令與限制由[後端使用手冊](docs/guides/user-guide.md)及對應 `backends/<name>/README.md` 負責。
 - **Speech Reconstruction**：從文字及 reference 重新生成語音，不保證保留原聲的呼吸、停頓與情緒。Desktop Manual TTS 操作由[快速說明](docs/guides/quick-start.md)負責，離線 STT → TTS CLI 由[後端使用手冊](docs/guides/user-guide.md)負責。
 - `LIVE`、`OFFLINE`、`WAITING` 的判定只以 [LIVE gate](docs/specs/live-gate.md) 及對應[驗證報告](docs/README.md)為準。程式可開啟、模型存在或產生 WAV 都不能單獨證明 physical mic → backend → rack → virtual route 完整通過。
 

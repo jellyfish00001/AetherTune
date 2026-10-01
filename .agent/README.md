@@ -5,9 +5,9 @@
 ## 讀取順序
 
 1. 修改前讀 [專案規則](rules/project.md)，確認 owner、資料與證據邊界。
-2. 用 [文件入口](../docs/README.md)依任務選最小資料集；程式 owner 用 [快速地圖](reference/agent-quick-map.md)，逐檔用途才查 [檔案索引](reference/project-file-map.md)。
+2. 用 [文件入口](../docs/README.md)依任務選最小資料集；規格用 F01～F10、工作用[任務進度](../docs/status.md)的 ID 對齊。程式 owner 用 [快速地圖](reference/agent-quick-map.md)，逐檔用途才查 [檔案索引](reference/project-file-map.md)。
 3. 可重複的文件定位與更新工作使用 [文件路由 Skill](skills/doc-routing/SKILL.md)；其他 Skill 只有在任務符合其 `description` 時才讀取。
-4. 實作與報告依 `contracts/`、source、verifier 和當輪 artifact 核對。`docs/` 保存操作、設計與證據，不能替代可執行契約。
+4. 實作與報告依 `contracts/`、source、verifier 和當輪 artifact 核對；依[交接流程](reference/agent-maintenance-guide.md#task-handoff)回寫 owner report 與任務列。`docs/` 保存操作、設計與證據，不能替代可執行契約。
 
 ## 放置邊界
 
