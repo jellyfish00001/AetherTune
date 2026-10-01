@@ -34,6 +34,8 @@ Rust 負責 window／overlay／tray、程序、global hotkey、single instance�
 
 Overlay 必須支援 frameless、透明、Always on Top、drag、lock position、click-through、可調 opacity、模式切換、show／hide 與 Tray。預設 `Ctrl+Alt+A` 顯示／隱藏，`Ctrl+Alt+V` Start／Stop；快捷鍵可修改。Click-through 必須有快捷鍵／Tray 的解除入口。
 
+介面語言在設定中切換繁體中文／英文，預設繁中；操作、提示、狀態、可及性名稱與系統匣依同一偏好立即更新，完整重開仍保留。切換不清空草稿、不修改路由／音效或重新送出佇列；機器 ID、裝置名稱、使用者內容與原始診斷資料保留原文。保存／系統匣失敗明確提示，無效儲存值回到繁中。
+
 關閉主視窗預設收至 Tray。完整產品 Tray：Open、Show Overlay、Start／Stop、Mute、Current Engine、Open Transcript、Exit。第一輪只有可以實際執行的 window／runner／Exit 項目，Mute／Transcript 不作假操作。
 
 ## Engine、參數、Preset、Voice

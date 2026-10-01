@@ -2,6 +2,8 @@
 
 日期：2026-10-01（Asia/Taipei）。本頁擁有 SETTINGS 音效設定、六引擎獨立紀錄、TTS 生成後處理與本輪證據。操作以 [Desktop 手冊](../../guides/desktop-user-guide.md) 為準；四 VC 串流／模型證據仍見 [VC 報告](realtime-vc-verification-latest.md)，本頁不重判實體音訊或 LIVE。
 
+同日後續繁中／英文與原生系統匣更新由 [介面語言報告](ui-language-verification-latest.md)擁有；下方 exe hash 與畫面為音效實作階段，最新 exe 見後續報告。
+
 ## 實作
 
 - 音效的唯一編輯位置為 SETTINGS → 音效設定。選 RVC／MeanVC2／X-VC／Seed-VC／CosyVoice／Breeze，各自保存一份啟用、dry-wet、三頻 EQ、壓縮、殘響及增益；同引擎不同角色／參考音目前共用該紀錄。

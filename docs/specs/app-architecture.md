@@ -37,6 +37,14 @@ flowchart TB
 
 同一個 Python bridge 接各 VC Adapter；argv routing 受 engine allowlist 限制，模型用各自 venv。RVC 的 UI 參數從 manifest 呈現、JSON request 傳遞，runner 再驗範圍及 register hash。headless RVC 不啟動上游 GUI、不經 IPC 傳 PCM。
 
+## 介面語言
+
+`app/src/services/i18n.tsx` 提供 React context、語言選擇與 interpolation；`app/src/locales/messages.json` 是繁中／英文文案的唯一來源，每筆依序保存 `[zh-TW, en]`。原生系統匣由 Rust 編譯時包含同一 JSON，`set_ui_language` 僅接受 `zh-TW`／`en` 並更新既有選單 ID 的文案與 tooltip；不啟動、停止或重設音訊服務。
+
+`aethertune.ui-language.v1` 保存獨立的顯示偏好，預設與無效值回到繁中。語言切換直接重繪元件、更新 HTML `lang`（`zh-Hant`／`en`），不 reload 或 remount 工作區；已產生的提示以 message key／參數呈現，使切換後同步更新。前端於啟動時讀取偏好並同步系統匣。保存與系統匣更新錯誤分開回報。
+
+狀態代碼、engine/profile IDs、端點值與 IPC payload 不翻譯；內建參考聲音的顯示名稱與說明可翻譯，使用者文字與未知外部資料保留。後端原始紀錄／詳細錯誤保留供排錯。測試以穩定 `data-testid` 定位 controls，另以雙語可見文案與 aria label 驗證可及性。
+
 ## 程序與狀態語意
 
 Rust 只啟動固定的 bridge 與既有 Python。前端不能指定 executable 或任意 shell command。bridge 的 request 寫入 ignored `artifacts/desktop/control/`；runner 結果進 `artifacts/desktop/runs/<uuid>/`。backend stdout／stderr 轉成 `log` events；每行立即 flush 到 `artifacts/desktop/logs/*.jsonl`，UI 僅保留最近 500 events。

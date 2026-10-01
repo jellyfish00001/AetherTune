@@ -1,3 +1,4 @@
+import { uiText, setUiLocale } from './ui-text.mjs';
 // 真實 Desktop WebView2 → Rust IPC → TTS service → 播放路由的單句驗證。
 // 會實際發聲；必須由操作人明確設定環境旗標，且不會自行關閉 App。
 import assert from 'node:assert/strict';
@@ -18,6 +19,7 @@ await mkdir(fileURLToPath(new URL('../../output/playwright/', import.meta.url)),
 const browser = await chromium.connectOverCDP(process.env.AETHERTUNE_CDP ?? 'http://127.0.0.1:9223');
 const page = browser.contexts()[0].pages().find((candidate) => candidate.url().includes('tauri.localhost'));
 assert.ok(page, '找不到本次 Desktop 的原生 WebView2 頁面');
+setUiLocale(await page.locator('html').getAttribute('lang'));
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -30,25 +32,25 @@ let report = { status: 'WAITING', started_at: new Date(startedAt).toISOString(),
 
 try {
   assert.equal(await page.locator('main').getAttribute('data-native'), 'true');
-  await page.getByRole('button', { name: 'Full', exact: true }).click();
-  await page.getByRole('button', { name: 'WORKSPACE', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'VOICE', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: 'TRANSCRIPT', exact: true }).count(), 0);
-  await page.getByLabel('Mode', { exact: true }).selectOption('text_to_speech');
-  await page.getByLabel('TTS Output').waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: uiText('Full'), exact: true }).click();
+  await page.getByRole('button', { name: uiText('WORKSPACE'), exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: uiText('VOICE'), exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: uiText('TRANSCRIPT'), exact: true }).count(), 0);
+  await page.getByTestId('control:Mode').selectOption('text_to_speech');
+  await page.getByTestId('control:TTS Output').waitFor({ state: 'visible' });
   await page.waitForFunction(() => {
-    const select = document.querySelector('select[aria-label="TTS Output"]');
+    const select = document.querySelector('select[data-testid="control:TTS Output"]');
     return select && !select.disabled && select.value !== '';
   }, null, { timeout: 30000 });
-  const output = await page.getByLabel('TTS Output').locator('option:checked').textContent();
-  assert.ok(output?.includes('系統預設'), `未自動選中系統輸出：${output}`);
+  const output = await page.getByTestId('control:TTS Output').locator('option:checked').textContent();
+  assert.ok(output?.includes(uiText(' · 系統預設')), `未自動選中系統輸出：${output}`);
   assert.ok(!/CABLE|Voicemeeter/i.test(output), `系統預設是虛擬線路；停止實體喇叭 smoke：${output}`);
-  await page.getByLabel('Voice profile').selectOption({ label: '中文參考聲音（官方範例）' });
+  await page.getByTestId('control:Voice profile').selectOption({ label: uiText('中文參考聲音（官方範例）') });
   const before = await invoke('speech_status');
   const existingIds = new Set(before.queue.map((item) => item.id));
-  await page.getByLabel('Speech composer').fill(phrase);
+  await page.getByTestId('control:Speech composer').fill(phrase);
   await page.screenshot({ path: screenshotPath });
-  await page.getByRole('button', { name: 'Speak', exact: true }).click();
+  await page.getByRole('button', { name: uiText('Speak'), exact: true }).click();
 
   let request;
   let snapshot;

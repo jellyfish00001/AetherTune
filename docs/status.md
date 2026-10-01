@@ -2,6 +2,8 @@
 
 **文件邊界：**這是分項報告的集中導航與未解事項清單，不是獨立驗證權威。各 PASS／WAITING 以相應報告與可重跑 artifact 為準；本頁保留當輪摘要，不複製新的操作手冊或修改契約。
 
+2026-10-01 介面語言：設定可切換繁中／英文，工作區、音效、TTS 佇列、視窗與系統匣共用文案，完整退出重開保留偏好；草稿、路由、音效與送出請求不變。Preview／mock／原生與重啟專項 PASS，詳細命令及畫面見 [介面語言驗證](verification/desktop/ui-language-verification-latest.md)。本輪沒有重跑模型或 LIVE 音訊。
+
 2026-10-01 六引擎音效設定：音效移至 SETTINGS，六引擎各自保存紀錄、單項重設與重啟還原；TTS 加入生成後／播放前處理，queue 保留送出時的設定。41 個 service／WAV tests、preview／mock／原生設定與完整 App 重啟專項 PASS；既有雙引擎生成 WAV 處理及 Breeze 處理後 CABLE 回錄 PASS。新生成／原生 Speak＋FX 全鏈與實體人耳聽評沒有因此升格，詳見 [音效設定驗證](verification/desktop/audio-effects-verification-latest.md)。
 
 2026-10-01 Desktop 畫面審查：四 VC 的 START 移至首屏，修正 Mic／WAV／文字模式提示，移除工程佔位、空白 VC Transcript 與無作用的 Mini 文字按鈕。內建 Browser、Edge preview／mock 與原生 WebView2 UI 專項 PASS，根目錄 exe 已更新；實體耳機接點與人耳聽評仍未確認。未完成功能與測試邊界見 [操作畫面審查](verification/desktop/usability-audit-latest.md)。

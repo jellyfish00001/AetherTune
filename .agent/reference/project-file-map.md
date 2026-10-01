@@ -124,6 +124,8 @@
 | [app/src/components/VcAudioControls.tsx](../../app/src/components/VcAudioControls.tsx) | 四 VC 共用 reference、裝置與監聽 controls；音效編輯由設定頁擁有。 | 同步 main request、音訊裝置與 UI tests。 |
 | [app/src/components/AudioEffectsSettings.tsx](../../app/src/components/AudioEffectsSettings.tsx) | SETTINGS 六引擎音效編輯、數值草稿、單項重設與保存提示。 | 同步 audio-effects storage、main requests、音效 UI test 與 Desktop 手冊。 |
 | [app/src/services/audio-effects.ts](../../app/src/services/audio-effects.ts) | 六引擎獨立音效記錄、範圍校驗、預設與舊 VC 設定移轉。 | 同步 Python postfx defaults/bounds、AudioEffectsSettings 與持久化測試。 |
+| [app/src/services/i18n.tsx](../../app/src/services/i18n.tsx) | 共用語言 context、設定控制、即時切換、HTML lang、偏好保存與系統匣同步。 | 同步共用文案、原生 set_ui_language 與雙語測試。 |
+| [app/src/locales/messages.json](../../app/src/locales/messages.json) | React 與 Rust 系統匣唯一的繁中／英文文案，每筆依序為 zh-TW／en。 | 新增文案補齊兩語與相同插值，重建前端／原生並跑 i18n test。 |
 | [app/src/services/desktop.ts](../../app/src/services/desktop.ts) | Tauri `invoke/listen` wrapper、default Shell、engine manifest JSON imports 與 browser/native boundary。 | 同步 `main.tsx`、Rust commands/events、`contracts/engines/*.json` 與 UI tests。 |
 | [app/src/services/speech.ts](../../app/src/services/speech.ts) | Speech snapshot/action types、contract voice fallback、snapshot/error normalization、nested enqueue IPC 與 speech-event filtering。 | 同步 `contracts/voices/*.json`、`tts-state`/speech request schema、Rust speech manager、Manual TTS tests。 |
 | [app/src/style.css](../../app/src/style.css) | Full/Compact/Mini shell、TTS controls、queue、composer、settings、transcript 與 quick popup 的 visual/layout rules。 | 修改 layout 後跑 `app/tests/ui.mjs`、`manual-tts.mjs`，並複核 1040×740、420×490、420×260。 |
@@ -152,6 +154,8 @@
 | [app/tests/probe-report.py](../../app/tests/probe-report.py) | 解析 `artifacts/desktop/integration/{seed-vc,meanvc2,xvc}-probe.jsonl`，確認同一 EngineManager 的 final `OFFLINE`、service 不存活與無 PID survivor，並比對既有 runner baseline 未被改寫；輸出 `probe-report.json`，保留 realtime audio `WAITING`。 | 同步 `desktop-probe.rs` event/output、engine lifecycle 與 `docs/verification/desktop/app-verification-latest.md`；這是 process/control report，不是 audio E2E。 |
 | [app/tests/ui.mjs](../../app/tests/ui.mjs) | Playwright browser 或 optional Tauri CDP UI regression；驗證三種 shell 尺寸、mode/engine filtering、click-through/hide。 | 同步 `main.tsx`/`style.css`/Tauri window behavior；交叉複核 Browser 與 native evidence。 |
 | [app/tests/audio-effects.mjs](../../app/tests/audio-effects.mjs) | Preview／原生音效設定、引擎隔離、移轉、reload、重設與 Compact 設定入口。 | 同步 audio-effects service/model 與 UI；原生測試後還原既有紀錄。 |
+| [app/tests/i18n.mjs](../../app/tests/i18n.mjs) | 文案完整性、漏接 JSX、雙語／aria、偏好、六引擎、草稿與設定不變及原生選單專項。 | Native 僅 idle 時執行，完成後恢復原始偏好與 session；不測真實音訊。 |
+| [app/tests/ui-text.mjs](../../app/tests/ui-text.mjs) | 測試共用的文案查找 helper；controls 用穩定 data-testid，顯示斷言用語系。 | 同步 locale catalog 與 UI tests，不能注入瀏覽器 fixture 作為 runtime 函式。 |
 | [app/tests/verify-speech-artifacts.mjs](../../app/tests/verify-speech-artifacts.mjs) | 以 AJV 與 SHA-256 核對正式 probe 的 session/request/state/transcript schema、request/profile/reference/output/model/route evidence、WAV hash、FIFO、metrics、SQLite exports 與 `service_alive=false`；不做 Windows/WSL PID cleanup，該責任屬 `audit-speech-processes.py`。 | 同步 `speech-probe`、`manual-audio-smoke.py`、TTS service snapshot/contracts 與 Manual TTS verification。 |
 
 ## `audio-rack/`
@@ -447,6 +451,7 @@
 | [docs/verification/desktop/realtime-vc-verification-latest.md](../../docs/verification/desktop/realtime-vc-verification-latest.md) | Desktop 四 VC 無聲修復、Post-FX、當輪 streaming/route evidence 與剩餘 physical gate。 | 同步 stream/rvc runtime、manifest、UI、可重跑 smoke。 |
 | [docs/verification/desktop/usability-audit-latest.md](../../docs/verification/desktop/usability-audit-latest.md) | Desktop 操作畫面審查、模式差異、未完成／多餘 UI 與修正證據。 | 同步 main/SpeechWorkspace、UI tests、Desktop 手冊；UI PASS 不升格實體音訊。 |
 | [docs/verification/desktop/audio-effects-verification-latest.md](../../docs/verification/desktop/audio-effects-verification-latest.md) | 六引擎音效設定、獨立紀錄、TTS 處理與當輪 native／WAV／CABLE 證據。 | 同步 UI/storage、TTS/engine PostFx、schema、tests；實體音訊與 LIVE 另驗。 |
+| [docs/verification/desktop/ui-language-verification-latest.md](../../docs/verification/desktop/ui-language-verification-latest.md) | 繁中／英文、語言保存、原生系統匣與雙語 UI 專項證據。 | 同步共用文案、i18n context、原生 command 與 UI tests；不升格音訊。 |
 | [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 2026-09-27 Python 3.10 runtime 與已移除 Tk 控制台的歷史驗證；不能作為目前 UI 操作入口。 | runtime 變更看現行 runtime check；Desktop 操作以 user guide 與當輪 app verification 為準。 |
 | [docs/status.md](../../docs/status.md) | 本輪 Agent implementation/test status 集中表，標示 PASS/WAITING/PLANNED 邊界；不能取代各 verifier。 | 每輪實作或驗證後同步相關詳細 report，維持狀態詞彙一致。 |
 | [docs/archive/local-environment.md](../../docs/archive/local-environment.md) | 歷史本機 runtime/device/environment inventory，並指向現行 Python UI verification。 | 本機環境證據改動同步 current verification，不以歷史 inventory 覆蓋新 artifact。 |

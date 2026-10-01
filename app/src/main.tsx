@@ -1,3 +1,4 @@
+import { useI18n, LanguageProvider, LanguageSettings } from './services/i18n';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -171,6 +172,7 @@ function preferredOutput(devices: AudioDevices, hostApi: string, currentOutput: 
 }
 
 function App() {
+  const { t, diagnostic } = useI18n();
   const defaultAppShell: ShellWithQuickInput = { ...defaultShell, quick_input: false };
   const [storedVcSettings] = useState(readVcSettings);
   const [shell, setShell] = useState<ShellWithQuickInput>(defaultAppShell);
@@ -181,7 +183,7 @@ function App() {
   const [status, setStatus] = useState<Status>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [validation, setValidation] = useState('');
+  const [validation, setValidation] = useState<{ valid: boolean; reason: string } | null>(null);
   const [reference, setReference] = useState(storedVcSettings.reference ?? 'D:\\AetherTune\\dataset\\reference-voices\\voice-female-f1.wav');
   const [source, setSource] = useState(storedVcSettings.source ?? 'D:\\AetherTune\\dataset\\reference-voices\\voice-male-m1.wav');
   const [input, setInput] = useState(storedVcSettings.input ?? '');
@@ -314,7 +316,7 @@ function App() {
     setMode(nextMode);
     const first = manifests.find((manifest) => manifest.capabilities.includes(capabilities[nextMode]));
     if (first) setEngine(first.id);
-    setValidation('');
+    setValidation(null);
   }
 
   function openSettings() {
@@ -392,20 +394,21 @@ function App() {
     }
   }, [audioEffects]);
 
-  const modes = <div className="window-modes" aria-label="視窗模式">{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini'}</button>)}</div>;
-  const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>▶ START</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>■ STOP</button></div>;
+  const modes = <div className="window-modes" data-testid="control:視窗模式" aria-label={t("視窗模式")}>{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} data-testid={`window-mode-${windowMode}`} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{t(windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini')}</button>)}</div>;
+  const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>{t("▶ START")}</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>{t("■ STOP")}</button></div>;
   const formatDb = (value: unknown, alreadyDb = false): string => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return 'N/A';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return t('N/A');
     if (alreadyDb) return `${value.toFixed(1)} dB`;
     if (value === 0) return '-∞ dB';
     return `${(20 * Math.log10(Math.abs(value))).toFixed(1)} dB`;
   };
-  const formatMs = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} ms` : 'N/A';
+  const formatMs = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} ms` : t('N/A');
   const metrics = status.metrics;
   const inputPeak = formatDb(metrics?.input_peak_db ?? metrics?.input_peak, metrics?.input_peak_db !== undefined);
   const outputPeak = formatDb(metrics?.output_peak_db ?? metrics?.output_peak, metrics?.output_peak_db !== undefined);
-  const formatRtf = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)}×${value > 1 ? ' · 較慢' : ''}` : 'N/A';
-  const meters = <><div className="metrics"><div><span>MODEL P95</span><strong>{formatMs(metrics?.p95_ms)}</strong></div><div><span>RTF（速度比；&gt;1 較慢）</span><strong>{formatRtf(metrics?.rtf)}</strong></div><div><span>GPU</span><strong>{status.runtime?.gpu ?? status.runtime?.device ?? 'N/A'}</strong></div><div><span>INPUT PEAK</span><strong>{inputPeak}</strong></div><div><span>OUTPUT PEAK</span><strong>{outputPeak}</strong></div></div><p className="hint">p95 為模型處理時間，不代表端到端延遲。Blocks {typeof metrics?.blocks === 'number' ? metrics.blocks : 'N/A'} · Input drops {typeof metrics?.input_drops === 'number' ? metrics.input_drops : 'N/A'} · Output drops {typeof metrics?.output_drops === 'number' ? metrics.output_drops : 'N/A'} · Underruns {typeof metrics?.underruns === 'number' ? metrics.underruns : 'N/A'}</p></>;
+  const formatRtf = (value: unknown): string => typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)}×${value > 1 ? t(' · 較慢') : ''}` : t('N/A');
+  const count = (value: unknown) => typeof value === 'number' ? value : t('N/A');
+  const meters = <><div className="metrics"><div><span>{t('MODEL P95')}</span><strong>{formatMs(metrics?.p95_ms)}</strong></div><div><span>{t('RTF（速度比；>1 較慢）')}</span><strong>{formatRtf(metrics?.rtf)}</strong></div><div><span>GPU</span><strong>{status.runtime?.gpu ?? status.runtime?.device ?? t('N/A')}</strong></div><div><span>{t('INPUT PEAK')}</span><strong>{inputPeak}</strong></div><div><span>{t('OUTPUT PEAK')}</span><strong>{outputPeak}</strong></div></div><p className="hint">{t('metrics.note', { blocks: count(metrics?.blocks), inputDrops: count(metrics?.input_drops), outputDrops: count(metrics?.output_drops), underruns: count(metrics?.underruns) })}</p></>;
 
   const speechProps = isSpeechMode ? {
     mode: mode as 'speech_reconstruction' | 'text_to_speech',
@@ -427,40 +430,40 @@ function App() {
   const speechSettings = speechProps ? <SpeechWorkspace {...speechProps} settingsOnly /> : null;
   const miniQuickWorkspace = speechProps ? <SpeechWorkspace {...speechProps} quickOnly /> : null;
   const effectsSettings = <AudioEffectsSettings engine={effectsEngine} onEngine={setEffectsEngine} settings={audioEffects[effectsEngine] ?? defaultAudioEffects} onSettings={(next) => setAudioEffects((previous) => ({ ...previous, [effectsEngine]: normalizeAudioEffects(next) }))} saveError={effectsSaveError}/>;
-  const overlaySettings = <section className="panel settings"><h1>Overlay &amp; shortcuts</h1><label>Opacity · {Math.round(shell.opacity * 100)}%<input aria-label="Opacity" type="range" min="0.45" max="1" step="0.01" value={shell.opacity} onChange={(event) => void changeShell({ opacity: Number(event.target.value) })}/></label><label className="check"><input type="checkbox" checked={shell.always_on_top} onChange={(event) => void changeShell({ always_on_top: event.target.checked })}/>Always on Top (Full)</label><label className="check"><input type="checkbox" checked={shell.locked} onChange={(event) => void changeShell({ locked: event.target.checked })}/>Lock Position</label><label>顯示／隱藏快捷鍵<input aria-label="Overlay hotkey" value={hotkeys.visibility_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, visibility_hotkey: event.target.value })}/></label><label>Runner Start / Stop 快捷鍵<input aria-label="Voice hotkey" value={hotkeys.voice_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, voice_hotkey: event.target.value })}/></label><button disabled={!native} onClick={() => void changeShell(hotkeys)}>儲存快捷鍵</button><details><summary>Diagnostics</summary><pre aria-label="Backend logs">{log.length ? log.map((entry) => JSON.stringify(entry)).join('\n') : '尚無 backend log'}</pre></details><button disabled={!native} onClick={() => void command('exit')}>Exit AetherTune</button></section>;
+  const overlaySettings = <section className="panel settings"><h1>{t("Overlay & shortcuts")}</h1><label>{t('Opacity')} · {Math.round(shell.opacity * 100)}%<input data-testid="control:Opacity" aria-label={t("Opacity")} type="range" min="0.45" max="1" step="0.01" value={shell.opacity} onChange={(event) => void changeShell({ opacity: Number(event.target.value) })}/></label><label className="check"><input type="checkbox" checked={shell.always_on_top} onChange={(event) => void changeShell({ always_on_top: event.target.checked })}/>{t("Always on Top (Full)")}</label><label className="check"><input type="checkbox" checked={shell.locked} onChange={(event) => void changeShell({ locked: event.target.checked })}/>{t("Lock Position")}</label><label>{t("顯示／隱藏快捷鍵")}<input data-testid="control:Overlay hotkey" aria-label={t("Overlay hotkey")} value={hotkeys.visibility_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, visibility_hotkey: event.target.value })}/></label><label>{t("Runner Start / Stop 快捷鍵")}<input data-testid="control:Voice hotkey" aria-label={t("Voice hotkey")} value={hotkeys.voice_hotkey} onChange={(event) => setHotkeys({ ...hotkeys, voice_hotkey: event.target.value })}/></label><button disabled={!native} onClick={() => void changeShell(hotkeys)}>{t("儲存快捷鍵")}</button><details><summary>{t("Diagnostics")}</summary><pre data-testid="control:Backend logs" aria-label={t("Backend logs")}>{log.length ? log.map((entry) => JSON.stringify(entry)).join('\n') : t('尚無 backend log')}</pre></details><button disabled={!native} onClick={() => void command('exit')}>{t("Exit AetherTune")}</button></section>;
 
   return <main className={`shell ${shell.mode}`} style={{ opacity: shell.mode === 'full' ? 1 : shell.opacity }} data-native={native}>
-    <header><div className="brand" onPointerDown={beginDrag} onPointerMove={updateDrag} onPointerUp={(event) => { updateDrag(event); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}><span className="mark">≈</span><b>AetherTune</b><span className="version">DESKTOP · v0.1</span></div><div className="window-tools"><button aria-label="收進 Tray" disabled={!native} onClick={() => void command('hide')}>─</button><button aria-label="關閉至 Tray" disabled={!native} onClick={() => void command('hide')}>×</button></div></header>
+    <header><div className="brand" onPointerDown={beginDrag} onPointerMove={updateDrag} onPointerUp={(event) => { updateDrag(event); if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}><span className="mark">≈</span><b>AetherTune</b><span className="version">{t("DESKTOP · v0.1")}</span></div><div className="window-tools"><button data-testid="control:收進 Tray" aria-label={t("收進 Tray")} disabled={!native} onClick={() => void command('hide')}>─</button><button data-testid="control:關閉至 Tray" aria-label={t("關閉至 Tray")} disabled={!native} onClick={() => void command('hide')}>×</button></div></header>
     {shell.mode === 'mini' ? <>
-      <div className="mini-row"><span className="dot"/><strong title={selected.name}>{isRvc ? 'RVC' : selected.name}</strong><span>{isSpeechMode ? 'TTS' : status.value}</span>{!isSpeechMode && <span>{formatMs(status.metrics?.p95_ms)}</span>}<span title={isSpeechMode ? '輸入文字後播放' : rvcFile ? source : input}>{isSpeechMode ? '文字' : rvcFile ? 'WAV' : 'Mic'}</span><button disabled={!native || !implemented || !vcRouteValid || busy || isSpeechMode} aria-label={active ? 'Stop runner' : 'Start runner'} onClick={() => void (active ? stop() : start())}>{active ? '■' : '▶'}</button>{isSpeechMode && <button className="mini-quick-trigger" aria-label="開啟 TTS Quick Input" onClick={() => void changeShell({ quick_input: true })}>[T]</button>}<button aria-label="展開 Compact" onClick={() => void changeShell({ mode: 'compact', click_through: false, quick_input: false })}>↗</button></div>
+      <div className="mini-row"><span className="dot"/><strong title={selected.name}>{isRvc ? 'RVC' : selected.name}</strong><span>{isSpeechMode ? 'TTS' : t(status.value)}</span>{!isSpeechMode && <span>{formatMs(status.metrics?.p95_ms)}</span>}<span title={isSpeechMode ? t('輸入文字後播放') : rvcFile ? source : input}>{isSpeechMode ? t('文字') : rvcFile ? 'WAV' : t('Mic')}</span><button disabled={!native || !implemented || !vcRouteValid || busy || isSpeechMode} aria-label={t(active ? 'Stop runner' : 'Start runner')} onClick={() => void (active ? stop() : start())}>{active ? '■' : '▶'}</button>{isSpeechMode && <button className="mini-quick-trigger" data-testid="control:開啟 TTS Quick Input" aria-label={t("開啟 TTS Quick Input")} onClick={() => void changeShell({ quick_input: true })}>[T]</button>}<button data-testid="control:展開 Compact" aria-label={t("展開 Compact")} onClick={() => void changeShell({ mode: 'compact', click_through: false, quick_input: false })}>↗</button></div>
       {isSpeechMode && shell.quick_input && miniQuickWorkspace}
-      {error && <div role="alert" className="error">{error}</div>}
+      {error && <div role="alert" className="error">{diagnostic(error)}</div>}
     </> : <>
-      <div className="topline"><span className="tag">{native ? 'LOCAL DESKTOP' : '瀏覽器預覽 · 無程序控制'}</span>{modes}</div>
-      {shell.mode === 'full' && <nav>{[{ id: 'LIVE', label: 'WORKSPACE' }, { id: 'SETTINGS', label: 'SETTINGS' }].map((tab) => <button key={tab.id} className={page === tab.id ? 'selected' : ''} onClick={() => tab.id === 'SETTINGS' ? openSettings() : setPage(tab.id)}>{tab.label}</button>)}</nav>}
+      <div className="topline"><span className="tag">{t(native ? 'LOCAL DESKTOP' : '瀏覽器預覽 · 無程序控制')}</span>{modes}</div>
+      {shell.mode === 'full' && <nav>{[{ id: 'LIVE', label: 'WORKSPACE' }, { id: 'SETTINGS', label: 'SETTINGS' }].map((tab) => <button key={tab.id} data-testid={`nav-${tab.id}`} className={page === tab.id ? 'selected' : ''} onClick={() => tab.id === 'SETTINGS' ? openSettings() : setPage(tab.id)}>{t(tab.label)}</button>)}</nav>}
       <div className="content">
         {(page === 'LIVE' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
-          <div className="headline"><div><span className="eyebrow">VOICE WORKSPACE</span><h1>{shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode]}</h1></div><span className="state"><i className="dot"/>{status.value}</span></div>
-          <div className="live-grid"><section className="panel setup"><h2>變聲控制</h2>
-            <label>Mode<select aria-label="Mode" disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
-            <label>Engine <span className="classification">{selected.classification}</span><select aria-label="Engine" disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(''); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
-            <p className="adapter-label">{rvcFile ? '來源 WAV 模式 · START 轉換並播放音檔，不讀取麥克風。' : '麥克風模式 · START 後等待 RUNNING，再開始說話；STOP 後可切換引擎。'}</p>
+          <div className="headline"><div><span className="eyebrow">{t("VOICE WORKSPACE")}</span><h1>{t(shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode])}</h1></div><span className="state"><i className="dot"/>{t(status.value)}</span></div>
+          <div className="live-grid"><section className="panel setup"><h2>{t("變聲控制")}</h2>
+            <label>{t("Mode")}<select data-testid="control:Mode" aria-label={t("Mode")} disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).map(([key, value]) => <option key={key} value={key}>{t(value)}</option>)}</select></label>
+            <label>{t("Engine")}<span className="classification">{t(selected.classification)}</span><select data-testid="control:Engine" aria-label={t("Engine")} disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(null); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
+            <p className="adapter-label">{t(rvcFile ? '來源 WAV 模式 · START 轉換並播放音檔，不讀取麥克風。' : '麥克風模式 · START 後等待 RUNNING，再開始說話；STOP 後可切換引擎。')}</p>
             {controls}
-            <button type="button" className="text-button" aria-label="調整音效" onClick={openSettings}>音效：{postfx.enabled ? '已啟用' : '關閉'} · 到設定調整</button>
+            <button type="button" className="text-button" data-testid="control:調整音效" aria-label={t("調整音效")} onClick={openSettings}>{t('effects.entry', { state: t(postfx.enabled ? '已啟用' : '關閉') })}</button>
             {shell.mode === 'full' && <>
               {isRvc && <RvcControls parameters={rvcParameters} onParameters={setRvcParameters} locked={locked}/>}
               {isStreamingVc && <VcAudioControls reference={reference} onReference={setReference} showReference={!isRvc} showInput={!rvcFile} input={input} onInput={setInput} output={output} onOutput={setOutput} host={host} onHost={setHost} monitor={vcMonitor} onMonitor={setVcMonitor} audioDevices={audioDevices} locked={locked} native={native} showAllOutputs={showAllVcOutputs} onShowAllOutputs={setShowAllVcOutputs} audioDeviceError={audioDeviceError} audioDeviceBusy={audioDeviceBusy} onReloadAudioDevices={() => void reloadAudioDevices()}/>}
-              {isRvc && rvcFile && <label>Source WAV<input aria-label="Source WAV" disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label>}
+              {isRvc && rvcFile && <label>{t("Source WAV")}<input data-testid="control:Source WAV" aria-label={t("Source WAV")} disabled={locked} value={source} onChange={(event) => setSource(event.target.value)}/></label>}
             </>}
-            {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || !vcRouteValid || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation(`${result.valid ? '預檢 PASS · ' : '預檢 BLOCKED · '}${result.events.at(-1)?.reason ?? ''}`); })}>檢查啟動條件</button>}
-            {validation && <p role="status" className="hint">{validation}</p>}
-          </section><section className="panel monitoring"><h2>串流狀態</h2>{meters}<p className="hint">{status.reason}</p><div className="route"><span>INPUT · {host || '未選擇 Host API'}</span><b>{isRvc && rvcFile ? `Source WAV · ${source}` : input || '未選擇輸入裝置'}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>OUTPUT · {host || '未選擇 Host API'}</span><b>{output || '未選擇輸出裝置'}</b></div><details><summary>驗收與使用限制</summary><p className="hint">{selected.limitations.join(' ')} 即時字幕／ME／REMOTE 語音紀錄尚未提供。</p></details></section></div>
-        </> : <>{effectsSettings}{isSpeechMode && speechSettings}{overlaySettings}</>}
-        {error && <div role="alert" className="error">{error}</div>}
+            {shell.mode === 'full' && <button className="text-button" disabled={!native || !implemented || !vcRouteValid || busy || active} onClick={() => void act(async () => { const result = await command<{ valid: boolean; events: { reason?: string; message?: string }[] }>('validate', { engine, request }); setValidation({ valid: result.valid, reason: result.events.at(-1)?.reason ?? '' }); })}>{t("檢查啟動條件")}</button>}
+            {validation && <p role="status" className="hint">{t(validation.valid ? '預檢 PASS · ' : '預檢 BLOCKED · ')}{diagnostic(validation.reason)}</p>}
+          </section><section className="panel monitoring"><h2>{t("串流狀態")}</h2>{meters}<details><summary>{t('backend.detail')}</summary><p className="hint">{diagnostic(status.reason)}</p></details><div className="route"><span>{t('INPUT')} · {host || t('未選擇 Host API')}</span><b>{isRvc && rvcFile ? `${t('Source WAV')} · ${source}` : input || t('未選擇輸入裝置')}</b><i>↓</i><b>{selected.name}</b><i>↓</i><span>{t('OUTPUT')} · {host || t('未選擇 Host API')}</span><b>{output || t('未選擇輸出裝置')}</b></div><details><summary>{t("驗收與使用限制")}</summary><p className="hint">{selected.limitations.map((note) => t(note)).join(' ')} {t('即時字幕／ME／REMOTE 語音紀錄尚未提供。')}</p></details></section></div>
+        </> : <><LanguageSettings/>{effectsSettings}{isSpeechMode && speechSettings}{overlaySettings}</>}
+        {error && <div role="alert" className="error">{diagnostic(error)}</div>}
       </div>
-      <footer><span>ENGINE {selected.name} · {isSpeechMode ? '文字發聲' : status.value}</span>{!isSpeechMode && <span>{rvcFile ? '來源 WAV' : '麥克風輸入'}</span>}<button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{shell.locked ? '解鎖位置' : '鎖定位置'}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>Click-through</button>}</footer>
+      <footer><span>{t('ENGINE')} {selected.name} · {t(isSpeechMode ? '文字發聲' : status.value)}</span>{!isSpeechMode && <span>{t(rvcFile ? '來源 WAV' : '麥克風輸入')}</span>}<button disabled={!native} aria-pressed={shell.locked} onClick={() => void changeShell({ locked: !shell.locked })}>{t(shell.locked ? '解鎖位置' : '鎖定位置')}</button>{shell.mode !== 'full' && <button disabled={!native} aria-pressed={shell.click_through} onClick={() => void changeShell({ click_through: !shell.click_through })}>{t("Click-through")}</button>}</footer>
     </>}
   </main>;
 }
 
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(<LanguageProvider><App/></LanguageProvider>);

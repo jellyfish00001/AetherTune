@@ -12,6 +12,24 @@
 
 要使用文字發聲或麥克風變聲，請開 **Tauri Desktop**。瀏覽器的 Speak／Queue／START 停用是預期行為。Streaming VC 的 RVC 麥克風模式／Seed-VC／MeanVC2／X-VC 按 START 直接啟動音訊串流；RVC 來源 WAV 模式則轉換播放音檔，不讀麥克風。切換引擎前先 STOP。Text → Voice 與目前的 Speech Reconstruction 都是輸入文字按 Speak，不能按 START 說話。Seed 官方 GUI 與獨立 CLI 仍可依[後端手冊](user-guide.md)操作。
 
+### 切換介面語言
+
+開「設定（Settings）→ 介面語言 → 顯示語言」，選 **繁體中文** 或 **English**。預設繁體中文，選擇立即套用到工作區、音效、TTS 佇列、視窗控制與系統匣，完整退出／重開後仍保留。不需重新開始變聲；切換語言不更動文字草稿、路由、音效參數或佇列請求。儲存失敗會明確提示。
+
+本手冊保留英文術語方便對照原生契約；繁中畫面的主要對照如下。引擎／模型 ID、Windows 裝置名稱、使用者輸入與原始診斷紀錄保留原文。
+
+| 英文介面 | 繁中介面 |
+|---|---|
+| Workspace / Settings | 工作區／設定 |
+| Mode / Engine | 模式／引擎 |
+| Realtime voice conversion / Text to voice | 即時變聲／文字發聲 |
+| Start / Stop | 開始／停止 |
+| Speak / Add to queue | 發聲／加入佇列 |
+| Full / Compact / Mini | 完整／精簡／迷你 |
+| Loading / Ready / Running | 載入中／已就緒／執行中 |
+
+畫面與重啟保存證據見 [介面語言驗證](../verification/desktop/ui-language-verification-latest.md)。
+
 ### 麥克風變聲與音效
 
 1. 保持 `Mode = Streaming VC`，選 Engine。RVC 使用已登錄角色模型；其他三個引擎沿用預選 Reference WAV。裝置清單載入後，App 自動選實體麥克風與實體播放端；合法的已保存選擇會保留，不改 Windows 預設裝置。

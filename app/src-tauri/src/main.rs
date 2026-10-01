@@ -15,7 +15,31 @@ struct Shell {
     quick_input:bool,
 }
 impl Default for Shell { fn default()->Self { Self { mode:"full".into(),opacity:0.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:"Ctrl+Alt+A".into(),voice_hotkey:"Ctrl+Alt+V".into(),quick_input:false } } }
-struct Desktop { engine:Mutex<EngineManager>, speech:Mutex<SpeechManager>, audio_control:Mutex<()>, shell:Mutex<Shell>, last:Mutex<Option<(String,Value)>> }
+struct Desktop { engine:Mutex<EngineManager>, speech:Mutex<SpeechManager>, audio_control:Mutex<()>, shell:Mutex<Shell>, ui_language:Mutex<String>, last:Mutex<Option<(String,Value)>> }
+
+// 原生系統匣與 React 共用同一份文案；選單 ID 與行為不隨語言變更。
+fn ui_text(language:&str, key:&str)->String {
+    static CATALOG:std::sync::OnceLock<Value>=std::sync::OnceLock::new();
+    let catalog=CATALOG.get_or_init(||serde_json::from_str(include_str!("../../src/locales/messages.json")).expect("Invalid UI translation catalog"));
+    catalog[key][if language=="en" {1}else{0}].as_str().unwrap_or(key).to_string()
+}
+fn localized_tray_menu(app:&tauri::AppHandle,language:&str)->Result<(Menu<tauri::Wry>,Vec<MenuItem<tauri::Wry>>),String> {
+    let items=[("open","tray.open"),("overlay","tray.overlay"),("toggle","tray.toggle"),("recover","tray.recover"),("exit","tray.exit")].into_iter()
+        .map(|(id,key)|MenuItem::with_id(app,id,ui_text(language,key),true,None::<&str>).map_err(|e|e.to_string())).collect::<Result<Vec<_>,_>>()?;
+    let menu=Menu::with_items(app,&[&items[0],&items[1],&items[2],&items[3],&items[4]]).map_err(|e|e.to_string())?;
+    Ok((menu,items))
+}
+#[tauri::command]
+fn set_ui_language(app:tauri::AppHandle,language:String)->Result<Value,String> {
+    if !["zh-TW","en"].contains(&language.as_str()) {return Err("Invalid UI language".into());}
+    let (menu,items)=localized_tray_menu(&app,&language)?;
+    let tray=app.tray_by_id("aethertune").ok_or("Tray unavailable")?;
+    tray.set_menu(Some(menu)).map_err(|e|e.to_string())?;
+    tray.set_tooltip(Some(ui_text(&language,"tray.tooltip"))).map_err(|e|e.to_string())?;
+    *app.state::<Desktop>().ui_language.lock().unwrap()=language.clone();
+    let labels=items.iter().map(|item|item.text().map_err(|e|e.to_string())).collect::<Result<Vec<_>,_>>()?;
+    Ok(json!({"language":language,"labels":labels}))
+}
 
 fn record_action(action:&str) {
     let folder=engine_manager::root().join("artifacts/desktop");
@@ -127,7 +151,7 @@ fn window_status(app:tauri::AppHandle)->Result<Value,String> {
     let extended_style=unsafe {windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(w.hwnd().map_err(|e|e.to_string())?.0 as _,windows_sys::Win32::UI::WindowsAndMessaging::GWL_EXSTYLE)};
     #[cfg(not(windows))]
     let extended_style=0isize;
-    Ok(json!({"size":w.inner_size().map_err(|e|e.to_string())?,"position":w.outer_position().map_err(|e|e.to_string())?,"scale_factor":w.scale_factor().map_err(|e|e.to_string())?,"visible":w.is_visible().map_err(|e|e.to_string())?,"always_on_top":w.is_always_on_top().map_err(|e|e.to_string())?,"decorated":w.is_decorated().map_err(|e|e.to_string())?,"extended_style":extended_style,"native_click_through":extended_style&0x20!=0,"tray_registered":app.tray_by_id("aethertune").is_some()}))
+    Ok(json!({"size":w.inner_size().map_err(|e|e.to_string())?,"position":w.outer_position().map_err(|e|e.to_string())?,"scale_factor":w.scale_factor().map_err(|e|e.to_string())?,"visible":w.is_visible().map_err(|e|e.to_string())?,"always_on_top":w.is_always_on_top().map_err(|e|e.to_string())?,"decorated":w.is_decorated().map_err(|e|e.to_string())?,"extended_style":extended_style,"native_click_through":extended_style&0x20!=0,"tray_registered":app.tray_by_id("aethertune").is_some(),"ui_language":app.state::<Desktop>().ui_language.lock().unwrap().clone()}))
 }
 #[tauri::command]
 fn set_shell(app:tauri::AppHandle, shell:Shell)->Result<(),String> {
@@ -176,19 +200,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app,_,_|reveal(app,None)))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(Desktop{engine:Mutex::new(EngineManager::new()),speech:Mutex::new(SpeechManager::default()),audio_control:Mutex::new(()),shell:Mutex::new(shell),last:Mutex::new(None)})
-        .invoke_handler(tauri::generate_handler![discover,validate,start,stop,status,logs,speech_status,speech_action,shell_status,window_status,set_shell,drag,move_window,hide,exit])
+        .manage(Desktop{engine:Mutex::new(EngineManager::new()),speech:Mutex::new(SpeechManager::default()),audio_control:Mutex::new(()),shell:Mutex::new(shell),ui_language:Mutex::new("zh-TW".into()),last:Mutex::new(None)})
+        .invoke_handler(tauri::generate_handler![discover,validate,start,stop,status,logs,speech_status,speech_action,shell_status,window_status,set_shell,set_ui_language,drag,move_window,hide,exit])
         .setup(|app| {
             let handle=app.handle(); let shell=app.state::<Desktop>().shell.lock().unwrap().clone();
             register_hotkeys(handle,&shell)?; apply_shell(handle,&shell)?;
-            let open=MenuItem::with_id(app,"open","Open AetherTune",true,None::<&str>)?;
-            let overlay=MenuItem::with_id(app,"overlay","Show Overlay",true,None::<&str>)?;
-            let toggle=MenuItem::with_id(app,"toggle","Start / Stop runner (TEMPORARY)",true,None::<&str>)?;
-            let recover=MenuItem::with_id(app,"recover","Disable click-through",true,None::<&str>)?;
-            let quit=MenuItem::with_id(app,"exit","Exit",true,None::<&str>)?;
-            let menu=Menu::with_items(app,&[&open,&overlay,&toggle,&recover,&quit])?;
+            let (menu,_)=localized_tray_menu(handle,"zh-TW")?;
             let icon=tauri::image::Image::new_owned([45u8,212,191,255].repeat(32*32),32,32);
-            TrayIconBuilder::with_id("aethertune").icon(icon).tooltip("AetherTune — audio WAITING").menu(&menu).show_menu_on_left_click(false)
+            TrayIconBuilder::with_id("aethertune").icon(icon).tooltip(ui_text("zh-TW","tray.tooltip")).menu(&menu).show_menu_on_left_click(false)
                 .on_menu_event(|app,e|{record_action(&format!("tray:{}",e.id.as_ref()));match e.id.as_ref(){"open"=>reveal(app,Some("full")),"overlay"=>reveal(app,Some("compact")),"recover"=>reveal(app,None),"toggle"=>{let handle=app.clone();std::thread::spawn(move||toggle_voice(&handle));},"exit"=>app.exit(0),_=>{}}})
                 .on_tray_icon_event(|tray,event|if matches!(event,TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}) {record_action("tray:left_click");reveal(tray.app_handle(),None);})
                 .build(app)?;

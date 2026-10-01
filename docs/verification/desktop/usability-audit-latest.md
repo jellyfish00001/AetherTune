@@ -2,7 +2,7 @@
 
 日期：2026-10-01（Asia/Taipei）。本頁擁有本輪 Desktop 畫面的未完成／多餘項目、修正及 UI 證據。操作以 [Desktop 手冊](../../guides/desktop-user-guide.md) 為準；模型、串流與回錄證據以 [四 VC 驗證](realtime-vc-verification-latest.md) 為準。本輪 UI 審查沒有重新生成語音或進行實體聽評。
 
-同日後續更新：音效已移至 SETTINGS，六引擎獨立保存與完整 App 重啟驗證由[音效設定報告](audio-effects-verification-latest.md)擁有。下方 hash／截圖是本次畫面審查階段，當前 exe hash 以後續報告為準。
+同日後續更新：音效已移至 SETTINGS，六引擎獨立保存與完整 App 重啟驗證由[音效設定報告](audio-effects-verification-latest.md)擁有；繁中／英文與系統匣語言由[介面語言報告](ui-language-verification-latest.md)擁有。下方 hash／截圖是本次畫面審查階段，當前 exe hash 以後續報告為準。
 
 ## 能否每個項目都按 START 說話
 
