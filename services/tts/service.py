@@ -28,6 +28,7 @@ if __package__ in (None, ""):
 
 from services.engines.postfx import validate_postfx
 from services.tts.postfx import render_postfx
+from services.tts.snapshot import project_profile, project_queue
 
 if __package__ in (None, ""):
     from services.tts.adapters import (
@@ -181,15 +182,7 @@ class SpeechService:
             playback_open_blocked = self._read_playback_open_blocked()
             current_id = self._current_id
             state = self._state
-            ordered_ids: list[str] = []
-            if current_id is not None:
-                ordered_ids.append(current_id)
-            ordered_ids.extend(request_id for request_id in self._pending if request_id != current_id)
-            # current／pending 保持原順序，terminal history 按建立順序接在後面。
-            # _requests 的 key 唯一，只需排除 active IDs；避免長歷史的逐筆 list 掃描。
-            active_ids = set(ordered_ids)
-            ordered_ids.extend(request_id for request_id in self._requests if request_id not in active_ids)
-            queue = [self._public_request(self._requests[request_id]) for request_id in ordered_ids]
+            queue = project_queue(self._requests, current_id, self._pending)
         readiness = self.engine_readiness()
         return {
             "type": "speech_snapshot",
@@ -204,7 +197,7 @@ class SpeechService:
                 "current_request_id": current_id,
                 "queue": queue,
                 "transcript": self._store.list_transcripts(),
-                "profiles": [self._public_profile(profile) for profile in self._profiles],
+                "profiles": [project_profile(profile) for profile in self._profiles],
                 "settings": copy.deepcopy(self._settings),
                 "recent_phrases": [item["text"] for item in self._store.recent_phrases()],
                 "favorites": [item["text"] for item in self._store.favorites()],
@@ -999,20 +992,6 @@ class SpeechService:
         if error is not None:
             ack["error"] = error
         return ack
-
-    def _public_request(self, record: Mapping[str, Any]) -> dict[str, Any]:
-        result = {key: copy.deepcopy(value) for key, value in record.items() if not key.startswith("_")}
-        # profile/route snapshots are part of request evidence but can be large;
-        # retaining them in queue snapshot is intentional so UI cannot lose identity.
-        return result
-
-    @staticmethod
-    def _public_profile(profile: Mapping[str, Any]) -> dict[str, Any]:
-        # UI contract 至少需要 id/name/engines；其餘 metadata/reference 可讓 UI
-        # 顯示 WAITING 原因，並供 submit 做 immutable profile snapshot。
-        output = copy.deepcopy(dict(profile))
-        output.pop("profile_path", None)
-        return output
 
     def _emit_snapshot(self) -> None:
         if self._emit is not None:

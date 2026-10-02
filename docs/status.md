@@ -2,7 +2,7 @@
 
 **文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
-更新日期：2026-10-02（Asia/Taipei）。規格整理 `d478ee2`、資料 baseline／CDP 測試修正 `2729702` 已推送。後續已實作快照排序子範圍優化，交錯比較與 TTS 回歸通過，詳見分項報告；未更動 UI／資料契約或重跑真模型／LIVE。原生實際操作因使用者正在使用電腦而暫緩；舊報告只代表原日期的限定結果。
+更新日期：2026-10-02（Asia/Taipei）。規格整理 `d478ee2`、資料 baseline／CDP 測試修正 `2729702`、快照排序優化 `e7f5c34` 已推送。後續快照投影模組已抽離，功能相容 PASS、效能驗收 WAITING，驗證見分項報告；未更動 UI／資料契約或重跑真模型／LIVE。原生實際操作因使用者正在使用電腦而暫緩；舊報告只代表原日期的限定結果。
 
 ## 怎麼看與追蹤
 
@@ -45,7 +45,7 @@
 
 ## 工作順序與每批出口
 
-這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 等待桌面可供實際操作。PERF-02 先完成不涉及 UI／schema 的快照排序子範圍；其餘依賴尚未完成的工作仍列 PLANNED。
+這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 等待桌面可供實際操作。PERF-02 已交付快照排序子範圍，MOD-02 接續抽離純快照投影；其餘依賴尚未完成的工作仍列 PLANNED。
 
 | 批次 | 目的／工作 | 出口 |
 |---|---|---|
@@ -70,7 +70,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 | UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | WAITING | [CDP 座標根因與修正](verification/desktop/usability-audit-latest.md#window-regression-20261002)已驗；未改產品拖曳。使用者正在使用電腦，Computer Use 暫緩；仍需 fresh PID 可視 Full／Compact／Mini、實際 drag／lock、click-through 解除、Tray／hotkey／Quick Input |
 | MOD-01／高 | F01／03、N03：抽離 UI 狀態／訂閱與操作元件 | `app/src/main.tsx`、`components/SpeechWorkspace.tsx`、`services/`；BASE-01、UI-01 | PLANNED | 保持 command／testid／草稿／IME／queue 行為；元件不直接管原生程序，訂閱集中且可清理；UI 交叉回歸與不退步比較 |
 | UI-02／高 | F08.1／3：載入階段、等待、取消與錯誤復原 | UI、speech／engine snapshot；MOD-01 | PLANNED | 三 layout 都能看到目前階段與可用下一步；取消結果明確、未知 ETA 不造數、ACK timeout 不重複送出；Browser＋native 情境證據 |
-| MOD-02／高 | F03、N03：拆出 request validation、queue policy、執行協調、evidence 組裝 | `services/tts/service.py` 及同目錄；BASE-01 | PLANNED | adapter／playback／storage 可注入；無循環依賴；FIFO、取消、accepted ACK、完成播放才寫稿及 cleanup failure 行為不變，契約／生命週期回歸通過 |
+| MOD-02／高 | F03、N03：拆出 request validation、queue policy、執行協調、evidence 組裝 | `services/tts/service.py`、`snapshot.py` 及同目錄；純投影依資料 baseline，協調／模型行為仍依 BASE-01 | IN_PROGRESS | [快照投影子範圍](verification/desktop/performance-baseline-latest.md#snapshot-projection-module)：無 I/O／反向依賴，功能相容 PASS；部分案例 p95 超過 10% 門檻，效能驗收 WAITING。先釐清波動，再拆 validation、queue policy、執行協調／evidence；FIFO、取消、ACK、完成播放才寫稿及 cleanup failure 語意維持 |
 | MOD-03／高 | F06、N03：共用音效脫離 VC 專用層 | `services/engines/postfx.py`、`services/tts/postfx.py`；BASE-01 | PLANNED | 單一 DSP 實作、不依賴 VC／TTS orchestration；callers／tests／文件同步；相同 PCM／設定的 bypass、wet、取消與輸出相容 |
 | DATA-01／高 | F07.4／09、N03：資料版本、writer、migration 與復原 | `services/tts/storage.py`、contracts、UI／shell settings；BASE-01 | PLANNED | 依架構資料表界定 owner；migration 前可用備份、重跑冪等、失敗可復原；舊 session／requests／favorites／設定保留；未完成 queue 不自動重播 |
 | PERF-01／高 | F02／03／08：縮短量測確認的冷載入／生成瓶頸 | adapters、WSL worker、streaming adapters；BASE-01、MOD-02 | PLANNED | 依 baseline 選一個最大成本改善；cold／warm 分報，品質／取消／GPU 回收不退步；沒有顯著改善則不宣稱成功 |

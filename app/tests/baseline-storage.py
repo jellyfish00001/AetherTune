@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
+import math
 import platform
 import shutil
 import sqlite3
@@ -13,6 +13,7 @@ import statistics
 import subprocess
 import sys
 import time
+import types
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,37 +51,43 @@ def snapshot_baseline(ref: str) -> tuple[object, dict]:
     revision = subprocess.check_output(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
                                        cwd=ROOT, text=True).strip()
     source = subprocess.check_output(["git", "show", f"{revision}:services/tts/service.py"], cwd=ROOT)
-    owner = next(node for node in ast.parse(source).body
-                 if isinstance(node, ast.ClassDef) and node.name == "SpeechService")
-    method = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.name == "snapshot")
-    # 只比較 repo 內指定 commit 的 snapshot 方法；其餘依賴固定目前版本。
-    # 不切換工作樹、不安裝舊環境，也不能拿這個比較宣稱整個舊版本的速度。
-    namespace = dict(vars(sys.modules[SpeechService.__module__]))
-    exec(compile(ast.Module(body=[method], type_ignores=[]), f"git:{revision}:snapshot", "exec"), namespace)
-    return namespace["snapshot"], {"revision": revision,
-                                   "service_source_sha256": hashlib.sha256(source).hexdigest(),
-                                   "scope": "snapshot method only; all other dependencies held current"}
+    # 凍結 service class，避免舊 snapshot 誤用目前已搬移或修改的 private helpers。
+    # module 不執行 main；比較物件不跑 constructor、不擁有 worker／DB，僅共讀 fixture。
+    module = types.ModuleType(f"services.tts._snapshot_baseline_{revision}")
+    module.__package__ = "services.tts"
+    module.__file__ = f"git:{revision}:services/tts/service.py"
+    exec(compile(source, module.__file__, "exec"), module.__dict__)
+    # 舊 class 若反向載入目前的 projection，便不是隔離的 before；明確拒絕誤比。
+    if "project_queue" in module.__dict__ or "project_profile" in module.__dict__:
+        raise ValueError("此基準已依賴 snapshot 模組；需先隔離該版本依賴，不能套用目前的 projection")
+    def bind(service):
+        view = object.__new__(module.SpeechService)
+        view.__dict__ = service.__dict__
+        return view.snapshot
+    return bind, {"revision": revision, "service_source_sha256": hashlib.sha256(source).hexdigest(),
+                  "scope": "frozen service class snapshot/helpers; shared read-only fixture; other dependencies current"}
 
 
-def compare_snapshot(service: SpeechService, baseline) -> dict:
-    calls = {"before": lambda: baseline(service), "after": service.snapshot}
+def compare_snapshot(service: SpeechService, baseline, sample_count: int) -> dict:
+    calls = {"before": baseline(service), "after": service.snapshot}
     assert calls["before"]() == calls["after"]()  # 先暖機；完整公開 payload 必須一致。
     samples = {"before": [], "after": []}
-    for index in range(20):
+    for index in range(sample_count):
         values = {}
         for name in (("before", "after") if index % 2 == 0 else ("after", "before")):
             values[name], timing = timed(calls[name], repeats=1)
             samples[name].append(timing["samples_ms"][0])
         assert values["before"] == values["after"], "snapshot payload 不相容"
     result = {name: {"samples_ms": values, "median_ms": statistics.median(values),
-                     "p95_ms": sorted(values)[18]} for name, values in samples.items()}
+                     "p95_ms": sorted(values)[math.ceil(sample_count * 0.95) - 1]}
+              for name, values in samples.items()}
     result["median_reduction_percent"] = 100 * (1 - result["after"]["median_ms"] / result["before"]["median_ms"])
     result["payload_equal"] = True
-    result["samples_per_variant"] = 20
+    result["samples_per_variant"] = sample_count
     return result
 
 
-def run_case(output: Path, count: int, repeat: int, baseline=None) -> dict:
+def run_case(output: Path, count: int, repeat: int, baseline=None, comparison_samples: int = 20) -> dict:
     case = output / f"rows-{count}-run-{repeat}"
     case.mkdir()
     # catalogue 保持真實欄位大小；WAV／weights 不複製，也不讀使用者 DB。
@@ -122,7 +129,7 @@ def run_case(output: Path, count: int, repeat: int, baseline=None) -> dict:
             "row_counts_verified": True,
         }
         if baseline is not None:
-            result["snapshot_comparison"] = compare_snapshot(service, baseline)
+            result["snapshot_comparison"] = compare_snapshot(service, baseline, comparison_samples)
     finally:
         service.close()
         assert not service._worker.is_alive(), "fixture worker 未回收"
@@ -152,8 +159,14 @@ def run_case(output: Path, count: int, repeat: int, baseline=None) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--compare-snapshot-ref", help="在同一 fixture 交錯比較 repo 指定 commit 的 snapshot 方法")
+    parser.add_argument("--compare-snapshot-ref", help="在同一 fixture 比較指定 commit 的 service class snapshot／helpers")
+    parser.add_argument("--comparison-samples", type=int, default=20,
+                        help="每案例、每版本的 warm 樣本數（至少 20，預設 20）")
     args = parser.parse_args()
+    if args.comparison_samples < 20:
+        parser.error("--comparison-samples 不得小於 20")
+    if args.comparison_samples != 20 and not args.compare_snapshot_ref:
+        parser.error("--comparison-samples 需搭配 --compare-snapshot-ref")
     output = (args.output or ROOT / "artifacts/desktop" / f"storage-baseline-{uuid.uuid4()}").resolve()
     # 只容許全新 artifacts 子目錄；不覆寫舊 evidence 或碰 canonical 使用者 DB。
     if not output.is_relative_to((ROOT / "artifacts").resolve()) or output.exists():
@@ -161,6 +174,7 @@ def main() -> int:
     baseline, comparison = snapshot_baseline(args.compare_snapshot_ref) if args.compare_snapshot_ref else (None, None)
     output.mkdir(parents=True)
     sources = [Path(__file__), ROOT / "services/tts/service.py", ROOT / "services/tts/storage.py"]
+    sources.append(ROOT / "services/tts/snapshot.py")
     sources.extend(sorted((ROOT / "contracts/voices").glob("*.json")))
     report = {
         "status": "RUNNING", "scope": "synthetic SQLite/export/service snapshot; no audio, no model",
@@ -177,7 +191,7 @@ def main() -> int:
     try:
         for count in (10, 100, 1000):
             for repeat in range(1, 4):
-                case = run_case(output, count, repeat, baseline)
+                case = run_case(output, count, repeat, baseline, args.comparison_samples)
                 report["cases"].append(case)
                 (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
                 print(json.dumps({"rows": count, "repeat": repeat, "snapshot_ms": case["snapshot"]["median_ms"],

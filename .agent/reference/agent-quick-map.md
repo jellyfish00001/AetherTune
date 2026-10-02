@@ -28,6 +28,7 @@ Manual TTS 目前先產生完整 WAV 才播放，不能把它當作即時聲音�
 | Speak／Queue 的前端 ACK 與 snapshot | `app/src/services/speech.ts` | `app/src-tauri/src/speech_manager/mod.rs`、`app/tests/manual-tts.mjs` |
 | Native command、Tray／Exit、程序清理 | `app/src-tauri/src/main.rs`、`app/src-tauri/src/speech_manager/mod.rs`、`app/src-tauri/src/process_manager/mod.rs` | `app/src-tauri/` tests、[維護手冊](agent-maintenance-guide.md) |
 | Queue、取消、狀態轉移、Transcript 寫入時機 | `services/tts/service.py` | `services/tts/test_service.py`、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |
+| 快照排序、request／profile 公開欄位及複製隔離 | `services/tts/snapshot.py`（純投影） | `services/tts/test_snapshot.py`、service 回歸；[快照模組驗證](../../docs/verification/desktop/performance-baseline-latest.md#snapshot-projection-module) |
 | Engine／Voice profile／reference 選擇 | `contracts/engines/`、`contracts/voices/`、`services/tts/adapters.py` | 對應 manifest／hash、真實輸出 WAV |
 | WSL 啟動與取消的程序所有權 | `services/tts/wsl_job.py` | job log、取消測試、`app/tests/audit-speech-processes.py` |
 | Windows 播放與輸出裝置 | `services/tts/playback.py` | Output endpoint、CABLE capture、[Manual TTS evidence](../../docs/verification/desktop/manual-tts-verification-latest.md) |

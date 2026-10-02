@@ -176,7 +176,7 @@ generated WAV 常為 24 kHz mono；播放 adapter resample 至 48 kHz stereo。r
 Set-Location D:\AetherTune
 & .\app\dev.ps1 -Test
 # TTS 單獨測試：
-& .\tools\venvs\seed-vc\Scripts\python.exe -m unittest services.tts.test_service -v
+& .\tools\venvs\seed-vc\Scripts\python.exe -m unittest services.tts.test_service services.tts.test_snapshot -v
 ```
 
 `dev.ps1 -Test` 跑 contracts、runner／cache fixtures、TTS lifecycle／storage／ownership 及 Rust lifecycle。它含真實短 WSL ownership fixture，但不生成模型聲音，不代表 GUI／CABLE PASS。
@@ -193,7 +193,9 @@ Set-Location D:\AetherTune
 
 每案例關閉 service 後檢查 DB integrity、request identity／文字與匯出一致、worker 已回收，再記錄最終 bytes／hash；`close()` 會更新 session 結束時間，不能提前 hash。`report.json` 保存 source／catalogue fingerprints、raw samples、起迄時間及 PASS／FAILED；失敗案例與舊 report 要保留。重跑規則與證據解讀見[資料效能報告](../../docs/verification/desktop/performance-baseline-latest.md)，未量 UI／模型／資源的項目不可升級狀態。
 
-只比較 snapshot 方法時，可加 `--compare-snapshot-ref <repo-commit>`：先暖機，再於相同 service／DB／fixture 交錯量舊／新方法各 20 次，核對每對完整 payload 相同。舊方法取自指定 Git commit，其他依賴固定目前版本；如果要比較的修改也涉及 `_public_request`、storage 或其他依賴，這種方法隔離不足，必須另建各版本的完整受測環境。report 保存基準 revision／source hash、原始 samples、median 與各案例 p95；不得混池或將 profiler timing 當一般 latency。
+比較快照可加 `--compare-snapshot-ref <repo-commit>`：先暖機，再於相同 DB／fixture 交錯量舊／新版本各 20 次，核對每對完整 payload 相同。若樣本不足以判讀波動，可用 `--comparison-samples 100` 增加取樣並保留前輪結果；至少 20 次，p95 取 nearest-rank，不與其他 CPU 測試同時執行。工具凍結 Git 基準中的 service class 與其 private helpers，建立不執行 constructor 的唯讀比較物件；只有目前 service 擁有 worker／DB。其他依賴固定目前版本，不能宣稱整個舊版本的速度。若基準 class 已 import 獨立 snapshot 模組，工具會拒絕，避免誤用目前 projection；storage 或外部依賴也變更時，需先建立各版本完整隔離。report 保存 revision／source hash、原始 samples、median 與各案例 p95；不得混池或將 profiler timing 當一般 latency。
+
+快照維護的 owner 是 `services/tts/snapshot.py`：`project_queue` 決定 current／pending／history 顯示順序，`project_request` 保留完整 identity 並過濾 private 欄位，`project_profile` 只在 catalogue 隱藏 `profile_path`。模組不得讀寫 DB、持有 service 狀態、啟動 adapter 或新增 cache；service 在原鎖內呼叫 queue 投影。純投影測試用 `python -m unittest services.tts.test_snapshot -v`，生命週期行為仍需同跑 service tests。
 
 ### UI regression 與原生程序
 

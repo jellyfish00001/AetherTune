@@ -1,8 +1,8 @@
 # Desktop 資料效能基準
 
-日期：2026-10-02（Asia/Taipei）。任務：BASE-01、PERF-02／F07、F08、N02。**本頁擁有合成資料的 SQLite、匯出及 Python service snapshot 基準／局部優化比較**；任務狀態在 [docs/status.md](../../status.md)，方法與完整驗收條件在[驗證計畫](../../specs/verification-plan.md#optimization-acceptance)，重跑入口在 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md#storage-baseline)。
+日期：2026-10-02（Asia/Taipei）。任務：BASE-01、PERF-02、MOD-02／F03、F07、F08、N02、N03。**本頁擁有合成資料的 SQLite、匯出及 Python service snapshot 基準、局部優化比較與投影模組驗證**；任務狀態在 [docs/status.md](../../status.md)，方法與完整驗收條件在[驗證計畫](../../specs/verification-plan.md#optimization-acceptance)，重跑入口在 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md#storage-baseline)。
 
-最新進展：[快照排序優化](#snapshot-order-comparison)已完成同 fixture 交錯比較；以下先保留 01:31 初始資料基準，不能將兩個不同目錄／時間的量測直接當成 before／after。
+最新進展：已推送的[快照排序優化](#snapshot-order-comparison)後，接續[抽離快照投影模組](#snapshot-projection-module)。以下保留各輪基準及判定，不能將不同目錄／時間的量測直接當成 before／after。
 
 ## 判定與範圍
 
@@ -101,3 +101,50 @@ snapshot timing 包含組裝完整 queue／Transcript 等資料，serialization 
 - 9 個資料案例的 DB／exports 一致，worker close 後回收；另行核對所有最終 export 與 source hash 通過。fake adapters／PortAudio 與短 WSL ownership fixture 不算真模型或實體音訊驗收。
 - 未更動 UI、Rust、schema、資料儲存格式或模型程式，不需要 migration；回退此 snapshot 修改即可恢復舊算法。沒有重建或啟動 Desktop，也沒有進行 Computer Use。
 - 深拷貝、全量 payload、重複訂閱／polling 與完整 export 尚未改；先補相應資源／IPC／UI 量測，再決定 MOD-01／02、DATA-01 與 PERF-02 的後續切分。
+
+<a id="snapshot-projection-module"></a>
+## MOD-02 子範圍：快照投影模組
+
+基準是已推送的 `e7f5c34a46321149abe53efc0e256d99cc5a98ac`；本輪只將 queue 排序、request／profile 公開欄位與深拷貝搬至 `services/tts/snapshot.py`。`SpeechService` 仍在原鎖內取得 queue，仍擁有 DB、worker、adapter 與生命週期；新模組只有資料輸入／輸出，不反向 import service、storage 或 audio。未加入 cache、改欄位或調整持久化格式，既有 set membership 排序保持不變。
+
+先前試驗曾略過不可變 scalar 的 `deepcopy`，三輪 median 降低只有 5.92%、3.88%、8.63%，未達 10% 準則，因此沒有採入產品。試驗 source 與 raw samples 保留在 `artifacts/desktop/snapshot-copy-20261002/explore.py`、`exploration.json`；目前投影仍逐公開欄位深拷貝，也維持跨欄位 alias 的隔離。
+
+### 功能相容與量測邊界
+
+- `./.venv/Scripts/python.exe -m unittest services.tts.test_service services.tts.test_snapshot -v`：41 tests PASS，55.203 秒，沒有 skip。log 為 `artifacts/desktop/snapshot-copy-20261002/service-tests.log`；新增純投影案例覆蓋 nested／跨欄位複製隔離、catalogue 隱藏 `profile_path` 而 request 保留路徑、空 queue 與 terminal history，原 service 的順序／取消／storage／cleanup 回歸一併通過。
+- 新模組可單獨 import，沒有載入 service／storage／adapters／playback／numpy；`app/dev.ps1 -Test` 已納入純投影測試。沒有執行整套 Desktop UI／Rust 測試，這些檔案未受影響。
+- module／direct script 的 service `--help` 均 exit 0，`app/dev.ps1` PowerShell parse 無錯。工具拒絕少於 20 樣本、未指定比較 ref 卻指定非預設樣本數、非 artifacts 或既有輸出目錄；合成已 import 投影的舊版本亦正確拒絕。檢核保存於同目錄 `tool-checks.json`，未建立使用者 DB 或啟動 service。
+- 比較工具本輪改為凍結 Git 基準的 service class 與 private helpers，使用不執行 constructor 的比較物件共讀同一 fixture。先前只取 snapshot 方法的方式在 helper 搬移後不再適用；外部依賴仍是目前版本，不能作完整產品版本比較。若 Git 基準已 import 獨立 snapshot 模組，工具會拒絕，必須先補版本依賴隔離。
+- 每輪仍是 10／100／1,000 筆各 3 個案例，全部 payload 逐對相等，並於 close 後驗 DB／exports 一致與 worker 回收。report 的 `status: PASS` 表示資料及相容性斷言通過，**不會自動判定效能門檻通過**。
+
+### 效能複核
+
+第一輪每案例各 20 次，在 TTS tests 同時執行時量測；9 個案例 median 變化在 -13.78%～+4.41% 之間，但 4 個案例 p95 增加超過 10%。原始 `artifacts/desktop/snapshot-copy-20261002/comparison/report.json` 保留，SHA-256 為 `0cd85989d8d754b92268adcda87857681dc9aa76717b86db91c1209bc0865d87`；不能因資料檢核 PASS 就忽略 latency 波動。
+
+第二輪改為每案例各 100 次、nearest-rank p95 第 95 筆，量測期間不再同時執行其他測試；沒有宣稱使用者電腦的其他負載受控。命令為 `./.venv/Scripts/python.exe app/tests/baseline-storage.py --compare-snapshot-ref e7f5c34 --comparison-samples 100 --output artifacts/desktop/snapshot-copy-20261002/comparison-100`，exit 0；時間 2026-10-02 13:14:31～13:16:50（UTC+8）。900 對完整 payload 全部相同；report SHA-256 為 `0f099d2c906cb7eeb9342271e2b2857b31755c066a8e997611ee660eafd73235`。
+
+| 筆數／案例 | before median ms | after median ms | before p95 ms | after p95 ms | p95 變化 |
+|---|---|---|---|---|---|
+| 10／1 | 0.372 | 0.384 | 0.537 | 0.691 | +28.68% |
+| 10／2 | 0.256 | 0.258 | 0.312 | 0.340 | +9.11% |
+| 10／3 | 0.258 | 0.257 | 0.287 | 0.286 | -0.45% |
+| 100／1 | 3.790 | 3.717 | 4.722 | 4.850 | +2.70% |
+| 100／2 | 3.969 | 3.924 | 6.192 | 6.097 | -1.53% |
+| 100／3 | 4.687 | 4.922 | 9.796 | 11.146 | +13.78% |
+| 1,000／1 | 40.828 | 40.934 | 73.139 | 65.260 | -10.77% |
+| 1,000／2 | 43.181 | 44.045 | 61.734 | 62.783 | +1.70% |
+| 1,000／3 | 45.451 | 44.826 | 69.593 | 69.385 | -0.30% |
+
+**判定：功能相容 PASS；效能驗收 WAITING。** 第二輪所有 median 變化介於 -1.92%～+5.01%，1,000 筆的 median／p95 均未增加超過 10%；但 10／1、100／3 的 p95 仍超過門檻，不能宣稱整體無退步，也不能直接將差異歸因於主機。保留兩輪、不挑選有利樣本；待可控制負載時以同一基準、完整矩陣複核，必要時加入相同實作的 A/A 控制量測，區分工具／環境波動與抽離成本。沒有速度提升主張。
+
+| 第二輪 source | SHA-256 |
+|---|---|
+| `services/tts/service.py` | `7f32a62c643258e459ca7aa38d7d8789a6617267c051395061381dc8c30b0d97` |
+| `services/tts/snapshot.py` | `ff6fb0dcf051097038daaa895e68621cb984762bd84c3cee2303ce04c3a638c5` |
+| `app/tests/baseline-storage.py` | `6f6c3c07775d7f91302e9549b30268fe33b794e8fe899e07bad2fcf7c26848ec` |
+
+第二輪目前 source fingerprints、兩輪最終 export bytes／hash 及 median／p95 重算全部相符，獨立核對在 `artifacts/desktop/snapshot-copy-20261002/comparison-audit.json`。第一輪 source 指紋是增加樣本參數之前的版本，保留原值。
+
+### 交接與回退
+
+本輪不需 migration；回退 `service.py` 的投影呼叫並移除新增模組即可恢復基準實作，測試／量測入口需同步移除該模組引用，沒有使用者資料轉換。MOD-02 整體保持 IN_PROGRESS：本次拆分仍待效能驗收，validation、queue policy、執行協調與 evidence 亦未拆分；後續不可把純投影的功能測試當成全部完成。Computer Use／可視 UI／實體音訊／LIVE 都沒有執行，也不提升狀態。

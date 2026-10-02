@@ -40,13 +40,13 @@ flowchart TB
 <a id="modular-boundaries"></a>
 ## 程式模組化：現況、目標與不可變條件
 
-2026-10-01 以 `60c1c89` source 盤點：已有 UI service、Rust managers、Python adapter／playback／storage 分層，無須另造平台。以下是靜態責任／依賴觀察，**不是已量測的效能瓶頸或已完成的重構**；執行狀態由 MOD-01～03、DATA-01、PERF-01～02 的[任務列](../status.md)維護。
+初始盤點為 2026-10-01 `60c1c89`；2026-10-02 已先抽出 TTS 快照投影。已有 UI service、Rust managers、Python adapter／playback／storage 分層，無須另造平台。以下區分現行責任與後續目標；執行狀態由 MOD-01～03、DATA-01、PERF-01～02 的[任務列](../status.md)維護，不能將局部抽離視為整體重構完成。
 
 | 邊界 | 現況與待處理原因 | 目標責任／對外介面 |
 |---|---|---|
 | 畫面／UI controller | `main.tsx` 同時包含 layout、VC 設定、事件／polling、commands 與顯示；`SpeechWorkspace.tsx` 同時管草稿、訂閱、route、queue 操作及 JSX | 沿用 `components/` 與 `services/`；controller／hook 擁有訂閱與 actions，元件以 props／callbacks 呈現。layout 不建立第二套服務狀態 |
 | IPC／原生 | `desktop.ts`／`speech.ts` 與 Rust managers 已作邊界 | IPC client 驗 payload／ACK，Rust 管 allowlist、互斥及 owned process；不把模型或 DB 規則搬進 UI／Rust command |
-| TTS 協調 | `SpeechService` 同時做 validation、queue policy、狀態轉移、generation／playback 協調、persistence／evidence | 保留既有 service 入口，在 `services/tts/` 逐步抽出 validation／queue policy／evidence 模組；協調器注入 generation、playback、storage 介面，獨立模組不反向 import service |
+| TTS 協調 | `SpeechService` 仍做 validation、queue policy、狀態轉移、generation／playback 協調、persistence／evidence；公開 queue／request／profile 投影已交給 `services/tts/snapshot.py` | 保留既有 service 入口，逐步抽出 validation／queue policy／evidence；snapshot 模組只收資料、回傳深拷貝，service 擁有 lock／store／adapter，不反向依賴協調器 |
 | VC runtime／模型 | 共用 capture worker 與三個模型 adapter 已分離，RVC 有獨立 block／duplex | callback 僅搬 PCM、推論在 worker；adapter 不決定 UI、Session 或資料清理策略；保留 backend venv 隔離 |
 | 共用 Post-FX | `services/tts/postfx.py` 與 TTS service 直接依賴 `services/engines/postfx.py`，共用 DSP 的 owner 名稱仍屬 VC | 目標為 `services/audio/postfx.py` 的單一純 DSP owner；這是規劃路徑，尚未建立。VC／TTS 向共用層依賴，共用層不 import 任一 orchestration；不另複製算法 |
 | 儲存／匯出 | `TranscriptStore` 同時管理 schema、query、settings、exports | 同一 canonical DB，由 repository 控制 transaction／schema；query 與 export 可拆成同目錄模組，export 只讀已提交資料，不自行更改 request／播放狀態 |
