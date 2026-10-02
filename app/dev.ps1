@@ -21,7 +21,7 @@ try {
         if ($LASTEXITCODE -ne 0) {throw 'Cache repair safety tests failed'}
         Push-Location $root
         try {
-            & (Join-Path $root 'tools/venvs/seed-vc/Scripts/python.exe') -m unittest services.tts.test_service services.tts.test_snapshot
+            & (Join-Path $root 'tools/venvs/seed-vc/Scripts/python.exe') -m unittest services.tts.test_service services.tts.test_snapshot services.tts.test_validation
             if ($LASTEXITCODE -ne 0) {throw 'TTS lifecycle tests failed'}
         } finally {Pop-Location}
         Push-Location src-tauri

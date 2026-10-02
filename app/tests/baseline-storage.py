@@ -175,6 +175,7 @@ def main() -> int:
     output.mkdir(parents=True)
     sources = [Path(__file__), ROOT / "services/tts/service.py", ROOT / "services/tts/storage.py"]
     sources.append(ROOT / "services/tts/snapshot.py")
+    sources.append(ROOT / "services/tts/validation.py")
     sources.extend(sorted((ROOT / "contracts/voices").glob("*.json")))
     report = {
         "status": "RUNNING", "scope": "synthetic SQLite/export/service snapshot; no audio, no model",

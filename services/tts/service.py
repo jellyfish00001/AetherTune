@@ -29,6 +29,7 @@ if __package__ in (None, ""):
 from services.engines.postfx import validate_postfx
 from services.tts.postfx import render_postfx
 from services.tts.snapshot import project_profile, project_queue
+from services.tts.validation import ALLOWED_ENGINES, ALLOWED_SOURCES, INTERRUPT_POLICIES, validate_request
 
 if __package__ in (None, ""):
     from services.tts.adapters import (
@@ -50,11 +51,6 @@ else:
     )
     from .playback import PlaybackCancelled, PlaybackError, PlaybackResult, MonitoredPlayback, list_audio_devices, resolve_route
     from .storage import TranscriptStore, utc_now
-
-
-INTERRUPT_POLICIES = {"queue", "interrupt_current", "reject_new"}
-ALLOWED_ENGINES = {"cosyvoice", "breeze"}
-ALLOWED_SOURCES = {"manual", "stt", "system", "agent"}
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -363,50 +359,12 @@ class SpeechService:
                 raise ValueError(
                     f"AUDIO_INIT_FAILED: {startup['code']}: {startup['message']}"
                 )
-        request = command.get("request")
-        if not isinstance(request, Mapping):
-            raise ValueError("REQUEST_INVALID: request 必須是 object")
-        text = request.get("text")
-        engine_id = request.get("engine_id")
-        profile_id = request.get("voice_profile_id")
-        source = request.get("source")
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("REQUEST_INVALID: text 不可為空")
-        if len(text) > 20_000:
-            raise ValueError("REQUEST_INVALID: text 超過 20000 字元")
-        if engine_id not in ALLOWED_ENGINES:
-            raise ValueError("BACKEND_UNAVAILABLE: 只允許 cosyvoice 或 breeze；CosyVoice3/Agent 維持 PLANNED")
-        if source not in ALLOWED_SOURCES:
-            raise ValueError("REQUEST_INVALID: source 必須是 manual、stt、system 或 agent")
-        if source == "agent":
-            raise ValueError("AGENT_NOT_ALLOWED: agent reply 尚未開放")
-        metadata = request.get("metadata", {})
-        if not isinstance(metadata, Mapping):
-            raise ValueError("REQUEST_INVALID: metadata 必須是 object")
-        metadata = copy.deepcopy(dict(metadata))
-        # 每筆 queue request 固定送出時的音效，不受後續引擎切換或設定修改影響。
-        metadata["postfx"] = validate_postfx(metadata.get("postfx"))
-        priority = request.get("priority", 0)
-        if isinstance(priority, bool) or not isinstance(priority, int):
-            raise ValueError("REQUEST_INVALID: priority 必須是整數")
-        if source == "stt":
-            capture = metadata.get("capture_source")
-            if capture != "physical_microphone":
-                raise ValueError("CAPTURE_SOURCE_INVALID: stt 僅接受 physical_microphone")
-        if not isinstance(profile_id, str) or profile_id not in self._profiles_by_id:
-            raise ValueError("REFERENCE_INVALID: voice_profile_id 不存在")
-        profile = copy.deepcopy(self._profiles_by_id[profile_id])
-        engines = profile.get("engines", [])
-        if engine_id not in engines:
-            raise ValueError(f"REFERENCE_INVALID: profile 不支援 engine={engine_id}")
-        route = resolve_route(metadata.get("route"))
-        metadata["route"] = route
-        policy = request.get("interrupt_policy", self._settings["interrupt_policy"])
-        if policy not in INTERRUPT_POLICIES:
-            raise ValueError("REQUEST_INVALID: interrupt_policy 不合法")
-        enqueue = command.get("enqueue", True)
-        if not isinstance(enqueue, bool):
-            raise ValueError("REQUEST_INVALID: enqueue 必須是 boolean")
+        validated = validate_request(
+            command, profiles=self._profiles_by_id,
+            default_policy=self._settings["interrupt_policy"],
+            validate_postfx=validate_postfx, resolve_route=resolve_route,
+        )
+        engine_id, policy, enqueue = validated.engine_id, validated.policy, validated.enqueue
         readiness = self.engine_readiness().get(engine_id, {})
         if not readiness.get("preflight_valid", False):
             errors = readiness.get("errors") or [{"code": "MODEL_NOT_FOUND", "message": "engine preflight failed"}]
@@ -417,21 +375,21 @@ class SpeechService:
         record = {
             "id": request_id,
             "session_id": self.session_id,
-            "text": text.strip(),
+            "text": validated.text.strip(),
             "engine_id": engine_id,
-            "voice_profile_id": profile_id,
-            "source": source,
+            "voice_profile_id": validated.profile_id,
+            "source": validated.source,
             "interrupt_policy": policy,
-            "metadata": metadata,
+            "metadata": validated.metadata,
             "created_at": created_at,
-            "priority": priority,
+            "priority": validated.priority,
             "status": "queued",
             "metrics": {"request_created_at": created_at},
             "error": None,
             # profile snapshot 會跟著 queued request 保存，避免之後改 profile
             # 導致已排程 request 偷換聲線。
-            "profile_snapshot": profile,
-            "route_snapshot": copy.deepcopy(route),
+            "profile_snapshot": validated.profile,
+            "route_snapshot": copy.deepcopy(validated.route),
             "_cancel_audit": None,
         }
         with self._condition:

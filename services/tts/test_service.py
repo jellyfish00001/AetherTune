@@ -310,6 +310,24 @@ class ServiceTests(unittest.TestCase):
             self.assertFalse(result["accepted"])
         self.assertEqual(self.service.snapshot()["snapshot"]["queue"], [])
 
+    def test_invalid_request_keeps_store_queue_and_ack_boundary(self) -> None:
+        cases = [("text", " ", "REQUEST_INVALID"), ("source", "agent", "AGENT_NOT_ALLOWED"),
+                 ("priority", True, "REQUEST_INVALID"), ("voice_profile_id", "missing", "REFERENCE_INVALID")]
+        for field, value, code in cases:
+            with self.subTest(field=field):
+                command = self.request("invalid-boundary")
+                command["request"][field] = value
+                ack = self.service.handle_command(command)
+                self.assertFalse(ack["accepted"])
+                self.assertEqual(ack["command_id"], command["command_id"])
+                self.assertEqual(ack["error"]["code"], code)
+        self.assertEqual(self.service._store.list_requests(), [])
+        self.assertEqual(self.service.snapshot()["snapshot"]["queue"], [])
+        # 清理阻擋仍先於 request 檢查；純資料模組不能接管 service 的安全狀態。
+        self.service._cleanup_blocked = True
+        ack = self.service.handle_command({"action": "submit", "command_id": "blocked", "request": None})
+        self.assertEqual(ack["error"]["code"], "SERVICE_BLOCKED")
+
     def test_monitor_warning_and_route_snapshot_are_persisted_after_primary_completion(self) -> None:
         class WarningPlayback(NullPlayback):
             def play(self, audio_path, route, cancel_event):

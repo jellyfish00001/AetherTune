@@ -2,7 +2,7 @@
 
 日期：2026-10-02（Asia/Taipei）。任務：BASE-01、PERF-02、MOD-02／F03、F07、F08、N02、N03。**本頁擁有合成資料的 SQLite、匯出及 Python service snapshot 基準、局部優化比較與投影模組驗證**；任務狀態在 [docs/status.md](../../status.md)，方法與完整驗收條件在[驗證計畫](../../specs/verification-plan.md#optimization-acceptance)，重跑入口在 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md#storage-baseline)。
 
-最新進展：已推送的[快照排序優化](#snapshot-order-comparison)後，接續[抽離快照投影模組](#snapshot-projection-module)。以下保留各輪基準及判定，不能將不同目錄／時間的量測直接當成 before／after。
+最新進展：快照投影 `2d3434c` 已推送；[A/A 控制](#snapshot-jitter-controls)重現同一實作的 p95 超標，確認目前量測不足以直接歸因於拆分，效能驗收仍 WAITING。以下保留各輪基準及判定，不能將不同目錄／時間的量測直接當成 before／after。
 
 ## 判定與範圍
 
@@ -147,4 +147,36 @@ snapshot timing 包含組裝完整 queue／Transcript 等資料，serialization 
 
 ### 交接與回退
 
-本輪不需 migration；回退 `service.py` 的投影呼叫並移除新增模組即可恢復基準實作，測試／量測入口需同步移除該模組引用，沒有使用者資料轉換。MOD-02 整體保持 IN_PROGRESS：本次拆分仍待效能驗收，validation、queue policy、執行協調與 evidence 亦未拆分；後續不可把純投影的功能測試當成全部完成。Computer Use／可視 UI／實體音訊／LIVE 都沒有執行，也不提升狀態。
+該次投影拆分不需 migration；回退 `service.py` 的投影呼叫並移除新增模組即可恢復基準實作，測試／量測入口需同步移除該模組引用，沒有使用者資料轉換。當時 validation、queue policy、執行協調與 evidence 均未拆分；後續已抽出 [request 資料驗證](manual-tts-verification-latest.md#request-validation-module)，其餘仍待處理，投影的效能驗收亦未完成。MOD-02 整體保持 IN_PROGRESS，不可把純投影的功能測試當成全部完成。Computer Use／可視 UI／實體音訊／LIVE 都沒有執行，也不提升狀態。
+
+<a id="snapshot-jitter-controls"></a>
+## 2026-10-02 後續：A/A 控制釐清波動
+
+**已確認量測本身在同一實作上也會跨過 10% 門檻，尚未定位到特定 OS／GC 根因。** 不改門檻、不把結果判為效能 PASS。相同程式的 A/A 仍不穩定時，單次 A/B p95 無法證明模組拆分造成退步；也不能以後續有利數值否定前輪超標。
+
+先在 `2d3434c` 上執行 `artifacts/desktop/snapshot-jitter-20261002/probe.py`，再將方法整理成 `app/tests/diagnose-snapshot.py`。兩輪均複製先前已驗證的合成 fixture，10／100／1,000 筆各 3 個案例；每案例暖機 10 次，再依固定 seed 打散 old／old、new／new、old／new 組別，每組 100 對且交替先後。每輪共 2,700 對 payload 一致，worker 全部退出；沒有操作桌面或執行模型。
+
+| 輪次／案例 | 比較同一實作的 p95 變化 | 意義 |
+|---|---|---|
+| 初次控制，10／3，new／new | +12.18% | 小資料也有超標，與任何版本改動無關 |
+| 初次控制，100／2，old／old | +20.78% | 尚未抽離的舊實作也會超標 |
+| 初次控制，1,000／1，old／old | +10.86% | 大資料同樣存在控制組波動 |
+| 可重跑工具，100／3，old／old | +14.26% | 工具整理後再次重現，未以其他通過案例掩蓋 |
+
+初次控制的 A/B median 變化為 -2.95%～+4.08%，p95 為 -24.48%～+19.07%；可重跑工具輪的 A/B median 為 -5.45%～+0.87%，p95 為 -13.37%～+1.23%。後者雖沒有 A/B 超標，A/A 仍不穩定，**整體效能驗收維持 WAITING**。這是量測可信度的診斷結論，不是加速成果或 GC 調參依據。
+
+每次呼叫記 wall、thread CPU 與 GC collection generation／時間，GC 保持開啟，沒有調整產品 GC。Windows `GetThreadTimes()` 本輪 raw samples 以 15.625 ms 階梯出現，即使 clock API 宣告較細 resolution，也不足以分解 sub-ms 呼叫成本；不能以 CPU 取樣為零解讀成沒有計算。GC 確實出現在部分慢呼叫，但本輪沒有隔離控制能證明它是唯一原因。診斷額外 callback 的時間不與先前無 instrumentation 的 latency 直接比較。
+
+可重跑命令：`./.venv/Scripts/python.exe app/tests/diagnose-snapshot.py --fixture-report artifacts/desktop/snapshot-copy-20261002/comparison-100/report.json --compare-snapshot-ref e7f5c34 --output artifacts/desktop/snapshot-jitter-20261002/reusable-control`，exit 0；第二輪 13:33:20～13:35:03（UTC+8）。輸出目錄需全新；診斷工具拒絕 artifacts 外來源／輸出、既有輸出、輸出置於來源案例內及指向案例外的路徑，避免改寫或遞迴複製 fixture。
+
+| 證據 | SHA-256 |
+|---|---|
+| `artifacts/desktop/snapshot-jitter-20261002/control/report.json` | `b0f322b73f5d11c713bb2b0454f75e1c242f9815e8df7758d9552682587eca31` |
+| `artifacts/desktop/snapshot-jitter-20261002/reusable-control/report.json` | `3d6e09f0f3646798bf3568465d0efb511e268d64ea2b02c9cf183079ae84c264` |
+| 當輪 `app/tests/diagnose-snapshot.py` | `1d75c5ff4af348c2141c945c26f72c05a20c46a5cb070e4dcbb917eb405a1830` |
+
+report 保存當輪 source、原 fixture report hash、raw samples、GC thresholds、CPU clock 與時間。第二輪是在 request validator 初稿加入後、`ValidatedRequest` 改成 NamedTuple 前量測；`snapshot.py` 沒有再改，不能把該 source 指紋稱為後續 validator 最終版本。validator 的目前相容性與局部成本另由[請求驗證報告](manual-tts-verification-latest.md#request-validation-module)擁有。
+
+獨立重算兩輪 5,400 對的統計值、核對原 fixture 36 個 export bytes／hash 未變，以及最終 validator source hash，結果保存於同目錄 `independent-audit.json`，PASS。`tool-checks.json` 保存四項路徑拒絕（exit 2）、兩種 service 啟動方式的 `--help`（exit 0）與純 validator import 隔離檢核；`app/dev.ps1` PowerShell parse 亦無錯。
+
+下一次效能驗收先在較穩定負載下核對 A/A，再以相同完整矩陣判讀 A/B；保留所有失敗輪次。本次先續作不改 snapshot 的 request 資料責任分離，沒有把未決量測當成拆分全數驗收完成。

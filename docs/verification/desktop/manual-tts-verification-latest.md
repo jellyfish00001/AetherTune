@@ -1,5 +1,24 @@
 # Manual TTS 增量實作與驗證
 
+<a id="request-validation-module"></a>
+## 2026-10-02：請求資料驗證模組
+
+在已推送的 `2d3434c` 上，將 `_submit()` 的 request 資料檢查抽至 `services/tts/validation.py`。新模組僅依賴標準庫，接收 profile catalogue、預設 policy 與注入的 FX／route validators，回傳 `ValidatedRequest`；service 保留安全阻擋 → 資料驗證 → readiness → 鎖內接受／保存／排隊的順序。沒有改 queue policy、ACK、schema 或資料 writer，亦不更動 playback／模型生命週期。
+
+`./.venv/Scripts/python.exe -m unittest services.tts.test_service services.tts.test_snapshot services.tts.test_validation -v`：**47 tests PASS**，最終版本 8.583 秒，無 skip；log 位於 `artifacts/desktop/snapshot-jitter-20261002/service-tests-final.log`（初稿 9.826 秒的 `service-tests.log` 亦保留）。新增案例驗文字 20,000 字元邊界、bool 不作整數 priority、拒絕 Agent、只接受 physical microphone STT、profile／engine 配對、metadata／profile 深拷貝、錯誤優先序與注入錯誤原樣傳遞。service 整合案例另驗拒絕時 ACK 保留 command ID、queue／DB 無新增，以及 cleanup 阻擋先於欄位檢查；既有 FIFO、取消、播放／持久化與程序回收回歸一併通過。
+
+另以 `artifacts/desktop/snapshot-jitter-20261002/compare-validation.py` 比較 `2d3434c` 與目前的真實 `handle_command`：使用無 I/O store／adapter、無 constructor／worker 的隔離物件。77 組正常與錯誤輸入，僅將每次產生的 ID／時間正規化，ACK／accepted record 完全相同。三輪各 20 組交錯 batch、每 batch 100 次 command，最終每 command 的 before／after median 為 0.023267／0.024205、0.024102／0.025069、0.024610／0.024527 ms；第二輪 batch p95 仍增加 17.62%。這是有固定 stub 的 CPU 局部量測，**不能當端到端 latency 或整體效能 PASS**。
+
+初稿 frozen dataclass 的 `validation-comparison.json` 保留；最終 `ValidatedRequest` 改用較輕的 NamedTuple，只固定欄位綁定，nested 資料仍靠既有深拷貝隔離。最終 raw report 為 `validation-comparison-tuple.json`，SHA-256 `8466b41397bf946e3d184686c2d852c70c5b19c84de70c4cc688888aaeeadd9e`；不以跨輪差異主張加速。當輪 `service.py` SHA-256 為 `4639243e0692a48a53e3bc24a5312c9dbc27c070d5f7bdf5e9b173f61716a024`，`validation.py` 為 `1c56737e2ff3d998b29de5b1b0248661cccbae57e56ebfd8ebea819806b8aa52`，report 也保存基準來源 hash。
+
+`app/dev.ps1 -Test` 與 Agent 快速地圖、檔案索引、維護手冊同步新增測試與 owner。此輪用 fake generation／playback 與隔離資料，沒有新模型生成、實體裝置、GUI、CABLE 或 LIVE 證據，不覆蓋下列歷史音訊結果。原生測試整套未重跑。
+
+2026-10-02 推送前另核對 16 個 production Python 模組的本機 import graph、UI → Rust → Python 的責任邊界與文件 owner，未發現本批新增的循環依賴。既有 VC `runner_service`／`rvc_runtime` 有函式內雙向依賴，兩種匯入順序均可完成且未載入 torch／sounddevice；這只排除該匯入情境的錯誤，仍須依[架構邊界](../../specs/app-architecture.md#modular-boundaries)的 MOD-04 處理耦合。審核記錄在 `artifacts/desktop/publication-review-20261002-67a3e2cf/architecture-evidence.json`。同輪重跑 `npm run test:contracts` PASS（六 manifest、state／Transcript／Session／ManualSpeechRequest／VoiceProfile／AgentReply 與負向 fixtures）；最終 service／validator hash 仍與上述 47 tests、77 組比較的證據一致，沒有把歷史結果寫成重新執行。
+
+本次屬責任分離，沒有速度提升主張；前輪快照 p95 的[控制量測與限制](performance-baseline-latest.md#snapshot-jitter-controls)仍獨立追蹤，不因 47 tests PASS 而升級。回退 service 中的驗證呼叫、還原原驗證區段並同步測試入口即可，不需資料 migration。MOD-02 的 queue policy／執行協調／evidence 仍未拆完。
+
+## 2026-10-01 以前的音訊與桌面驗證
+
 2026-10-01 共用輸出／監聽與 RVC 整合後，TTS 的完整 35 項 service regression、contracts、preview／mock UI 及 Desktop build 再次 PASS；前一日真實 TTS 監聽音訊 artifact 保留。最新版根目錄 exe 與重啟方式見 [RVC 整合報告](../backends/vcclient-rvc-probe-latest.md)，以下 exe hash 是各輪歷史 build。
 
 ## 2026-09-30：獨立自己監聽

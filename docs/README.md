@@ -6,6 +6,7 @@
 
 | 想了解什麼 | 唯一完整內容 |
 |---|---|
+| 想先看「文字轉語音、變聲、語音重建、混音……」條列需求 | [應用功能需求單](specs/application-feature-checklist.md)：依操作目的排列的大功能與小功能摘要 |
 | 有哪些大功能？每個小功能做什麼？ | [產品規格 F01～F10／品質要求 N01～N04](specs/app-requirements.md) |
 | 現在做到哪裡？下一批優先做什麼？ | [目標與任務進度](status.md)：交付程度、證據、任務 ID、依賴、完成條件及人工條件 |
 | UI、效能、程式／資料架構如何改善？ | [App 架構](specs/app-architecture.md#modular-boundaries)：現況、依賴邊界、資料 writer／migration；執行順序只看進度頁 |
