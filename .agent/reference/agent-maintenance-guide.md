@@ -223,6 +223,10 @@ Remove-Item Env:AETHERTUNE_CDP,Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorA
 `cleanup.ps1` 只接受本專案 Desktop build 的 PID，並核對其 owned process tree；每輪重取 PID，不能拿上一輪的值。CDP／Playwright、內建 Browser／Chrome 的測試範圍要分開回報，沒有實際 native 畫面及音訊 evidence 就保持相應 `WAITING`。
 啟動當下的 CDP 截圖可能早於 WebView2 第一幀而呈黑色；視覺複核需等畫面繪製後重拍並檢視圖片。根目錄 `AetherTune.exe` 的一般可見啟動另核對視窗回應與實際渲染，不能只用隱藏啟動的 DOM／IPC 結果代替。
 
+`ui.mjs` 先記錄三版面的實際 `visible` 與截圖，再隱藏視窗隔離 CDP 拖曳：可見原生視窗移動時，Windows 實體游標的 `buttons=0` 事件可能中斷 CDP pointer capture。不得藉放寬位移容差或移除 lock 斷言解決；也不能把隔離段當真實可見拖曳證據。實際 drag／lock、click-through 逃生、全域快捷鍵、Quick Input、Tray 選單須用 Computer Use 另驗，精確範圍與 trace 見 [UI 報告](../../docs/verification/desktop/usability-audit-latest.md#computer-use-20261003)。中斷或交還使用者後，重新列舉唯一視窗並取得 fresh state；tray_registered 不證明選單已點擊，工具未提供目標時保留 WAITING。
+
+回歸會更動 VC source_mode、shell 及文字草稿，且 `ui.mjs` 結束時視窗仍隱藏。操作前備份 localStorage／sessionStorage 與 `shell.json`；結束時比對差異，只恢復本輪測試改動，保留新生成的 request／Transcript 證據。實際 GUI Exit 另先記錄 owned Windows PID＋CreationDate，退出後核對同一身分及 resident worker 的 Linux group；不能只看 App 消失就認定 WSL 已回收。清理自己的 preview server／CDP port，避免遺留測試服務。
+
 ### 正式 Rust manager → 真實模型 → CABLE
 
 先 build probe，成功完成後才執行，不要讓上一個 probe 活著時覆蓋 exe：

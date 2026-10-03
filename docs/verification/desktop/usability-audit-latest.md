@@ -1,10 +1,47 @@
 # Desktop 操作與畫面審查
 
-日期：2026-10-01（Asia/Taipei）。本頁擁有本輪 Desktop 畫面的未完成／多餘項目、修正及 UI 證據。操作以 [Desktop 手冊](../../guides/desktop-user-guide.md) 為準；模型、串流與回錄證據以 [四 VC 驗證](realtime-vc-verification-latest.md) 為準。本輪 UI 審查沒有重新生成語音或進行實體聽評。
+最新更新：2026-10-03（Asia/Taipei）。本頁擁有 Desktop 畫面問題、修正與原生操作證據；各節保留測試日期。操作以 [Desktop 手冊](../../guides/desktop-user-guide.md)為準；模型、串流與回錄由 [四 VC 驗證](realtime-vc-verification-latest.md)與 [Manual TTS 驗證](manual-tts-verification-latest.md)擁有。2026-10-01 畫面審查未生成語音；2026-10-03 的新 TTS request 另見對應報告，兩輪均未做實體聽評。
 
-同日後續更新：音效已移至 SETTINGS，六引擎獨立保存與完整 App 重啟驗證由[音效設定報告](audio-effects-verification-latest.md)擁有；繁中／英文與系統匣語言由[介面語言報告](ui-language-verification-latest.md)擁有。下方 hash／截圖是本次畫面審查階段，當前 exe hash 以後續報告為準。
+2026-10-01 後續更新：音效已移至 SETTINGS，六引擎獨立保存與完整 App 重啟驗證由[音效設定報告](audio-effects-verification-latest.md)擁有；繁中／英文與系統匣語言由[介面語言報告](ui-language-verification-latest.md)擁有。歷史 hash／截圖保留當輪身分，目前 exe hash 見下方最新補驗。
 
-2026-10-02 後續：UI-01 的拖曳自動化根因與修正見[視窗回歸補驗](#window-regression-20261002)；原生實際操作依使用者指示暫緩。以下 2026-10-01 畫面審查保留歷史範圍。
+最新補驗：2026-10-02～03 已依使用者授權執行 [Computer Use 原生操作](#computer-use-20261003)，拖曳、快捷鍵、Quick Input 與 Settings Exit 通過；系統匣選單實際點擊仍 WAITING。2026-10-02 的[視窗回歸補驗](#window-regression-20261002)及下方 2026-10-01 畫面審查保留原日期與範圍。
+
+<a id="computer-use-20261003"></a>
+## 2026-10-02～03：UI-01 Computer Use 原生操作
+
+基準 `5484500318234cac22740c1125ff44568e2bf7dd`；本批程式差異只有 [UI 測試](../../../app/tests/ui.mjs)的 CDP 輸入隔離，未更改 runtime、UI 或資料契約。使用官方 Computer Use `@oai/sky` 實際點擊／鍵盤／拖曳，搭配 WebView2 CDP 唯讀狀態與 Playwright 回歸。中斷後重新列舉並選取當前唯一 AetherTune 視窗，未沿用過期座標。
+
+測試 App PID `34772`，根目錄 exe SHA-256 `924b8db161a4c0f3fab54c18e022e8c57068a3474fbf8332a5fe2626bd41b815`；本輪未重建 exe。原生 URL `http://tauri.localhost/`、DPR 1.25；Full／Compact／Mini 為 1040×740／420×491／420×75 CSS（原生 1300×925／525×613／525×93），Quick Input 為 420×260 CSS。像素取整造成 Compact／Mini 比設計尺寸多約 1 CSS px。
+
+證據目錄：`artifacts/desktop/computer-use-20261002-5484500/`（以下檔名皆相對此目錄）；`identity.json`、`observations.json`、各步驟 PNG 與 `acceptance-summary.json` 保存身分、動作後狀態及判定。38 筆觀察不是 38 個獨立測試案例；`finalize-evidence.py` 可重新核對保存的報告、設定、WAV 與退出證據，不能代替重新操作桌面。
+
+| 實際操作 | 結果／斷言 | 證據 |
+|---|---|---|
+| Full／Compact／Mini 切換、拖曳、Mini 展開 | PASS；三版面可見，實際拖曳後位置改變；Compact 鎖定後位置不變 | `01`～`09` 截圖與 native position；Full 完整畫面另見 `27-full-fit-0.png`、`34-restored-visible-0.png` |
+| Click-through 及 Ctrl+Alt+A | PASS；啟用後 native flag=true，快捷鍵解除為 false；再次隱藏後，在其他應用程式前景按快捷鍵可恢復 | `10`～`13`；hidden 狀態保存在 JSON，不以不可見截圖當畫面證據 |
+| Mini Quick Input | PASS；開啟、focus、文字輸入、Shift+Enter 換行、關閉／重開保留草稿；按 Speak accepted 後收合，最後 completed | `16`～`24`；真實新生成 WAV、Transcript 與冷載入限制見 [Manual TTS 補驗](manual-tts-verification-latest.md#native-quick-input-20261003) |
+| Ctrl+Alt+V 的未啟動／停止／重啟 | PASS；尚無先前 VC request 時顯示操作提示；RVC File 按開始後可於 VALIDATING 停止，再用快捷鍵重啟至 RUNNING，最後停止至 OFFLINE、service_alive=false | `25`、`28`～`33`；run `945cbc3e9e904e0fb3ca2d7b32907d88`、`0ad14a60bcf24378966980539cd8173e`。來源 `dataset/reference-voices/voice-male-m1.wav`、Sage_CN_HeroicFemale／FCPE／CUDA 0、FX bypass；只驗控制生命週期，未驗完整輸出品質／physical Mic |
+| 右上角關閉至系統匣，再啟動同一 exe | PASS；按 × 後 visible=false、原 PID 仍在；single-instance 恢復同一視窗及 PID | `35-close-to-tray` JSON、`36-close-recovery-0.png`；不是 Tray 選單點擊 |
+| Settings「結束 AetherTune」 | PASS；實際按鈕退出，14 個 owned Windows 程序均消失；WSL worker PID／group 388 由存在變為不存在，沒有殘留視窗 | `38-exit-visible-0.png`、`exit-action.json`、`owned-before-exit.json`、`cleanup-report.json`、`wsl-before-exit.json`／`wsl-after-exit.json`、`exit-window-check.json` |
+| Tray 選單 Open／Overlay／恢復／Exit | WAITING；工具列舉未提供可選取的 Windows 工作列／系統匣視窗，未實際點擊選單 | tray_registered=true 只代表註冊；不以 IPC、Settings Exit 或快捷鍵替代此項 |
+
+### 可見視窗 CDP 拖曳干擾與修正
+
+本輪原生 `test:ui` 先失敗兩次，記錄在 `native-ui.log`、`native-ui-traced.log`。pointer trace 顯示：第一步 CDP 拖曳使原生視窗移動後，Windows 從實體游標位置送入 `buttons=0` 的 pointermove，接著 lostpointercapture；後續 CDP 移動已有 `buttons=1`，卻失去 capture，導致第 2 步位移斷言失敗。這與前輪的 client／screen 座標累加問題不同；同輪 Computer Use 的真實拖曳通過。
+
+測試在三版面截圖完成後，先記錄 visibleBefore，再 hide 並斷言 visible=false，隔離實體游標與 CDP 合成事件，才測拖曳。原有逐步位移、2 px 容差、lock 與 click-through 斷言全部保留；沒有更動產品拖曳 handler。修正後 `native-ui-isolated.log` PASS；位置 `(1108,68)` → `(1159,92)`，locked 後不變。兩份 `native-pointer-trace-{before,after}.json` 保留診斷。
+
+| 回歸能力／命令（工作目錄 `app/`） | 結果與界線 |
+|---|---|
+| Playwright Edge preview：`npm run test:ui`，`http://127.0.0.1:1420/` | PASS；Full 1040×740、Compact 420×490、Mini 420×74；`automated/preview-report.json` 與三版面 PNG；console／network errors=[] |
+| `npm run test:manual-tts-ui` | PASS；preview＋explicit mock IPC，涵蓋草稿、IME、Queue／取消及錯誤；`automated/manual-tts-report.json`、mock-actions 與 PNG；mock 結果不代表模型發聲 |
+| `AETHERTUNE_CDP=http://127.0.0.1:9223` 下執行 `node tests/ui.mjs` | PASS；`automated/native-report.json` 中三版面 visible=true，拖曳段 visibleDuring=false；三版面 PNG、console／network errors=[]。真實可見拖曳另由上表 Computer Use 證明 |
+
+測試後精確恢復原始 localStorage／sessionStorage、Full／opacity／hotkeys／lock／click-through，見 `preferences-restored.json`、`shell-before.json`；RVC 回到原先 microphone 配置，沒有啟動麥克風測試。新 TTS request／Transcript 留作驗收紀錄。退出後停止本輪 Vite，1420／9223 監聽已結束；無重建環境或修改 Windows 音訊裝置。
+
+UI-01 保持 WAITING，只追蹤本輪仍缺的 Tray 實際選單路徑；自訂快捷鍵組合、全部透明度與多螢幕組合未在這輪重新窮舉，不將上述預設操作擴張為所有配置通過。AUDIO-02、physical／CABLE／聽評／600 秒與效能門檻均未因此升級。後續入口為 [UI-01 任務列](../../status.md)與 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
+
+## 2026-10-01 畫面審查（歷史範圍）
 
 ## 能否每個項目都按 START 說話
 

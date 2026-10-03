@@ -2,7 +2,7 @@
 
 **文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
-更新日期：2026-10-02（Asia/Taipei）。規格整理 `d478ee2`、資料 baseline／CDP 測試修正 `2729702`、快照排序 `e7f5c34` 與投影模組 `2d3434c` 已推送。後續新增條列式功能需求單、A/A 波動診斷及 request 資料驗證拆分；功能相容 PASS，效能驗收仍 WAITING，詳見分項報告。原生操作因使用者正在使用電腦而暫緩；未改 UI／資料契約或重跑真模型／LIVE，舊報告只代表原日期的限定結果。
+更新日期：2026-10-03（Asia/Taipei）。規格、資料 baseline、快照排序／投影與 request 驗證拆分，以及條列式需求單／A/A 波動診斷已推送至 `5484500`；功能相容 PASS，效能驗收仍 WAITING。本輪依授權完成 Computer Use 原生拖曳、快捷鍵、Quick Input、Settings Exit 與新 CosyVoice request 的限定補驗，並修正 CDP 拖曳的輸入干擾；只改測試與文件。UI-01 尚缺 Tray 選單實際點擊，完整音訊路由／LIVE 未升級；各輪證據以分項報告的日期與範圍為準。
 
 ## 怎麼看與追蹤
 
@@ -24,7 +24,7 @@
 
 | 功能 | 交付程度／已具備的小功能 | 尚缺什麼 | 證據／後續任務 |
 |---|---|---|---|
-| [F01 工作區／視窗](specs/app-requirements.md#f01) | 部分交付：三種 layout、WORKSPACE／SETTINGS、首屏 START、雙語與偏好保存 | 完整原生拖曳／Tray／快捷鍵回歸；載入與錯誤流程再改善 | [UI](verification/desktop/usability-audit-latest.md)、[語言](verification/desktop/ui-language-verification-latest.md)；UI-01／02、MOD-01 |
+| [F01 工作區／視窗](specs/app-requirements.md#f01) | 部分交付：三種 layout、WORKSPACE／SETTINGS、首屏 START、雙語與偏好保存；預設原生拖曳／快捷鍵／退出已補驗 | Tray 選單實際點擊；載入與錯誤流程再改善 | [UI](verification/desktop/usability-audit-latest.md#computer-use-20261003)、[語言](verification/desktop/ui-language-verification-latest.md)；UI-01／02、MOD-01 |
 | [F02 四 VC](specs/app-requirements.md#f02) | 部分交付：Seed／Mean／X 常駐串流、RVC Mic／File、模型預熱及 Start／Stop；RVC 參數控制 | Seed／Mean／X 通用參數 UI、RVC index 覆蓋、physical／完整路由；bridge／runtime 預檢雙向依賴 | [Desktop VC](verification/desktop/realtime-vc-verification-latest.md)；FEAT-01、AUDIO-01、LIVE-01、MOD-04 |
 | [F03 Manual TTS](specs/app-requirements.md#f03) | 核心已交付：雙引擎、Queue／取消／快照、Recent／Favorites、完成播放寫 Transcript、同引擎 worker 重用 | 冷啟動與切換慢；完整 WAV 模式；近期新增音效仍需新生成原生 Speak 全鏈 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[音效](verification/desktop/audio-effects-verification-latest.md)；PERF-01、AUDIO-02 |
 | [F04 常駐 STT／重建](specs/app-requirements.md#f04) | Desktop 未交付；已有離線 CLI、provider／source 契約，畫面重建模式目前僅文字 | physical Mic／Remote capture、VAD、常駐 STT、backend_stt 串接及共存 | [操作審查](verification/desktop/usability-audit-latest.md)、[後端手冊](guides/user-guide.md)；FEAT-03 |
@@ -38,14 +38,14 @@
 
 ### 最需要注意的現況
 
-- 雙語與音效已有 preview／mock／native／重啟專項 PASS；不覆蓋全部原生操作。拖曳斷言已確認並修正 CDP 座標問題，UI-01 仍等待實際桌面操作，不以隱藏視窗的狀態斷言代替。
+- 原生可見拖曳／lock、click-through 快捷鍵恢復、預設快捷鍵、Quick Input、關閉後恢復與 Settings Exit 已有 Computer Use 證據；CDP 拖曳另隔離實體游標干擾後 PASS。UI-01 只剩本輪 Tray 選單路徑 WAITING，工具未提供可操作目標；不以註冊狀態或 IPC 代替。
 - TTS 同引擎第二句已有模型重用證據；cold start／engine switch 仍慢。不能把 warm 單句數字當每次啟動速度，也不能把完整 WAV 可用時間稱為 streaming 首包。
 - 四 VC 短測有輸出；Seed／Mean／X 的 callback 輸入使用 fixture，RVC duplex B1 擷取仍 WAITING。physical 說話、音質、600 秒與 Discord／外部 Rack 未通過完整驗收。
 - 舊 VCClient packaged 的 BLOCKED 與新版 Desktop headless RVC 是不同實作。前者不是後者的依賴；後者局部 PASS 也不修正前者。
 
 ## 工作順序與每批出口
 
-這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 等待桌面可供實際操作。PERF-02 已交付快照排序，MOD-02 已抽離快照投影及 request 資料驗證；效能控制量測仍不穩定，不將功能相容提升為效能 PASS。其餘依賴尚未完成的工作仍列 PLANNED。
+這是實作順序，不是日期承諾。責任模組是程式 owner，並非已指派 Agent。DOC-01 已完成；BASE-01 已取得資料層子範圍的證據；UI-01 已補原生操作，尚待 Tray 選單可操作目標。PERF-02 已交付快照排序，MOD-02 已抽離快照投影及 request 資料驗證；效能控制量測仍不穩定，不將功能相容提升為效能 PASS。其餘依賴尚未完成的工作仍列 PLANNED。
 
 | 批次 | 目的／工作 | 出口 |
 |---|---|---|
@@ -67,7 +67,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 |---|---|---|---|---|
 | DOC-01／首要 | N04：功能分層、任務、程式／資料邊界、Agent 最小讀取與交接 | `docs/`、`.agent/`；無 | DONE | `d478ee2` 已推送；功能／任務 ID、相對連結與檔案地圖核對；未改 runtime |
 | BASE-01／首要 | F08、N02：固定 UI／cold／warm／長 Session baseline | app tests、TTS／VC metrics、storage；無 | IN_PROGRESS | [資料子範圍 PASS](verification/desktop/performance-baseline-latest.md)：隔離 DB、export、snapshot 及最終檔案核對。尚缺 UI／IPC／CPU／RSS、cold／warm／切換與品質矩陣；完整達到驗證計畫條件才 DONE |
-| UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | WAITING | [CDP 座標根因與修正](verification/desktop/usability-audit-latest.md#window-regression-20261002)已驗；未改產品拖曳。使用者正在使用電腦，Computer Use 暫緩；仍需 fresh PID 可視 Full／Compact／Mini、實際 drag／lock、click-through 解除、Tray／hotkey／Quick Input |
+| UI-01／首要 | F01.3：重現原生拖曳回歸與視窗逃生操作 | `app/src/main.tsx`、Rust window／tests；無 | WAITING | [Computer Use 補驗](verification/desktop/usability-audit-latest.md#computer-use-20261003)：三版面可見、實際 drag／lock、click-through 恢復、Ctrl+Alt+A／V、Quick Input、Settings Exit／程序回收 PASS；CDP 干擾已由測試隔離，未改產品拖曳。只缺 Tray Open／Overlay／恢復／Exit 選單實際點擊，工具未提供工作列目標；不能以 tray_registered 或替代入口判 DONE |
 | MOD-01／高 | F01／03、N03：抽離 UI 狀態／訂閱與操作元件 | `app/src/main.tsx`、`components/SpeechWorkspace.tsx`、`services/`；BASE-01、UI-01 | PLANNED | 保持 command／testid／草稿／IME／queue 行為；元件不直接管原生程序，訂閱集中且可清理；UI 交叉回歸與不退步比較 |
 | UI-02／高 | F08.1／3：載入階段、等待、取消與錯誤復原 | UI、speech／engine snapshot；MOD-01 | PLANNED | 三 layout 都能看到目前階段與可用下一步；取消結果明確、未知 ETA 不造數、ACK timeout 不重複送出；Browser＋native 情境證據 |
 | MOD-02／高 | F03、N03：拆出 request validation、queue policy、執行協調、evidence 組裝 | `services/tts/service.py`、`snapshot.py`、`validation.py`；協調／模型行為仍依 BASE-01 | IN_PROGRESS | [快照投影](verification/desktop/performance-baseline-latest.md#snapshot-projection-module)與[request 資料驗證](verification/desktop/manual-tts-verification-latest.md#request-validation-module)功能相容 PASS；[A/A 控制](verification/desktop/performance-baseline-latest.md#snapshot-jitter-controls)亦重現 p95 波動，效能 WAITING。下一步先界定 queue policy／evidence seam，維持 FIFO、取消、ACK、完成播放才寫稿及 cleanup failure；整體未完成 |
@@ -117,7 +117,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 
 ## 需要人提供或決定的條件
 
-- UI-01：待使用者電腦可供操作後，從 fresh window state 補原生可視／Tray／hotkey 複核；目前不以替代工具接管桌面。資料與文件工作可先行。
+- UI-01：需要工具可選取的 Tray 選單目標，或使用者先開啟系統匣 AetherTune 選單，再從 fresh state 補 Open／Overlay／恢復／Exit 點擊。其餘本輪預設視窗操作已補驗；不必重做已通過案例，獨立資料模組工作可先行。
 - LIVE-01：實際 Mic／耳機接點、首個驗收接收端（例如 Discord 或 OBS）、使用者聽評；Agent 可先準備量測與路由證據。
 - SOURCE-01：所採模型／聲音的可查證來源與使用範圍；現有未知項不影響文件及一般重構先行。
 - BASE-01：先取得 baseline 再定個人可接受的 cold start／切換等待與音質取捨。完整 LIVE 的既有門檻不改寫。

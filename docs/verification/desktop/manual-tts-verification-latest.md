@@ -1,5 +1,26 @@
 # Manual TTS 增量實作與驗證
 
+<a id="native-quick-input-20261003"></a>
+## 2026-10-03：原生 Quick Input 新生成與播放生命週期
+
+基準 `5484500`，Computer Use 實際從 Mini 開啟 Quick Input，輸入「原生介面驗收：草稿保持。」、Shift+Enter、關閉／重開確認草稿，再按 Speak。不是 mock 或舊 WAV replay；完成後 Queue 同一 request 為 completed，唯一對應 Transcript 為 `manual_text`／completed。視窗操作、exe 身分、測試修正與退出稽核由 [UI-01 報告](usability-audit-latest.md#computer-use-20261003)擁有。
+
+| 項目 | 本輪證據 |
+|---|---|
+| Session／request | `890ce2f6-df88-465e-bc09-46ea612b6817`／`d7ddf9d6-27f6-4511-a170-d3dbdb09fe41` |
+| 引擎／profile | CosyVoice2 resident WSL worker、`official-cosyvoice-sample`；model aggregate SHA-256 `204861ce8b518b73fd5c36e4dab0641cfa326ae7ef8d554810d853a3c0f08d60`，各檔 hash 見 session 下 request evidence |
+| 輸出 WAV | session 的 `jobs/<request-id>/<request-id>.wav`；147,918 bytes、24 kHz mono PCM16、73,920 frames／3.08 秒；finite／nonzero、RMS 0.062309、peak 0.516541；SHA-256 `f90089a656b398881c890a6f9d88325d5cbb84ba6168d9dc94b7eff482e35913` |
+| 等待時間 | generation_latency_ms=194008.058；完整 WAV 可用的 ttfa_ms=200982，total_response_ms=204875。這是本輪冷載入單次結果，無 before／after 比較，不是 streaming 首包或效能達標 |
+| 播放與路由 | `喇叭 (HyperX QuadCast S)`／MME、rendered 48 kHz stereo、monitor off、FX bypass；playback 3.08 秒、underrun_count=0；`playback_verified=false`、`route_status=WAITING` |
+| 完成時間 | 2026-10-03 00:19:32.738（Asia/Taipei；UTC 2026-10-02 16:19:32.738） |
+| 程序回收 | Settings Exit 後本輪 App／service／host Windows 程序與 worker Linux group 已消失；詳見 UI 報告的 cleanup artifact |
+
+原始 evidence 在 `artifacts/sessions/890ce2f6-df88-465e-bc09-46ea612b6817/`：request evidence、jobs WAV／runner JSON、Transcript exports，以及 `workers/cosyvoice/c41a6ebe3d584631b5d0c490a0f72343/` 的 stderr／PID／cancel 記錄。UI 快照 `speech-before.json`、`speech-submitted.json`、`speech-result.json` 與重新核對的 `acceptance-summary.json` 位於 `artifacts/desktop/computer-use-20261002-5484500/`。
+
+worker stderr 有 ONNX CUDA provider 缺 `libcudnn.so.8`、ModelScope wetext revisions HTTP 403 及 frontend unavailable 訊息；最終生成成功不表示這些 provider／frontend 均健康。此輪未修改外部套件或模型環境，冷載入與 provider 診斷仍由 BASE-01／PERF-01 追蹤。
+
+本輪 PASS 僅為新 request 的生成、播放 adapter 完成及 Transcript／退出生命週期。沒有獨立 CABLE 回錄、人耳聽評或 physical Mic，且未啟用新增 FX、未測 Breeze，因此 AUDIO-02 保持 PLANNED，完整路由／LIVE 仍 WAITING。
+
 <a id="request-validation-module"></a>
 ## 2026-10-02：請求資料驗證模組
 

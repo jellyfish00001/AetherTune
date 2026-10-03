@@ -113,6 +113,13 @@ if(native){
   let shell=await invoke('shell_status');
   await invoke('set_shell',{shell:{...shell,mode:'compact',locked:false,click_through:false}});
   await page.waitForFunction(()=>document.querySelector('main').classList.contains('compact'));
+  // 可見 WebView 移窗時，Windows 會以實體游標位置送出 buttons=0 的 pointermove，
+  // 使 CDP 按住中的 pointer capture 遺失。先隔離兩種輸入來源，再驗 CDP 位移；
+  // 不放寬位移／鎖定斷言。前面的三版面仍記錄實際 visible，真實拖曳另由 Computer Use 驗收。
+  const visibleBeforeDrag=(await invoke('window_status')).visible;
+  await invoke('hide');
+  assert.equal((await invoke('window_status')).visible,false,'CDP 拖曳需隔離實體滑鼠事件');
+  results.push({assertion:'CDP drag input isolation',visibleBefore:visibleBeforeDrag,visibleDuring:false});
   const dragOrigin=await invoke('window_status');
   await dragNativeWindow(dragOrigin);
   // invoke 是非同步：以 Node polling 等待位置，不能用 async waitForFunction 的 Promise truthiness。
