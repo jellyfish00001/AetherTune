@@ -11,6 +11,7 @@
     "audio_verified"
   ],
   "properties": {
+    "progress": {"$ref": "runtime-progress.schema.json"},
     "type": {
       "const": "state"
     },

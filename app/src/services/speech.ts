@@ -1,4 +1,4 @@
-import { command, native, subscribe, type VcPostFx } from './desktop';
+import { command, native, subscribe, type VcPostFx, type RuntimeProgress } from './desktop';
 import referenceFemale from '../../../contracts/voices/reference-female.json';
 import referenceMale from '../../../contracts/voices/reference-male.json';
 import officialCosyVoiceSample from '../../../contracts/voices/official-cosyvoice-sample.json';
@@ -140,6 +140,7 @@ export type SpeechCapabilities = {
 };
 
 export type SpeechSnapshot = {
+  progress?: RuntimeProgress | null;
   session_id: string;
   state: SpeechState;
   current_request_id: string | null;
@@ -377,6 +378,7 @@ export function normalizeSpeechSnapshot(value: unknown): SpeechSnapshot {
     session_id: asString(input.session_id, base.session_id),
     state,
     current_request_id: typeof input.current_request_id === 'string' ? input.current_request_id : null,
+    progress: input.progress && typeof input.progress.phase === 'string' && Number.isFinite(input.progress.elapsed_seconds) && Number.isFinite(input.progress.last_progress_seconds_ago) && Number.isFinite(Date.parse(input.progress.observed_at)) ? input.progress : null,
     queue: Array.isArray(input.queue) ? input.queue.filter(Boolean).map((item) => {
       const raw = item as SpeechQueueItem & { error?: unknown };
       return { ...raw, error: asErrorMessage(raw.error) } as SpeechQueueItem;

@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -19,16 +20,29 @@ def run_engine(engine: str, profile_id: str, session: Path) -> dict:
     adapter = CosyVoiceAdapter(ROOT) if engine == "cosyvoice" else BreezeAdapter(ROOT)
     profile = json.loads((ROOT / "contracts/voices" / f"{profile_id}.json").read_text(encoding="utf-8"))
     outputs = []
+    progress_events = []
     cleanup = None
     try:
         for index, text in enumerate(("今天測試中文語音。", "模型保持載入，第二句直接推論。")):
             request_id = str(uuid.uuid4())
             job_dir = session / "jobs" / request_id
             job_dir.mkdir(parents=True)
-            result = adapter.generate(
-                {"id": request_id, "text": text, "profile_snapshot": profile, "metadata": {}},
-                job_dir / f"{request_id}.wav", job_dir, threading.Event(),
-            )
+            finished = threading.Event()
+            def observe():
+                while not finished.wait(.2):
+                    progress = adapter.get_progress(request_id)
+                    if progress:
+                        progress_events.append(progress)
+            observer = threading.Thread(target=observe, daemon=True)
+            observer.start()
+            try:
+                result = adapter.generate(
+                    {"id": request_id, "text": text, "profile_snapshot": profile, "metadata": {}},
+                    job_dir / f"{request_id}.wav", job_dir, threading.Event(),
+                )
+            finally:
+                finished.set()
+                observer.join(timeout=2)
             manifest = result.evidence["runner_manifest"]["manifest"]
             assert manifest["status"] == "PASS"
             assert manifest["runtime_reused"] is (index == 1), manifest
@@ -45,7 +59,9 @@ def run_engine(engine: str, profile_id: str, session: Path) -> dict:
             })
         assert outputs[0]["worker_token"] == outputs[1]["worker_token"]
         assert outputs[0]["worker_host_pid"] == outputs[1]["worker_host_pid"]
-        return {"status": "PASS", "engine": engine, "profile": profile_id, "requests": outputs}
+        assert any(p['phase'] == 'model_load' for p in progress_events), progress_events
+        assert any(p['phase'] == 'generating' and p['runtime_reused'] for p in progress_events), progress_events
+        return {"status": "PASS", "engine": engine, "profile": profile_id, "requests": outputs, "progress": progress_events}
     finally:
         cleanup = adapter.close()
         (session / f"{engine}-cleanup.json").write_text(json.dumps(cleanup, ensure_ascii=False, indent=2), encoding="utf-8")

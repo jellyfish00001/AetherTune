@@ -17,8 +17,8 @@ def emit(event: dict) -> None:
     print(json.dumps(event, ensure_ascii=False), flush=True)
 
 
-def state(value: str, reason: str) -> None:
-    emit(dict(type="vc_runtime", value=value, reason=reason, audio_verified=False))
+def state(value: str, reason: str, **progress) -> None:
+    emit(dict(type="vc_runtime", value=value, reason=reason, audio_verified=False, **progress))
 
 
 class SampleFifo:
@@ -71,6 +71,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
     import soundfile as sf
     from scipy.signal import resample_poly
     from services.engines.postfx import PostFx
+    from services.engines.noise_reduction import NoiseReduction
     from services.engines.rvc_runtime import endpoint, digest
     from services.engines.streaming_adapters import create_processor
 
@@ -90,13 +91,15 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
     capture = []
     capture_frames = 0
     try:
-        state("LOADING", f"載入 {engine} 常駐模型與參考聲音")
+        state("LOADING", f"載入 {engine} 常駐模型與參考聲音", phase="model_load")
         load_started = time.perf_counter()
         processor = create_processor(root, engine, request["parameters"], request["reference"], folder)
         fx = PostFx(48000, request.get("postfx"))
+        denoiser = NoiseReduction(48000, request.get("noise_reduction"))
+        report["noise_reduction"] = denoiser.settings
         report.update(runtime=processor.runtime, reference_sha256=digest(Path(request["reference"])), postfx=fx.settings)
         emit(dict(type="runtime", runtime=processor.runtime))
-        state("LOADING", "模型已載入，預熱推論核心")
+        state("LOADING", "模型已載入，預熱推論核心", phase="warmup")
         # 與真實 worker 相同的核心；warmup 結束重置模型 context，無 synthetic PASS。
         probe = (.03 * np.sin(np.arange(processor.block) * (2*np.pi*220/48000))).astype(np.float32)
         for _ in range(3):
@@ -114,7 +117,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
         if stop.is_set():
             report["status"] = "CANCELLED"
             return 0
-        state("READY", "模型與預熱完成，正在開啟麥克風和輸出裝置")
+        state("READY", "模型與預熱完成，正在開啟麥克風和輸出裝置", phase="audio_open", load_seconds=report["load_seconds"])
         input_index = endpoint(sd, request["input"], request["host_api"], "input", 1)
         output_index = endpoint(sd, request["output"], request["host_api"], "output", 2)
         incoming = SampleFifo(max(processor.block * 3, 48000))
@@ -221,7 +224,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                         pending.clear()
                         continue
                     started = time.perf_counter()
-                    result = processor.process(block)
+                    result = processor.process(denoiser.process(block))
                     timings.append((time.perf_counter()-started)*1000)
                     stats["blocks"] += 1
                     if result is not None and len(result):
@@ -253,7 +256,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                     raise ValueError("STREAM_FAILED: 音訊裝置停止回呼")
                 timing = dict(p95_ms=float(np.percentile(list(timings), 95)) if timings else None,
                               rtf=float(np.mean(timings)) / (processor.block/48) if timings else None)
-                metrics = {**stats, **timing, "input_drops": incoming.dropped, "output_drops": outgoing.dropped,
+                metrics = {**stats, **timing, **denoiser.metrics(), "input_drops": incoming.dropped, "output_drops": outgoing.dropped,
                            "monitor_drops": monitoring.dropped, "input_backlog_ms": incoming.frames/48}
                 report.update(metrics=metrics, elapsed_seconds=elapsed)
                 emit(dict(type="metrics", metrics={**metrics, **peaks}))

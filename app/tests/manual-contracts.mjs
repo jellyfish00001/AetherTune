@@ -21,6 +21,9 @@ const agent=ajv.getSchema('agent-reply.schema.json');
 assert.ok(agent({text:'未來回覆',emotion:null,actions:[],metadata:{}}),JSON.stringify(agent.errors));
 assert.equal(agent({type:'speech_ack',command_id:'ack',accepted:true}),false,'AgentReply 不能與 service ACK 混淆');
 const state=ajv.getSchema('tts-state.schema.json');
+const progressEvent=ajv.getSchema('tts-progress.schema.json');
+assert.ok(progressEvent({type:'speech_progress',progress:{phase:'generating',request_id:event.id,elapsed_seconds:12,last_progress_seconds_ago:2,observed_at:event.created_at,worker_alive:true,runtime_reused:true,load_seconds:0}}));
+assert.equal(progressEvent({type:'speech_progress',progress:{phase:'fake'}}),false);
 for(const value of ['IDLE','QUEUED','GENERATING','BUFFERING','PLAYING','STOPPING','ERROR']){
   assert.ok(state({type:'speech_snapshot',snapshot:{session_id:event.session_id,state:value,queue:[event],transcript:[],profiles,settings:{interrupt_policy:'queue',enter_to_send:true},recent_phrases:[],favorites:[],mic_enabled:false,capabilities:{microphone:'WAITING',manual_text:'implemented',agent_reply:'PLANNED'}}}),JSON.stringify(state.errors));
 }

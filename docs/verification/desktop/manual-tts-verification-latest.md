@@ -1,5 +1,7 @@
 # Manual TTS 增量實作與驗證
 
+2026-10-03 載入提示增量：兩引擎新的 cold／warm request、每秒進度傳遞及三版面顯示由[載入與調音報告](audio-tuning-verification-latest.md)擁有；本頁既有測試與 hash 保留當輪身分，新增測試未提升 physical／LIVE。
+
 <a id="native-quick-input-20261003"></a>
 ## 2026-10-03：原生 Quick Input 新生成與播放生命週期
 
@@ -20,6 +22,12 @@
 worker stderr 有 ONNX CUDA provider 缺 `libcudnn.so.8`、ModelScope wetext revisions HTTP 403 及 frontend unavailable 訊息；最終生成成功不表示這些 provider／frontend 均健康。此輪未修改外部套件或模型環境，冷載入與 provider 診斷仍由 BASE-01／PERF-01 追蹤。
 
 本輪 PASS 僅為新 request 的生成、播放 adapter 完成及 Transcript／退出生命週期。沒有獨立 CABLE 回錄、人耳聽評或 physical Mic，且未啟用新增 FX、未測 Breeze，因此 AUDIO-02 保持 PLANNED，完整路由／LIVE 仍 WAITING。
+
+### 2026-10-03：個人使用的驗收取捨
+
+上方約 194 秒是冷啟動這筆 request 的生成等待，包含載入與生成，不是獨立量測的純模型載入時間；約 201 秒才有完整 WAV 可用。離線手動 TTS 可在等待後播放或取用 WAV，因此本輪略過以冷啟動時間阻擋離線使用的驗收。即時對話或頻繁切換引擎仍受影響；同引擎 worker 重用不保證每次首句都快，BASE-01／PERF-01 的量測與改善工作保留。
+
+依使用者授權，可用 [Desktop 手冊的人工確認](../../guides/desktop-user-guide.md#personal-use-check)檢查耳機及指定接收端。這輪沒有新聽評、回錄或 LIVE 測量，原始 `playback_verified=false`／`route_status=WAITING` 不改寫。正式 LIVE 驗收延後、已知路由缺陷保留；採納範圍見[進度頁](../../status.md#acceptance-scope-20261003)。
 
 <a id="request-validation-module"></a>
 ## 2026-10-02：請求資料驗證模組

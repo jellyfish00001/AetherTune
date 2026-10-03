@@ -123,6 +123,12 @@
 | [app/src/components/RvcControls.tsx](../../app/src/components/RvcControls.tsx) | 依 RVC manifest 呈現登錄角色、Mic／WAV、F0、音高與進階 block 參數。 | 同步 RVC manifest、runner validation 與 UI request 測試。 |
 | [app/src/components/VcAudioControls.tsx](../../app/src/components/VcAudioControls.tsx) | 四 VC 共用 reference、裝置與監聽 controls；音效編輯由設定頁擁有。 | 同步 main request、音訊裝置與 UI tests。 |
 | [app/src/components/AudioEffectsSettings.tsx](../../app/src/components/AudioEffectsSettings.tsx) | SETTINGS 六引擎音效編輯、數值草稿、單項重設與保存提示。 | 同步 audio-effects storage、main requests、音效 UI test 與 Desktop 手冊。 |
+| [app/src/components/EngineParameters.tsx](../../app/src/components/EngineParameters.tsx) | 四 VC manifest 參數表單、提示及進階收合。 | 同步 manifest、vc-settings、runner 校驗與 audio-tuning UI 測試。 |
+| [app/src/components/HelpIcon.tsx](../../app/src/components/HelpIcon.tsx) | hover／focus／click 資訊提示、Escape、portal 與 viewport 邊界。 | 同步雙語文案、可及性及窄視窗視覺驗證。 |
+| [app/src/components/NumberControl.tsx](../../app/src/components/NumberControl.tsx) | 深色數字調整按鈕、負值草稿、方向鍵、步進及上下限。 | 保留直接輸入與既有 testid；同步引擎／音效數字操作測試。 |
+| [app/src/components/LoadStatus.tsx](../../app/src/components/LoadStatus.tsx) | 六引擎歷史載入範圍、階段／等待／存活／最後進度及慢載入提示。 | 同步 progress 契約、量測 catalog、TTS 次句重用與三版面測試。 |
+| [app/src/components/SpeechMiniStatus.tsx](../../app/src/components/SpeechMiniStatus.tsx) | Mini 無 Quick Input 時取得 TTS 進度並顯示階段。 | 保留訂閱清理；同步 SpeechWorkspace snapshot 與原生 cold／warm 測試。 |
+| [app/src/services/vc-settings.ts](../../app/src/services/vc-settings.ts) | 四 VC 參數／降噪獨立保存、舊 RVC 移轉與交叉限制。 | 同步 manifests、main requests、後端校驗與設定保存測試。 |
 | [app/src/services/audio-effects.ts](../../app/src/services/audio-effects.ts) | 六引擎獨立音效記錄、範圍校驗、預設與舊 VC 設定移轉。 | 同步 Python postfx defaults/bounds、AudioEffectsSettings 與持久化測試。 |
 | [app/src/services/i18n.tsx](../../app/src/services/i18n.tsx) | 共用語言 context、設定控制、即時切換、HTML lang、偏好保存與系統匣同步。 | 同步共用文案、原生 set_ui_language 與雙語測試。 |
 | [app/src/locales/messages.json](../../app/src/locales/messages.json) | React 與 Rust 系統匣唯一的繁中／英文文案，每筆依序為 zh-TW／en。 | 新增文案補齊兩語與相同插值，重建前端／原生並跑 i18n test。 |
@@ -156,6 +162,8 @@
 | [app/tests/baseline-storage.py](../../app/tests/baseline-storage.py) | 隔離 10／100／1,000 筆合成 history，量 SQLite／export／snapshot／JSON；驗 close 後資料與 hash，可凍結 Git 基準 service class／helpers 作交錯比較。 | 比較物件不跑 constructor，外部依賴固定目前版本；基準已依賴獨立 snapshot 模組時拒絕誤比。只寫新 artifacts 子目錄、不讀寫使用者 DB、不執行模型／音訊；結果由資料效能報告擁有。 |
 | [app/tests/diagnose-snapshot.py](../../app/tests/diagnose-snapshot.py) | 從合成 baseline 複製 fixture，交錯 A/A 與 A/B、記錄 wall／thread CPU／GC，釐清快照量測波動。 | 不修改來源案例，只寫新 artifacts；A/A 超出門檻時不得把 A/B 判為效能 PASS。比較版本隔離沿用 baseline-storage；重跑入口見維護手冊。 |
 | [app/tests/audio-effects.mjs](../../app/tests/audio-effects.mjs) | Preview／原生音效設定、引擎隔離、移轉、reload、重設與 Compact 設定入口。 | 同步 audio-effects service/model 與 UI；原生測試後還原既有紀錄。 |
+| [app/tests/audio-tuning.mjs](../../app/tests/audio-tuning.mjs) | Playwright preview／WebView2 參數、移轉、降噪、深色數字與資訊提示回歸。 | preview IPC mock 與 native 設定驗證分開，原生後還原使用者偏好。 |
+| [app/tests/native-progress.mjs](../../app/tests/native-progress.mjs) | 原生正式 command 驗載入取消／失敗與兩 TTS cold／warm 階段和播放。 | 限定本輪 idle root exe／CABLE；實體聽感與 LIVE 另驗。 |
 | [app/tests/i18n.mjs](../../app/tests/i18n.mjs) | 文案完整性、漏接 JSX、雙語／aria、偏好、六引擎、草稿與設定不變及原生選單專項。 | Native 僅 idle 時執行，完成後恢復原始偏好與 session；不測真實音訊。 |
 | [app/tests/ui-text.mjs](../../app/tests/ui-text.mjs) | 測試共用的文案查找 helper；controls 用穩定 data-testid，顯示斷言用語系。 | 同步 locale catalog 與 UI tests，不能注入瀏覽器 fixture 作為 runtime 函式。 |
 | [app/tests/verify-speech-artifacts.mjs](../../app/tests/verify-speech-artifacts.mjs) | 以 AJV 與 SHA-256 核對正式 probe 的 session/request/state/transcript schema、request/profile/reference/output/model/route evidence、WAV hash、FIFO、metrics、SQLite exports 與 `service_alive=false`；不做 Windows/WSL PID cleanup，該責任屬 `audit-speech-processes.py`。 | 同步 `speech-probe`、`manual-audio-smoke.py`、TTS service snapshot/contracts 與 Manual TTS verification。 |
@@ -226,6 +234,9 @@
 |---|---|---|
 | [contracts/schemas/engine-manifest.schema.json](../../contracts/schemas/engine-manifest.schema.json) | 約束每個 engine manifest 的 id/name/family/capabilities、adapter、classification、implementation、paths、parameters 與 limitations。 | 同步六個 engine JSON、`app/tests/contracts.mjs` 與 desktop discovery。 |
 | [contracts/schemas/backend-state.schema.json](../../contracts/schemas/backend-state.schema.json) | 約束 backend state event、合法 lifecycle value、reason、engine id 與 `audio_verified` boundary。 | 同步 Rust EngineManager state、contract tests 與 app verification。 |
+| [contracts/model-load-estimates.json](../../contracts/model-load-estimates.json) | 六引擎本機歷史載入樣本範圍，分模型／F0，附原始量測來源。 | 只加入實測樣本；未知配置不造 ETA，模型載入與完整等待分開。 |
+| [contracts/schemas/runtime-progress.schema.json](../../contracts/schemas/runtime-progress.schema.json) | 可選 runtime progress：階段、elapsed、last progress、observed、alive、load／reuse／request identity。 | 既有 VC／TTS state 相容；同步 Python Progress、Rust merge、UI 與 negative fixtures。 |
+| [contracts/schemas/tts-progress.schema.json](../../contracts/schemas/tts-progress.schema.json) | 精簡 speech_progress 心跳事件契約。 | 同步 TTS service 每秒 heartbeat 與 Rust 相同 current request ID 的合併。 |
 | [contracts/schemas/session.schema.json](../../contracts/schemas/session.schema.json) | 約束 session identity、mode/engine/model/profile/reference、parameters、devices、postfx、STT 與 export metadata。 | 同步 session storage/export、contract tests 與 docs/verification。 |
 | [contracts/schemas/speech-request.schema.json](../../contracts/schemas/speech-request.schema.json) | 約束 Manual TTS queue request 的 id/session/text/engine/profile/source/priority/metadata/route 與 status。 | 同步 `services/tts/service.py`、Rust speech bridge、`manual-contracts.mjs`。 |
 | [contracts/schemas/tts-state.schema.json](../../contracts/schemas/tts-state.schema.json) | 約束 `speech_snapshot` event、state vocabulary、queue/current request、transcript、profiles/settings/capabilities 與 audio WAITING。 | 同步 `speech.ts` normalization、Rust events、TTS service tests。 |
@@ -289,6 +300,9 @@
 | [services/engines/stream_runtime.py](../../services/engines/stream_runtime.py) | Seed／Mean／X 共用 capture、推論 worker、bounded PCM queue、輸出／監聽、metrics 與 evidence。 | 同步 runner service、三 manifest、runtime queue tests、Desktop VC report。 |
 | [services/engines/streaming_adapters.py](../../services/engines/streaming_adapters.py) | 三引擎 resident 模型、reference、source revision、rolling context 與 host/model 重取樣。 | 同步 backend README、processor tests 與真實 streaming smoke。 |
 | [services/engines/postfx.py](../../services/engines/postfx.py) | 共用 EQ／壓縮／殘響／乾濕混合與範圍驗證。 | 同步 VC UI controls、四 runtime 接點與訊號 tests。 |
+| [services/engines/noise_reduction.py](../../services/engines/noise_reduction.py) | 四 VC 共用輸入頻譜降噪、跨區塊狀態、嚴格設定驗證、bypass、延遲與整檔尾端補償。 | 同步四 runtime、參數契約及固定底噪／連續性 regression；不視為模型電子感修復。 |
+| [services/engines/progress.py](../../services/engines/progress.py) | 真實階段的 monotonic 起始／更新時間與存活／request 進度投影。 | 心跳不刷新最後階段時間；同步 runner／TTS heartbeat 及 progress schema。 |
+| [services/engines/test_noise_reduction.py](../../services/engines/test_noise_reduction.py) | bypass、可變區塊連續性、有限輸出、尾端、延遲補償與固定底噪門檻。 | 記錄 DSP 時間、噪音衰減與語音能量；不替代 physical 聽評。 |
 | [services/engines/test_postfx.py](../../services/engines/test_postfx.py) | bypass、乾聲、跨 block filter history、reverb tail 與 limiter regression。 | Post-FX 變更後重跑，不替代 physical listening。 |
 | [services/engines/test_stream_runtime.py](../../services/engines/test_stream_runtime.py) | variable frame FIFO、bounded backlog 與不阻塞輸出 callback regression。 | 同步 capture/output queue 行為。 |
 | [services/engines/test_streaming_adapters.py](../../services/engines/test_streaming_adapters.py) | X codec boundary、lookahead 與 rolling/fade regression。 | 同步三 processor 的參數與輸出契約。 |
@@ -459,6 +473,7 @@
 | [docs/verification/desktop/usability-audit-latest.md](../../docs/verification/desktop/usability-audit-latest.md) | Desktop 操作畫面審查、模式差異、未完成／多餘 UI 與修正證據。 | 同步 main/SpeechWorkspace、UI tests、Desktop 手冊；UI PASS 不升格實體音訊。 |
 | [docs/verification/desktop/performance-baseline-latest.md](../../docs/verification/desktop/performance-baseline-latest.md) | Desktop 合成資料效能 baseline 的配置、samples 摘要、來源／artifact hash、量測工具修正與限制；不追蹤另一張待辦。 | 同步 baseline-storage 工具與受測 service／storage；任務進度回寫 BASE-01，不能把兩輪宿主波動當產品加速。 |
 | [docs/verification/desktop/audio-effects-verification-latest.md](../../docs/verification/desktop/audio-effects-verification-latest.md) | 六引擎音效設定、獨立紀錄、TTS 處理與當輪 native／WAV／CABLE 證據。 | 同步 UI/storage、TTS/engine PostFx、schema、tests；實體音訊與 LIVE 另驗。 |
+| [docs/verification/desktop/audio-tuning-verification-latest.md](../../docs/verification/desktop/audio-tuning-verification-latest.md) | 載入提示、四 VC 參數、輸入降噪與提示介面的本輪命令／DSP／WAV／CABLE／UI 證據 owner。 | 同步 runtime／contracts／UI 變更、根目錄 exe 身分與實體／LIVE 驗收邊界；保留歷史報告。 |
 | [docs/verification/desktop/ui-language-verification-latest.md](../../docs/verification/desktop/ui-language-verification-latest.md) | 繁中／英文、語言保存、原生系統匣與雙語 UI 專項證據。 | 同步共用文案、i18n context、原生 command 與 UI tests；不升格音訊。 |
 | [docs/verification/desktop/python-ui-verification-latest.md](../../docs/verification/desktop/python-ui-verification-latest.md) | 2026-09-27 Python 3.10 runtime 與已移除 Tk 控制台的歷史驗證；不能作為目前 UI 操作入口。 | runtime 變更看現行 runtime check；Desktop 操作以 user guide 與當輪 app verification 為準。 |
 | [docs/status.md](../../docs/status.md) | 功能交付摘要、任務 ID／狀態／依賴／完成條件、優先批次與人工條件的唯一追蹤表；證據只連 owner report。 | 實作／驗證後先更新分項 report，再回寫相同任務列；不另建平行 backlog。 |

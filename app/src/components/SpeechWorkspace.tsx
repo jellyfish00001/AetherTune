@@ -1,6 +1,8 @@
 import { useI18n } from '../services/i18n';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { native, type Shell, type VcPostFx } from '../services/desktop';
+import { LoadStatus } from './LoadStatus';
+import { HelpIcon } from './HelpIcon';
 import {
   defaultSpeechSnapshot,
   getSpeechStatus,
@@ -342,7 +344,7 @@ export function SpeechWorkspace({
   if (settingsOnly) return <div className="speech-settings-page"><span className="eyebrow">AETHERTUNE</span><h1>{t("設定")}</h1>{settingsPanel}</div>;
 
   const outputSelector = <div className="composer-output">
-    <label>{t("輸出裝置")}<select data-testid="control:TTS Output" aria-label={t("TTS Output")} value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { if (!event.target.value) return; const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ ...route, output: device.name, host_api: device.host_api }); }}><option value="">{t(audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置')}</option>{outputChoices.map(({ device, index, label, isDefault }) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{label}{showAllOutputs ? ` · ${device.host_api}` : ''}{isDefault ? t(' · 系統預設') : ''}{!device.selectable ? t(' · 名稱重複') : ''}</option>)}</select></label>
+    <label><span className="field-caption">{t("輸出裝置")}<HelpIcon label={t("輸出裝置")} help="help.output"/></span><select data-testid="control:TTS Output" aria-label={t("TTS Output")} value={outputIndex < 0 ? '' : String(outputIndex)} disabled={!native || !audioDevices || audioDeviceBusy} onChange={(event) => { if (!event.target.value) return; const device = audioDevices?.outputs[Number(event.target.value)]; if (device?.selectable) onRouteChange({ ...route, output: device.name, host_api: device.host_api }); }}><option value="">{t(audioDeviceBusy ? '正在讀取裝置…' : '請選擇播放裝置')}</option>{outputChoices.map(({ device, index, label, isDefault }) => <option key={`${device.host_api}-${device.name}-${index}`} value={index} disabled={!device.selectable}>{label}{showAllOutputs ? ` · ${device.host_api}` : ''}{isDefault ? t(' · 系統預設') : ''}{!device.selectable ? t(' · 名稱重複') : ''}</option>)}</select></label>
     <div className="composer-output-options"><label className="check"><input data-testid="control:顯示進階輸出裝置" aria-label={t("顯示進階輸出裝置")} type="checkbox" checked={showAllOutputs} onChange={(event) => setShowAllOutputs(event.target.checked)}/>{t("顯示進階輸出裝置")}</label><button type="button" className="text-button" disabled={!native || audioDeviceBusy} onClick={() => void onReloadAudioDevices()}>{t("重新掃描裝置")}</button></div>
   </div>;
 
@@ -350,8 +352,8 @@ export function SpeechWorkspace({
     <label className="check"><input data-testid="control:自己監聽" aria-label={t("自己監聽")} type="checkbox" checked={monitor.enabled} disabled={!native || audioDeviceBusy || monitorChoices.length === 0} onChange={(event) => {
       const preferred = (monitorChoices.find((choice) => choice.isDefault) ?? monitorChoices[0])?.device;
       onRouteChange({ ...route, monitor: { enabled: event.target.checked, output: monitor.output || preferred?.name || '', host_api: monitor.host_api || preferred?.host_api || '' } });
-    }}/>{t("自己監聽")}</label>
-    {monitor.enabled && <label>{t("監聽裝置")}<select data-testid="control:監聽裝置" aria-label={t("監聽裝置")} value={monitorIndex === undefined ? '' : String(monitorIndex)} disabled={!native || audioDeviceBusy} onChange={(event) => {
+    }}/>{t("自己監聽")}<HelpIcon label={t('自己監聽')} help="help.monitor"/></label>
+    {monitor.enabled && <label><span className="field-caption">{t("監聽裝置")}<HelpIcon label={t("監聽裝置")} help="help.monitor"/></span><select data-testid="control:監聽裝置" aria-label={t("監聽裝置")} value={monitorIndex === undefined ? '' : String(monitorIndex)} disabled={!native || audioDeviceBusy} onChange={(event) => {
       if (!event.target.value) return;
       const device = audioDevices?.outputs[Number(event.target.value)];
       if (device?.selectable) onRouteChange({ ...route, monitor: { enabled: true, output: device.name, host_api: device.host_api } });
@@ -387,6 +389,7 @@ export function SpeechWorkspace({
   if (quickOnly) return <section className="speech-quick-popup" data-testid="speech-quick-popup">
     <div className="speech-quick-header"><strong>{t("Text → Voice")}</strong><button type="button" data-testid="control:Close quick input" aria-label={t("Close quick input")} onClick={() => void onShellPatch({ quick_input: false })}>×</button></div>
     {composer}
+    <LoadStatus engine={ttsEngine.id} progress={snapshot.progress ?? undefined} active={!!snapshot.current_request_id}/>
     {(localError || (snapshot.state === 'ERROR' && snapshot.queue[0]?.error)) && <p role="alert" className="error speech-error">{diagnostic(localError || snapshot.queue[0]?.error || '')}</p>}
   </section>;
 
@@ -402,7 +405,7 @@ export function SpeechWorkspace({
             <VoiceProfileSelect profiles={profiles} profileId={profileId} engineId={ttsEngine.id} onChange={setProfileId}/>
           </div>
           {japaneseReference && <p className="draft-note">{t("這是日語參考聲音，中文文字可能帶日語發音；請改選中文參考聲音。")}</p>}
-          <p className="hint">{t("首次使用會載入模型；同一引擎的下一句會直接推論。切換引擎或取消生成後需重新載入。")}</p>
+          <LoadStatus engine={ttsEngine.id} progress={snapshot.progress ?? undefined} active={!!snapshot.current_request_id}/>
           {mode === 'speech_reconstruction' && <p className="hint">{t("目前與文字發聲共用流程：輸入文字後按 Speak；麥克風語音重建尚未提供。")}</p>}
         </section>
         {composer}

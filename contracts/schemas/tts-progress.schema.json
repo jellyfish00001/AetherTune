@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TTSProgressEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "progress"],
+  "properties": {
+    "type": {"const": "speech_progress"},
+    "progress": {"$ref": "runtime-progress.schema.json"}
+  }
+}

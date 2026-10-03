@@ -3,6 +3,12 @@ use std::{collections::HashMap, process::Command, sync::{Arc, Condvar, Mutex}, t
 use serde_json::{json, Value};
 use crate::{engine_manager::root, process_manager::{Process, Sink}};
 
+fn update_progress(snapshot: &mut Value, progress: &Value) {
+    if progress["request_id"].is_string() && progress["request_id"] == snapshot["current_request_id"] {
+        snapshot["progress"] = progress.clone();
+    }
+}
+
 struct Shared {
     snapshot: Value,
     acknowledgements: HashMap<String, Value>,
@@ -41,6 +47,10 @@ impl SpeechManager {
                 let mut s=lock.lock().unwrap();
                 match event["type"].as_str() {
                     Some("speech_snapshot") => s.snapshot=event["snapshot"].clone(),
+                    Some("speech_progress") => {
+                        // 精簡心跳只更新目前句子，不讓舊 worker 事件污染下一句。
+                        update_progress(&mut s.snapshot, &event["progress"]);
+                    },
                     Some("speech_ack") => if let Some(id)=event["command_id"].as_str() {
                         // 超時回應有界保留，避免異常 service 無限增長記憶體。
                         if s.acknowledgements.len()>=128 { s.acknowledgements.clear(); }
@@ -114,6 +124,17 @@ impl Drop for SpeechManager { fn drop(&mut self) { let _=self.shutdown(); } }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn progress_does_not_cross_request_identity() {
+        let mut snapshot=json!({"current_request_id":"current"});
+        update_progress(&mut snapshot, &json!({"request_id":"previous","phase":"generating"}));
+        assert!(snapshot.get("progress").is_none());
+        update_progress(&mut snapshot, &json!({"request_id":"current","phase":"model_load"}));
+        assert_eq!(snapshot["progress"]["phase"],"model_load");
+        snapshot["current_request_id"]=Value::Null;
+        update_progress(&mut snapshot, &json!({"request_id":"current","phase":"generating"}));
+        assert_eq!(snapshot["progress"]["phase"],"model_load");
+    }
     #[test]
     fn json_control_ack_and_cleanup() {
         let python=root().join("tools/venvs/seed-vc/Scripts/python.exe");

@@ -64,6 +64,7 @@ impl EngineManager {
                 Some("artifact") => { snapshot.lock().unwrap()["artifact"]=event["path"].clone(); }
                 Some("metrics") => { snapshot.lock().unwrap()["metrics"]=event["metrics"].clone(); }
                 Some("runtime") => { snapshot.lock().unwrap()["runtime"]=event["runtime"].clone(); }
+                Some("progress") if !*stopping.lock().unwrap() => { snapshot.lock().unwrap()["progress"]=event["progress"].clone(); }
                 Some("error") => { let mut s = snapshot.lock().unwrap(); s["error"] = event.clone(); }
                 Some("service_exit") if !*stopping.lock().unwrap() => {
                     let mut s = snapshot.lock().unwrap(); if s["value"] != "ERROR" { s["value"] = json!("ERROR"); s["reason"] = json!("service 非預期結束；可重新啟動"); }
@@ -82,7 +83,7 @@ impl EngineManager {
     pub fn stop(&mut self) -> Result<Value, String> {
         *self.stopping.lock().unwrap() = true;
         if let Some(mut process) = self.process.take() { self.snapshot.lock().unwrap()["value"] = json!("STOPPING"); process.stop()?; }
-        let mut s = self.snapshot.lock().unwrap(); s["value"] = json!("OFFLINE"); s["reason"] = json!("受管制的程序樹已釋放"); s["audio_verified"] = json!(false); drop(s);
+        let mut s = self.snapshot.lock().unwrap(); s["value"] = json!("OFFLINE"); s["reason"] = json!("受管制的程序樹已釋放"); s["audio_verified"] = json!(false); s.as_object_mut().unwrap().remove("progress"); drop(s);
         Ok(self.status())
     }
     pub fn pid(&self) -> Option<u32> { self.process.as_ref().map(|p| p.id()) }

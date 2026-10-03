@@ -10,10 +10,13 @@ flowchart TB
   EM --> PM[ProcessManager: Windows Job Object]
   PM --> B[services/engines/runner_service.py]
   B --> C[共用 capture / worker / output]
-  C --> P[Seed / Mean / X 常駐 processors]
+  C --> NR[共用因果輸入降噪]
+  NR --> P[Seed / Mean / X 常駐 processors]
   P --> F[共用 Post-FX / dry-wet]
-  B --> V[RVC headless block / duplex runner]
-  V --> F
+  B --> V[RVC Mic / WAV 來源]
+  V --> NR
+  NR --> RP[RVC headless 推論 / SOLA]
+  RP --> F
   F -->|PCM 保留在 Python| R[主輸出 + 自己監聽]
   UI -. M4 .-> STT[獨立 Transcription Service]
   STT -.-> DB[SQLite + session exports]
@@ -36,6 +39,16 @@ flowchart TB
 | `contracts/schemas/` | manifest、state、Transcript、Session 的版本 1 契約 |
 
 同一個 Python bridge 接各 VC Adapter；argv routing 受 engine allowlist 限制，模型用各自 venv。RVC 的 UI 參數從 manifest 呈現、JSON request 傳遞，runner 再驗範圍及 register hash。headless RVC 不啟動上游 GUI、不經 IPC 傳 PCM。
+
+### 載入進度、參數及輸入降噪的增量介面
+
+`EngineParameters` 依現有 manifests 呈現四個 VC；`vc-settings.ts` 擁有逐引擎參數／降噪預設、型別／範圍校驗及舊 RVC 移轉。保留 `aethertune.vc-settings.v1` 的 exact route；新增 `engineParameters`／`noiseReduction`，舊 `rvcParameters` 相容欄位保留。當前 runner 的 request 不隨後續設定修改；下一次 START 才重建。
+
+`noise_reduction.py` 擁有共用有狀態的 mono 頻譜 DSP、嚴格設定驗證、bypass、固定延遲與整檔尾端補償；不依賴模型或裝置。VC request 增加可選 `noise_reduction={enabled,strength_db}`，省略與關閉均 bypass；runtime 在模型前接上同一核心，原有 Post-FX 保留在模型後。記錄算法延遲、總耗時與最慢呼叫，RVC File 先處理來源再補償自身延遲，Mic／三個串流引擎保留跨區塊狀態。
+
+`progress.py` 保存真實階段、起始／最後階段 monotonic 時間及 request ID。VC JSONL 新增精簡 `progress` 事件，Rust 將可選進度合併至 Status；停止移除舊進度。TTS worker 以 atomic `progress.json` 回報階段及 load／reuse，adapter 只讀目前句子；service 每秒送 `speech_progress`，Rust 只合併相同 current request ID。心跳不宣稱新的階段進度，也不讀 Transcript／DB。兩種 snapshot 使用 `runtime-progress.schema.json` 的可選欄位，既有 state 名稱保持相容；PCM 不經 IPC。
+
+`model-load-estimates.json` 是帶原始 evidence 來源的本機載入樣本範圍；UI 依實際模型／F0 查找。它不是倒數 ETA 或性能保證，也不涵蓋所有環境與生成成本。`HelpIcon` 使用 viewport 邊界內的 portal，`NumberControl` 共用負值、鍵盤、步進及深色按鈕；聲音問題指引只做手動排錯。
 
 <a id="modular-boundaries"></a>
 ## 程式模組化：現況、目標與不可變條件

@@ -66,9 +66,11 @@ def validate(root: Path, engine: str, request: dict) -> tuple[dict, dict]:
         read_wav(request.get("source", ""))
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from services.engines.postfx import validate_postfx
+    from services.engines.noise_reduction import validate_noise_reduction
     from services.engines.rvc_runtime import endpoint
     from services.tts.playback import resolve_route
     validate_postfx(request.get("postfx"))
+    validate_noise_reduction(request.get("noise_reduction"))
     import sounddevice as sd
     endpoint(sd, request.get("output", ""), request.get("host_api", ""), "output", 2)
     if engine != "rvc" or values["source_mode"] == "microphone":
@@ -102,6 +104,8 @@ def validate(root: Path, engine: str, request: dict) -> tuple[dict, dict]:
     if engine == "xvc":
         if values["current"] <= 0:
             raise ValueError("PARAMETER_INVALID: Desktop 麥克風模式 current 必須大於 0；offline 請使用 CLI")
+        if any(values[name] % 80 for name in ("current", "chunk", "future")):
+            raise ValueError("PARAMETER_INVALID: X-VC codec 視窗必須對齊 80ms")
         if values["smooth"] > values["current"] or values["current"] + values["future"] + values["smooth"] > values["chunk"]:
             raise ValueError("PARAMETER_INVALID: X-VC streaming 視窗不合法")
     return manifest, values
@@ -124,10 +128,16 @@ def build_command(root: Path, engine: str, request: dict, values: dict, run: Pat
 
 
 def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from services.engines.progress import Progress
+    progress = Progress()
+    emit(dict(type="progress", progress=progress.snapshot()))
     state(engine, "VALIDATING", "檔案與參數預檢；不代表模型載入或音訊驗證")
     try:
         manifest, values = validate(root, engine, request)
     except (ValueError, RuntimeError, OSError, wave.Error) as exc:
+        progress.set("error")
+        emit(dict(type="progress", progress=progress.snapshot(False)))
         emit(dict(type="error", code=str(exc).split(":")[0], message=str(exc)))
         state(engine, "ERROR", str(exc))
         return 2
@@ -148,17 +158,25 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
                 try:
                     runtime = json.loads(line)
                     if runtime.get("type") in ("rvc_runtime", "vc_runtime") and not stopping.is_set():
+                        phase = runtime.get("phase") or {"LOADING": "model_load", "READY": "audio_open", "RUNNING": "running", "ERROR": "error", "OFFLINE": "completed"}.get(runtime["value"])
+                        if phase:
+                            progress.set(phase, load_seconds=runtime.get("load_seconds"))
+                        emit(dict(type="progress", progress=progress.snapshot(proc.poll() is None)))
                         state(engine, runtime["value"], runtime["reason"])
                     elif runtime.get("type") in ("metrics", "runtime") and not stopping.is_set():
                         emit(runtime)
                 except (ValueError, KeyError):
                     pass
             if "CUDA out of memory" in line or "CUDA error: out of memory" in line:
+                progress.set("error")
+                emit(dict(type="progress", progress=progress.snapshot(proc.poll() is None)))
                 emit(dict(type="error", code="CUDA_OOM", message="GPU 記憶體不足；請停止其他模型後重試"))
                 state(engine, "ERROR", "CUDA_OOM")
         code = proc.wait()
         emit(dict(type="process_exit", code=code))
         if not stopping.is_set():
+            progress.set("error" if code else "completed")
+            emit(dict(type="progress", progress=progress.snapshot(False)))
             if code:
                 emit(dict(type="error", code="BACKEND_CRASH", message=f"現有 runner 結束：{code}；請查看 backend log"))
                 state(engine, "ERROR", f"runner exit {code}")
@@ -166,6 +184,11 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
                 state(engine, "OFFLINE", "runner 已完成；exit 0 不代表音訊 PASS，請核對 run-evidence；Stop 可釋放 service")
 
     observer = None
+    def heartbeat():
+        while not stopping.wait(1):
+            if child is not None:
+                emit(dict(type="progress", progress=progress.snapshot(child.poll() is None)))
+    threading.Thread(target=heartbeat, daemon=True, name="vc-progress").start()
     try:
         for line in sys.stdin:
             try:
@@ -200,6 +223,7 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
                     state(engine, "ERROR", str(exc))
     finally:
         stopping.set()
+        progress.set("cancelled")
         state(engine, "STOPPING", "釋放程序；Rust Job Object 負責清除完整程序樹")
         if child is not None and child.poll() is None:
             if child.stdin is not None:
@@ -215,6 +239,7 @@ def serve(root: Path, engine: str, request: dict, validate_only: bool = False) -
                 child.wait(timeout=5)
         if observer:
             observer.join(timeout=2)
+        emit(dict(type="progress", progress=progress.snapshot(False)))
         state(engine, "OFFLINE", "service 已停止；Job cleanup 由 App 確認")
     return 0
 

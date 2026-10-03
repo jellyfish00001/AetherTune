@@ -1,0 +1,188 @@
+{
+  "scope": "model_load_and_warmup_only",
+  "measured_at": "2026-10-03",
+  "device": "NVIDIA GeForce RTX 5060 Ti",
+  "estimates": [
+    {
+      "engine": "rvc",
+      "model": "Chinese_Narrator_Uncle",
+      "method": "fcpe",
+      "seconds": [
+        4.374,
+        4.374
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/rvc-narrator-fcpe-20261001/report.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Kafka_CN_Yujie",
+      "method": "fcpe",
+      "seconds": [
+        5.82,
+        5.82
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/rvc-kafka-fcpe-20261001/report.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Wukong_HeroicMale",
+      "method": "fcpe",
+      "seconds": [
+        4.67,
+        4.67
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/rvc-wukong-fcpe-20261001/report.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Sage_CN_HeroicFemale",
+      "method": "fcpe",
+      "seconds": [
+        11.665,
+        115.36130109999795
+      ],
+      "samples": 2,
+      "sources": [
+        "artifacts/desktop/rvc-sage-fcpe-monitor-20261001/report.json",
+        "artifacts/desktop/runs/64146d1964fa4e8d9c29595047d3d72d/rvc-evidence.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Sage_CN_HeroicFemale",
+      "method": "rmvpe",
+      "seconds": [
+        19.625,
+        19.625
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/rvc-sage-rmvpe-20261001/report.json"
+      ]
+    },
+    {
+      "engine": "meanvc2",
+      "model": "40ms",
+      "seconds": [
+        13.387,
+        43.425
+      ],
+      "samples": 2,
+      "sources": [
+        "artifacts/desktop/vc-repair-20261001/meanvc2/stream-evidence.json",
+        "artifacts/desktop/vc-repair-20261001/native/report.json"
+      ]
+    },
+    {
+      "engine": "xvc",
+      "seconds": [
+        34.32,
+        132.16720149997855
+      ],
+      "samples": 3,
+      "sources": [
+        "artifacts/desktop/vc-repair-20261001/xvc-threads4/stream-evidence.json",
+        "artifacts/desktop/vc-repair-20261001/native/report.json",
+        "artifacts/desktop/audio-tuning-20261003/xvc/stream-evidence.json"
+      ]
+    },
+    {
+      "engine": "seed-vc",
+      "seconds": [
+        43.267,
+        49.531
+      ],
+      "samples": 3,
+      "sources": [
+        "artifacts/desktop/vc-repair-20261001/seed-vc/stream-evidence.json",
+        "artifacts/desktop/vc-repair-20261001/native/report.json",
+        "artifacts/desktop/audio-tuning-20261003/seed-vc/stream-evidence.json"
+      ]
+    },
+    {
+      "engine": "cosyvoice",
+      "seconds": [
+        25.407,
+        75.644
+      ],
+      "samples": 3,
+      "sources": [
+        "artifacts/sessions/resident-smoke-8ab12b6f-29ff-4a17-a066-d734dea1f2b4/report.json",
+        "artifacts/desktop/ui/manual-tts-native-smoke-cold.json",
+        "artifacts/desktop/audio-tuning-20261003/native-progress/report.json"
+      ]
+    },
+    {
+      "engine": "breeze",
+      "seconds": [
+        84.03394772299998,
+        86.101
+      ],
+      "samples": 2,
+      "sources": [
+        "artifacts/sessions/resident-smoke-8ab12b6f-29ff-4a17-a066-d734dea1f2b4/report.json",
+        "artifacts/desktop/audio-tuning-20261003/native-progress/report.json"
+      ]
+    },
+    {
+      "engine": "meanvc2",
+      "model": "120ms",
+      "seconds": [
+        49.30877820000751,
+        49.30877820000751
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/audio-tuning-20261003/meanvc2-120ms/stream-evidence.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Chinese_Narrator_Uncle",
+      "method": "rmvpe",
+      "seconds": [
+        12.634219500003383,
+        12.634219500003383
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/runs/29efbfb85cea4330b772a4f5a8f88bde/rvc-evidence.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Kafka_CN_Yujie",
+      "method": "rmvpe",
+      "seconds": [
+        7.08378499999526,
+        7.08378499999526
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/runs/9d47d1aee06a45f7bbbdc0876c38dcb4/rvc-evidence.json"
+      ]
+    },
+    {
+      "engine": "rvc",
+      "model": "Wukong_HeroicMale",
+      "method": "rmvpe",
+      "seconds": [
+        8.20485879998887,
+        8.20485879998887
+      ],
+      "samples": 1,
+      "sources": [
+        "artifacts/desktop/runs/df2e4deed1864a81ac6c6c0550df3575/rvc-evidence.json"
+      ]
+    }
+  ]
+}

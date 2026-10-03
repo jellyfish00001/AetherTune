@@ -56,9 +56,11 @@ class BreezeRuntimeService:
         self._soundfile: Any | None = None
         self._lock = threading.Lock()
 
-    def _ensure_runtime(self, fast_all: bool, attention: str) -> tuple[float, bool]:
+    def _ensure_runtime(self, fast_all: bool, attention: str, progress=None) -> tuple[float, bool]:
         key = (bool(fast_all), attention)
         if self._runtime_key == key and self._runtime is not None:
+            if progress:
+                progress("generating", load_seconds=0, runtime_reused=True)
             return 0.0, True
 
         # The model is large. Release an old variant before loading a new one
@@ -91,6 +93,8 @@ class BreezeRuntimeService:
             raise RuntimeError(f"Breeze did not select CUDA: device={device}")
 
         load_started = time.perf_counter()
+        if progress:
+            progress("model_load")
         tokenizer, model, audio_tokenizer = load_runtime(
             self.model_dir,
             device=device,
@@ -117,6 +121,8 @@ class BreezeRuntimeService:
         self._audio_tokenizer = audio_tokenizer
         self._runtime = runtime
         self._runtime_key = key
+        if progress:
+            progress("generating", load_seconds=load_seconds, runtime_reused=False)
         return load_seconds, False
 
     def generate(
@@ -131,6 +137,7 @@ class BreezeRuntimeService:
         fast_all: bool,
         attention: str,
         output_file: Path,
+        progress=None,
     ) -> dict[str, Any]:
         """Generate one WAV using the cached official runtime."""
 
@@ -141,7 +148,7 @@ class BreezeRuntimeService:
         from breeze_infer.templates import get_template, prepare_inputs, select_template_name
 
         with self._lock:
-            load_seconds, reused = self._ensure_runtime(fast_all, attention)
+            load_seconds, reused = self._ensure_runtime(fast_all, attention, progress)
             assert self._runtime is not None
             assert self._tokenizer is not None
             assert self._model is not None

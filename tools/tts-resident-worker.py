@@ -11,6 +11,7 @@ import importlib.util
 import json
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from audio_output_validation import ensure_finite_samples, validate_wav_file
@@ -34,26 +35,30 @@ def _sha256(path: Path) -> str:
 
 
 class CosyRuntime:
-    def __init__(self, model_dir: Path) -> None:
+    def __init__(self, model_dir: Path, progress=None) -> None:
         import torch
         import torchaudio
         from cosyvoice.cli.cosyvoice import CosyVoice2
 
         self.torch = torch
         self.torchaudio = torchaudio
+        if progress:
+            progress("model_load")
         started = time.perf_counter()
         self.model = CosyVoice2(str(model_dir), fp16=True)
         self.load_seconds = time.perf_counter() - started
         self.used = False
         self.model_dir = model_dir
 
-    def generate(self, request: dict, output: Path) -> dict:
+    def generate(self, request: dict, output: Path, progress=None) -> dict:
         prompt_audio = Path(request["prompt_audio"])
         prompt_text = Path(request["prompt_text_file"]).read_text(encoding="utf-8")
         text = Path(request["text_file"]).read_text(encoding="utf-8")
         if not prompt_audio.is_file() or not prompt_text.strip() or not text.strip():
             raise ValueError("reference audio/text 或輸入文字不可為空")
         started = time.perf_counter()
+        if progress:
+            progress("generating", load_seconds=0.0 if self.used else self.load_seconds, runtime_reused=self.used)
         chunks = list(self.model.inference_zero_shot(text, prompt_text, str(prompt_audio), stream=False))
         if not chunks:
             raise RuntimeError("CosyVoice returned no audio chunks")
@@ -101,7 +106,7 @@ class BreezeRuntime:
         spec.loader.exec_module(module)
         self.service = module.BreezeRuntimeService(model_dir)
 
-    def generate(self, request: dict, output: Path) -> dict:
+    def generate(self, request: dict, output: Path, progress=None) -> dict:
         reference_audio = Path(request["reference_audio"])
         reference_text = Path(request["reference_text_file"]).read_text(encoding="utf-8")
         text = Path(request["text_file"]).read_text(encoding="utf-8")
@@ -115,6 +120,7 @@ class BreezeRuntime:
             fast_all=bool(request.get("fast_all", False)),
             attention=str(request.get("attention_implementation", "eager")),
             output_file=output,
+            progress=progress,
         )
 
 
@@ -129,7 +135,12 @@ def main() -> int:
     results = mailbox / "results"
     requests.mkdir(parents=True, exist_ok=True)
     results.mkdir(parents=True, exist_ok=True)
-    runtime = CosyRuntime(args.model_dir) if args.engine == "cosyvoice" else BreezeRuntime(args.model_dir)
+    current_request = None
+    def progress(phase, **metrics):
+        _write_json(mailbox / "progress.json", {"phase": phase, "request_id": current_request,
+                    "updated_at": datetime.now(timezone.utc).isoformat(), **metrics})
+    progress("environment")
+    runtime = CosyRuntime(args.model_dir, progress) if args.engine == "cosyvoice" else BreezeRuntime(args.model_dir)
     _write_json(mailbox / "ready.json", {"status": "READY", "engine": args.engine})
     while True:
         pending = sorted(requests.glob("*.json"))
@@ -144,9 +155,10 @@ def main() -> int:
                 if request.get("id") != request_id:
                     raise ValueError("request ID 不一致")
                 output = Path(request["output"])
+                current_request = request_id
                 output.parent.mkdir(parents=True, exist_ok=True)
                 manifest_path = clear_stale_outputs(output)
-                manifest = runtime.generate(request, output)
+                manifest = runtime.generate(request, output, progress)
                 manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
                 result = {"status": "PASS", "id": request_id}
             except Exception as exc:

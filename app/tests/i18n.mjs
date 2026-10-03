@@ -12,7 +12,7 @@ for (const [key, translations] of Object.entries(messages)) {
   assert.ok(translations.every(value => typeof value === 'string' && value.length), key);
   assert.deepEqual(placeholders(translations[0]), placeholders(translations[1]), key);
 }
-for (const file of ['main.tsx', 'components/AudioEffectsSettings.tsx', 'components/RvcControls.tsx', 'components/VcAudioControls.tsx', 'components/SpeechWorkspace.tsx', 'services/i18n.tsx']) {
+for (const file of ['main.tsx', 'components/AudioEffectsSettings.tsx', 'components/RvcControls.tsx', 'components/VcAudioControls.tsx', 'components/SpeechWorkspace.tsx', 'components/EngineParameters.tsx', 'components/NumberControl.tsx', 'components/HelpIcon.tsx', 'components/LoadStatus.tsx', 'components/SpeechMiniStatus.tsx', 'services/i18n.tsx']) {
   const source = ts.createSourceFile(file, await readFile(new URL(`src/${file}`, root), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   function inspect(node) {
     if (ts.isJsxText(node) && /[\p{L}]/u.test(node.text)) assert.ok(['AetherTune', 'GPU', 'AETHERTUNE', '[T]'].includes(node.text.trim()), `${file}: untranslated JSX ${node.text}`);

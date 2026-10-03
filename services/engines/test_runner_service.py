@@ -69,6 +69,18 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "視窗"):
             validate(self.root,"xvc",{**self.request,"parameters":{"chunk":100}})
 
+    def test_codec_alignment_and_noise_reduction_validation(self):
+        for patch in ({"parameters": {"current": 161}}, {"noise_reduction": {"enabled": 1}},
+                      {"noise_reduction": {"enabled": True, "strength_db": 25}}):
+            with self.subTest(patch=patch), self.assertRaisesRegex(ValueError, 'PARAMETER_INVALID'):
+                validate(self.root, 'xvc', {**self.request, **patch})
+        request = {**self.request, 'noise_reduction': {'enabled': True, 'strength_db': 12}}
+        for engine in ('seed-vc', 'meanvc2', 'xvc', 'rvc'):
+            _, values = validate(self.root, engine, request)
+            build_command(self.root, engine, request, values, self.root)
+            stored = self.root / ('rvc-request.json' if engine == 'rvc' else 'stream-request.json')
+            self.assertEqual(json.loads(stored.read_text(encoding='utf-8'))['noise_reduction'], request['noise_reduction'])
+
     def test_seed_device_and_step(self):
         for patch in ({"input":""}, {"input":"Missing Mic"}, {"host_api":"Wrong API"}, {"parameters":{"block_time":.31}}, {"parameters":{"block_time":.04,"crossfade_length":.1}}):
             with self.subTest(patch=patch), self.assertRaises(ValueError):

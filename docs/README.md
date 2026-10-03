@@ -41,6 +41,7 @@
 |---|---|
 | Desktop 與本機入口 | [介面語言](verification/desktop/ui-language-verification-latest.md)、[六引擎音效設定](verification/desktop/audio-effects-verification-latest.md)、[操作畫面審查](verification/desktop/usability-audit-latest.md)、[四 VC 串流／音效修復](verification/desktop/realtime-vc-verification-latest.md)、[Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[App 首輪](verification/desktop/app-verification-latest.md) |
 | Desktop 資料效能 | [隔離 DB／export／snapshot 基準](verification/desktop/performance-baseline-latest.md)：實測範圍、raw artifact、來源 hash 與尚未量測的層級 |
+| Desktop 載入與調音 | [載入提示、引擎參數、輸入降噪及提示介面](verification/desktop/audio-tuning-verification-latest.md)：本輪模型／DSP／Browser／原生 WebView2 證據與人耳驗收邊界 |
 | Streaming VC／模型 | [Backend 安裝與基本音訊](verification/backends/backend-install-test-latest.md)、[Seed readiness](verification/backends/seed-vc-readiness-latest.md)、[Seed GUI 音訊](verification/backends/seed-vc-verification-latest.md)、[RVC 模型 audit](verification/backends/rvc-model-audit-latest.md) |
 | Speech Reconstruction | [CosyVoice](verification/backends/cosyvoice-verification-latest.md)、[Breeze TTS 2](verification/backends/breeze-tts2-verification-latest.md) |
 | VCClient／音訊線路 | [packaged repair](verification/backends/vcclient-packaged-repair-latest.md)、[RVC probe](verification/backends/vcclient-rvc-probe-latest.md)、[latency matrix](verification/backends/vcclient-rvc-latency-matrix-latest.md)、[wiring](verification/audio/wiring-verification-latest.md)、[客觀 WAV 比較](verification/audio/audio-quality-comparison-latest.md) |

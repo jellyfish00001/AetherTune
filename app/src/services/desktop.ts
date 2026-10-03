@@ -6,7 +6,10 @@ import xvc from '../../../contracts/engines/xvc.json';
 import rvc from '../../../contracts/engines/rvc.json';
 import cosy from '../../../contracts/engines/cosyvoice.json';
 import breeze from '../../../contracts/engines/breeze.json';
-export type Manifest = {id:string;name:string;family?:string;referenceVoice?:boolean;capabilities:string[];classification:string;adapter:string;implementation:string;limitations:string[];parameters:unknown[]};
+export type EngineParameter = { name: string; label: string; type: string; level: string; default: string | number | boolean; runtime: boolean; min?: number; max?: number; step?: number; options?: string[] };
+export type Manifest = {id:string;name:string;family?:string;referenceVoice?:boolean;capabilities:string[];classification:string;adapter:string;implementation:string;limitations:string[];parameters:EngineParameter[]};
+export type NoiseReduction = { enabled: boolean; strength_db: number };
+export type RuntimeProgress = { phase: string; elapsed_seconds: number; last_progress_seconds_ago: number; observed_at: string; worker_alive: boolean | null; request_id?: string | null; load_seconds?: number | null; runtime_reused?: boolean };
 export type Shell = {mode:'full'|'compact'|'mini';opacity:number;always_on_top:boolean;locked:boolean;click_through:boolean;visibility_hotkey:string;voice_hotkey:string};
 export type VcPostFx = {
   enabled: boolean;
@@ -31,7 +34,7 @@ export type StatusMetrics = {
   blocks?: number | null;
   [key:string]: unknown;
 };
-export type Status = {value:string;engine_id:string|null;reason:string;audio_verified:false;service_alive?:boolean;error?:{message:string};metrics?:StatusMetrics;runtime?:RuntimeStatus};
+export type Status = {value:string;engine_id:string|null;reason:string;audio_verified:false;service_alive?:boolean;error?:{message:string};metrics?:StatusMetrics;runtime?:RuntimeStatus;progress?:RuntimeProgress};
 export const native = isTauri();
 export const defaultShell:Shell = {mode:'full',opacity:.94,always_on_top:false,locked:false,click_through:false,visibility_hotkey:'Ctrl+Alt+A',voice_hotkey:'Ctrl+Alt+V'};
 export const previewManifests = [seed,mean,xvc,rvc,cosy,breeze] as Manifest[];

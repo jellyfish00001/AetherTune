@@ -135,6 +135,7 @@ class SpeechService:
         self._current_cancel: threading.Event | None = None
         self._current_adapter: Any | None = None
         self._current_started_monotonic: float | None = None
+        self._progress = None
         self._shutdown_requested = False
         self._worker_done = threading.Event()
         self._state = "IDLE"
@@ -180,6 +181,7 @@ class SpeechService:
             state = self._state
             queue = project_queue(self._requests, current_id, self._pending)
         readiness = self.engine_readiness()
+        progress = self.runtime_progress(current_id) if current_id else None
         return {
             "type": "speech_snapshot",
             "snapshot": {
@@ -204,6 +206,7 @@ class SpeechService:
                     "agent_reply": "PLANNED",
                 },
                 "engine_readiness": readiness,
+                "progress": progress,
             },
         }
 
@@ -250,6 +253,28 @@ class SpeechService:
                     "supports_streaming_tts": False,
                 }
         return result
+
+    def runtime_progress(self, expected_id=None):
+        """精簡心跳投影；不讀取 Transcript／DB 或重新掃描模型 readiness。"""
+        with self._lock:
+            current_id, state, runtime_progress = self._current_id, self._state, self._progress
+            current_engine = self._requests.get(current_id, {}).get("engine_id") if current_id else None
+        if expected_id is not None and current_id != expected_id:
+            return None
+        progress = None
+        if current_id and runtime_progress is not None and runtime_progress.request_id == current_id:
+            adapter = self._adapters.get(current_engine)
+            getter = getattr(adapter, "get_progress", None)
+            adapter_progress = getter(current_id) if callable(getter) else None
+            if state == "GENERATING" and adapter_progress:
+                progress = adapter_progress
+            else:
+                if state == "STOPPING":
+                    runtime_progress.set("stopping")
+                progress = runtime_progress.snapshot(adapter_progress.get("worker_alive") if adapter_progress else None)
+                if adapter_progress:
+                    progress.update(load_seconds=adapter_progress.get("load_seconds"), runtime_reused=adapter_progress.get("runtime_reused", False))
+        return progress
 
     def _read_playback_open_blocked(self) -> bool:
         """Read an adapter's native-open safety flag without assuming a class."""
@@ -607,6 +632,8 @@ class SpeechService:
 
     def _run_one(self, record: dict[str, Any], cancel_event: threading.Event) -> None:
         request_id = record["id"]
+        from services.engines.progress import Progress
+        self._progress = Progress(request_id)
         started_at = utc_now()
         job_dir = self.root / "artifacts" / "sessions" / self.session_id / "jobs" / request_id
         output_path = job_dir / f"{request_id}.wav"
@@ -637,6 +664,7 @@ class SpeechService:
             with self._lock:
                 record["status"] = "ready"
                 self._state = "BUFFERING"
+                self._progress.set("postfx")
             self._safe_save_request(record)
             self._emit_snapshot()
             route = record["route_snapshot"]
@@ -651,6 +679,7 @@ class SpeechService:
             with self._lock:
                 record["status"] = "playing"
                 self._state = "PLAYING"
+                self._progress.set("playing")
             self._safe_save_request(record)
             self._emit_snapshot()
             playback_result = self._playback.play(playback_path, route, cancel_event)
@@ -973,6 +1002,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     service = SpeechService(args.root, emit=_emit_stdout)
     _emit_stdout(service.snapshot())
+    progress_stop = threading.Event()
+    def progress_heartbeat():
+        while not progress_stop.wait(1):
+            progress = service.runtime_progress()
+            if progress:
+                _emit_stdout({"type": "speech_progress", "progress": progress})
+    heartbeat = threading.Thread(target=progress_heartbeat, daemon=True, name="tts-progress")
+    heartbeat.start()
     try:
         should_break = False
         for line in __import__("sys").stdin:
@@ -994,6 +1031,8 @@ def main(argv: list[str] | None = None) -> int:
             if should_break:
                 break
     finally:
+        progress_stop.set()
+        heartbeat.join(timeout=2)
         service.close()
     return 0
 

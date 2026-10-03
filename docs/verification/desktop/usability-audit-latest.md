@@ -1,10 +1,19 @@
 # Desktop 操作與畫面審查
 
+2026-10-03 調音介面增量：資訊 icon、收合排查、深色捲動條／數字控制、四 VC 表單及載入提示已交付；Browser／Playwright／原生 WebView2 的本輪範圍與 exe 身分見[載入與調音報告](audio-tuning-verification-latest.md)。下方較早的畫面／hash 保留歷史身分。
+
 最新更新：2026-10-03（Asia/Taipei）。本頁擁有 Desktop 畫面問題、修正與原生操作證據；各節保留測試日期。操作以 [Desktop 手冊](../../guides/desktop-user-guide.md)為準；模型、串流與回錄由 [四 VC 驗證](realtime-vc-verification-latest.md)與 [Manual TTS 驗證](manual-tts-verification-latest.md)擁有。2026-10-01 畫面審查未生成語音；2026-10-03 的新 TTS request 另見對應報告，兩輪均未做實體聽評。
 
 2026-10-01 後續更新：音效已移至 SETTINGS，六引擎獨立保存與完整 App 重啟驗證由[音效設定報告](audio-effects-verification-latest.md)擁有；繁中／英文與系統匣語言由[介面語言報告](ui-language-verification-latest.md)擁有。歷史 hash／截圖保留當輪身分，目前 exe hash 見下方最新補驗。
 
-最新補驗：2026-10-02～03 已依使用者授權執行 [Computer Use 原生操作](#computer-use-20261003)，拖曳、快捷鍵、Quick Input 與 Settings Exit 通過；系統匣選單實際點擊仍 WAITING。2026-10-02 的[視窗回歸補驗](#window-regression-20261002)及下方 2026-10-01 畫面審查保留原日期與範圍。
+最新補驗：2026-10-02～03 已依使用者授權執行 [Computer Use 原生操作](#computer-use-20261003)，拖曳、快捷鍵、Quick Input 與 Settings Exit 通過；系統匣選單實際點擊的測試證據仍 WAITING，2026-10-03 已依[驗收取捨](#tray-acceptance-20261003)略過此項工具驗收，UI-01 以限定範圍結案。2026-10-02 的[視窗回歸補驗](#window-regression-20261002)及下方 2026-10-01 畫面審查保留原日期與範圍。
+
+<a id="tray-acceptance-20261003"></a>
+## 2026-10-03：系統匣工具驗收略過
+
+使用者授權影響有限或可人工確認的項目略過驗收。Tray 選單尚未實際點擊，但本輪已驗證顯示快捷鍵、重新啟動同一 exe 恢復原視窗及 Settings Exit／程序回收，日常操作有可用入口；因此略過 Tray Open／Overlay／恢復／Exit 的工具驗收，UI-01 的本輪預設視窗操作以已通過範圍結案，不再等待工具補出工作列目標。
+
+這是驗收範圍取捨，沒有新增 Tray PASS 證據；下方原始結果及 `acceptance-summary.json` 保留 WAITING。若要使用系統匣，可依 [Desktop 手冊的人工確認](../../guides/desktop-user-guide.md#personal-use-check)自行點擊；自訂快捷鍵、全部透明度、多螢幕與音訊驗收亦未升級。任務狀態與其他取捨只由 [進度頁](../../status.md#acceptance-scope-20261003)追蹤。
 
 <a id="computer-use-20261003"></a>
 ## 2026-10-02～03：UI-01 Computer Use 原生操作
@@ -39,7 +48,7 @@
 
 測試後精確恢復原始 localStorage／sessionStorage、Full／opacity／hotkeys／lock／click-through，見 `preferences-restored.json`、`shell-before.json`；RVC 回到原先 microphone 配置，沒有啟動麥克風測試。新 TTS request／Transcript 留作驗收紀錄。退出後停止本輪 Vite，1420／9223 監聽已結束；無重建環境或修改 Windows 音訊裝置。
 
-UI-01 保持 WAITING，只追蹤本輪仍缺的 Tray 實際選單路徑；自訂快捷鍵組合、全部透明度與多螢幕組合未在這輪重新窮舉，不將上述預設操作擴張為所有配置通過。AUDIO-02、physical／CABLE／聽評／600 秒與效能門檻均未因此升級。後續入口為 [UI-01 任務列](../../status.md)與 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
+上述測試結束時 UI-01 為 WAITING，只缺 Tray 實際選單路徑；後續略過此項驗收的決定見[驗收取捨](#tray-acceptance-20261003)。自訂快捷鍵組合、全部透明度與多螢幕組合未在這輪重新窮舉，不將上述預設操作擴張為所有配置通過。AUDIO-02、physical／CABLE／聽評／600 秒與效能門檻均未因此升級。後續入口為 [UI-01 任務列](../../status.md)與 [Agent 維護手冊](../../../.agent/reference/agent-maintenance-guide.md)。
 
 ## 2026-10-01 畫面審查（歷史範圍）
 

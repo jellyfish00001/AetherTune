@@ -36,9 +36,40 @@
 2. 首屏按 START，等待模型載入與預熱完成、狀態變成 RUNNING，再說話。首次啟動／切換可能等待數十秒，不能看到 LOADING 就判定無聲故障。輸出必須選實際接耳機／喇叭的裝置；有 OUTPUT PEAK 但聽不到時先查播放端。切換 Engine 或參數前按 STOP。
 3. 若主輸出選 `CABLE Input` 或 Voicemeeter，聲音會送到虛擬線路；勾「自己監聽」並選耳機，才能同時直接聽見。各 Engine 共用此設定。
 4. 按「到設定調整」或 SETTINGS，在「音效設定 → 設定項目」選引擎，調整 EQ、壓縮、殘響、乾濕比例及輸出增益，再勾「啟用音效」。數值離開欄位後自動儲存；六個引擎各有一份紀錄，切換及重新開啟 App 都會還原。「重設此項目音效」只重設目前引擎。Compact 的入口會展開 Full 設定頁。
-5. INPUT PEAK 無變化時查麥克風／靜音；有輸入而 OUTPUT PEAK 無變化時查 backend error；RTF>1 表示模型處理慢於輸入，會斷續。MODEL P95 只表示模型處理，不能當成端到端延遲。
+5. INPUT PEAK 無變化時查麥克風／靜音；有輸入而 OUTPUT PEAK 無變化時查 backend error；RTF>1 表示處理慢於輸入，會斷續。P95 不包含完整裝置／路由延遲；開啟降噪時還應核對其耗時與丟棄數。
 
 本機當輪可用程度、輸出證據與仍待聽評的範圍見 [Desktop VC 驗證](../verification/desktop/realtime-vc-verification-latest.md)；模式差異與畫面未完成項目見 [操作畫面審查](../verification/desktop/usability-audit-latest.md)。外部 VST／Light Host 與 600 秒 LIVE 驗收另行記錄。
+
+### 載入進度與引擎參數
+
+工作區顯示依本機歷史量測的「預估模型載入」，RVC 隨角色與 FCPE／RMVPE 改變，MeanVC2 隨 40ms／120ms 改變。沒有樣本顯示「尚未量測」。開始後可看環境準備、模型載入、預熱、開啟裝置、已等待時間、程序是否存活與最後階段更新；超出歷史範圍只提示載入較久，可繼續等、停止或展開診斷。預估不包含全部環境準備與生成時間，也不保證每次落在範圍內。
+
+TTS 顯示模型載入、生成、音效與播放；第二句重用時顯示「模型已就緒（重用）」，生成秒數重新計算。首次推論的額外準備仍計入生成。Mini 收起文字框時也顯示目前階段；要停止或查看完整診斷，展開 Compact／Full。
+
+| 引擎 | 怎麼調整 |
+|---|---|
+| RVC | 角色、來源、FCPE／RMVPE 與半音直接顯示；進階展開 Index、區塊、交疊及歷史上下文 |
+| Seed-VC | 展開「引擎進階參數」，調推論步數、CFG、參考長度、區塊、交疊與各上下文 |
+| X-VC | 展開 Current／Chunk／Future／Smooth；前三者需對齊 80ms，Smooth 及總長度須符合畫面提示 |
+| MeanVC2 | 選 40ms／120ms 模型；較長模型提供更多模型上下文，也有不同延遲取捨，效果需同樣本比較 |
+
+每個 VC 引擎獨立儲存參數。先 STOP 再修改，下一次 START 套用；舊 RVC 記錄與 exact 音訊路由保留。其他三個 VC 沒有已整合的原生半音控制。數字可直接輸入負值、用方向鍵或深色上下按鈕，離開欄位時依上下限與步進校驗；交叉限制不合法時禁止啟動。
+
+### 提示、降噪與聲音問題排查
+
+音效、音訊裝置與參數旁的 ⓘ 可滑鼠停留、鍵盤移到焦點或點擊閱讀，Escape 關閉。提示說明用途、增加／減少的效果、套用時機與副作用。詳細排錯在設定頁預設收合的「聲音問題排查」，每次只修改一項後用同一段語音比較，不會一鍵改寫所有設定。
+
+四個 VC 的設定頁另有「輸入降噪（變聲前）」，預設關閉、保存強度 12dB；可從 6～12dB 開始，最大 24dB。啟動後先保持短暫安靜有利估計底噪；過強時可能削弱氣音及尾音。來源先降噪，再變聲、套用音效及輸出／監聽；RVC WAV 來源也適用。wet=0 只關閉後製混合，不會關掉輸入降噪；TTS 沒有此控制。開啟降噪增加 20ms 算法延遲，WAV 模式會排出尾端並補償自身延遲。
+
+| 聽到的問題 | 建議操作順序 |
+|---|---|
+| 斷音／段落感 | 看 RTF、丟棄與輸出不足；Seed 先降推論步數，RVC／Seed 適度加大區塊，再檢查交疊，留意延遲增加 |
+| 顫抖 | 關閉音效比較，減少壓縮或降噪；RVC 用同一模型比較 FCPE／RMVPE |
+| 電子感 | 檢查接縫、參考聲音及模型適配；RVC 逐步降低 Index 比例比較，降噪不承諾修復生成瑕疵 |
+| 偏高 | RVC 先降低 1～2 半音；高頻 EQ 只能調明亮度，不能代替音高 |
+| 底噪明顯 | 啟用輸入降噪、逐步增加強度，留意字尾；EQ、壓縮及增益不是語音分離 |
+
+此次功能、量測與驗收邊界見[載入／調音／降噪分項報告](../verification/desktop/audio-tuning-verification-latest.md)。
 
 ### 各引擎的音效紀錄
 
@@ -111,7 +142,7 @@ wsl.exe --list --quiet
 
 `WAITING`／`DRAFT` 表示 reference metadata、人工審核或完整 route 的狀態，不等於這次生成已失敗。可以跑已準備的測試 profile，但不能將它當成正式批准或聲線品質通過。自訂聲線由 Agent 修改 `contracts/voices/`，目前沒有 UI 的新增 Voice Library 功能。
 
-目前 TTS UI 可改文字、Engine、Voice、輸出裝置、interrupt policy 與 Enter 行為；`WORKSPACE` 放生成操作與佇列，`SETTINGS` 才放送出與佇列設定。文字來源只提供手動輸入。Streaming VC 的 Host API、麥克風輸入及輸出改用列舉下拉選單，但即時音訊仍須獨立驗收。manifest 的進階參數不等於畫面已有可用控制項。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
+目前 TTS UI 可改文字、Engine、Voice、輸出裝置、interrupt policy 與 Enter 行為；`WORKSPACE` 放生成操作與佇列，`SETTINGS` 才放送出與佇列設定。文字來源只提供手動輸入。四個 VC 的 manifest 參數已提供畫面控制，Host API、麥克風輸入及輸出使用列舉下拉選單；即時音訊仍須獨立驗收。Breeze `cfg_scale`／seed／fast-all 等進階需求使用既有 CLI，或按維護手冊補完整 UI→request→adapter 傳遞。
 
 ## 4. Speak、Queue 與取消
 
@@ -228,6 +259,17 @@ Composer／profile 的 UI 暫存使用 WebView sessionStorage，切 layout 可�
 ## 9. 自己確認結果的最短清單
 
 成功應同時看到：request history 為 completed、原文的 ME／manual_text、該 request 的非零 WAV、正確 profile／route evidence；如果要確認 CABLE 確實收到，再用維護手冊的獨立擷取。取消項目留 history、不進已發聲 Transcript。完整 Mic／rack／600 秒／聽評則按 [live-gate.md](../specs/live-gate.md) 另驗。
+
+<a id="personal-use-check"></a>
+### 個人使用的人工確認
+
+依[本輪驗收取捨](../status.md#acceptance-scope-20261003)，系統匣工具驗收略過、正式 LIVE 驗收延後。需要使用相應功能時，可先做以下短測：
+
+1. **系統匣：**右鍵 AetherTune 圖示，依序試開啟／顯示 Overlay、隱藏後恢復，最後試 Exit。若選單無法操作，可用顯示快捷鍵或再次啟動同一 exe 恢復視窗，再由 Settings 結束；若仍無法恢復則回報問題。
+2. **本機 TTS：**選實體耳機／喇叭，輸入短句並按 Speak，等待 completed，確認實際聽到正確內容、音量可用且無破音。冷啟動可能等待數分鐘，不反覆提交；記下 Engine／Voice／Output 與 request ID。
+3. **Discord／OBS 或即時變聲：**AetherTune 主輸出選 `CABLE Input`，接收端輸入選 `CABLE Output`；TTS 播放一段短句，VC 則指定實體麥克風說話 20～30 秒。在接收端用麥克風測試／本機錄音回放確認收到處理後的聲音，不只看音量表或自己監聽。若使用 Voicemeeter／外部 Rack，按[路由手冊](operation-guide.md)確認實際所用路徑；已知 RVC B1 近零問題見[VC 報告](../verification/desktop/realtime-vc-verification-latest.md)。
+
+人工短測只確認當次裝置與路由可供個人試用；正式 LIVE 的延遲、600 秒穩定性與證據仍依 gate 另驗。記錄所用引擎、裝置、接收端及結果，其他配置不因此通過。
 
 本手冊補充現有操作，不新增 runtime 或功能。原生 GUI 完整互動、physical Mic 共存、外部 Post-FX 與 LIVE 仍 WAITING；Agent Reply／Auto Reply／Phrase Hotkeys 仍 PLANNED。
 

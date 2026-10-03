@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RuntimeProgress",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phase", "elapsed_seconds", "last_progress_seconds_ago", "observed_at", "worker_alive"],
+  "properties": {
+    "phase": {"enum": ["environment", "model_load", "warmup", "audio_open", "generating", "postfx", "playing", "running", "stopping", "completed", "cancelled", "error"]},
+    "elapsed_seconds": {"type": "number", "minimum": 0},
+    "last_progress_seconds_ago": {"type": "number", "minimum": 0},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "worker_alive": {"type": ["boolean", "null"]},
+    "request_id": {"type": ["string", "null"]},
+    "load_seconds": {"type": ["number", "null"], "minimum": 0},
+    "runtime_reused": {"type": "boolean"}
+  }
+}

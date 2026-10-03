@@ -126,7 +126,7 @@ class RvcProcessor:
         self.torch, self.np = torch, np
         self.device = config.device
         self.values = values
-        event("LOADING", "載入 HuBERT、角色模型與 index")
+        event("LOADING", "載入 HuBERT、角色模型與 index", phase="model_load")
         self.rvc = RVC(values["pitch"], 0.0, model["weights"], model["index"], values["index_rate"], config)
         if self.rvc.net_g is None or not hasattr(self.rvc, "tgt_sr"):
             raise ValueError("MODEL_LOAD_FAILED: RVC upstream 未完成模型初始化")
@@ -147,6 +147,7 @@ class RvcProcessor:
                         "source_revision": actual, "f0_method": values["f0_method"],
                         "source_hashes": {name: digest(repo / name) for name in ("infer/rtrvc.py", "infer/fcpe.py", "infer/hubert.py")}}
         # 先初始化 FCPE／kernel；第一個真實 callback 不支付這筆載入成本。
+        event("LOADING", "預熱 RVC 與音高擷取", phase="warmup")
         probe = np.sin(np.arange(self.block) * (2 * np.pi * 220 / 48000)).astype("float32") * 0.03
         for _ in range(3):
             self.process(probe)
@@ -191,8 +192,8 @@ class RvcProcessor:
         return result
 
 
-def event(value: str, reason: str) -> None:
-    print(json.dumps({"type": "rvc_runtime", "value": value, "reason": reason, "audio_verified": False}, ensure_ascii=False), flush=True)
+def event(value: str, reason: str, **progress) -> None:
+    print(json.dumps({"type": "rvc_runtime", "value": value, "reason": reason, "audio_verified": False, **progress}, ensure_ascii=False), flush=True)
 
 
 def run(root: Path, request: dict, values: dict, folder: Path) -> int:
@@ -230,13 +231,16 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
         report.update(runtime=processor.runtime, load_seconds=time.perf_counter() - load_started)
         sys.path.insert(0, str(root))
         from services.engines.postfx import PostFx
+        from services.engines.noise_reduction import NoiseReduction
         fx = PostFx(48000, request.get("postfx"))
+        denoiser = NoiseReduction(48000, request.get("noise_reduction"))
+        report["noise_reduction"] = denoiser.settings
         report["postfx"] = fx.settings
         print(json.dumps({"type": "runtime", "runtime": processor.runtime}, ensure_ascii=False), flush=True)
         # Windows CRT 的阻塞 stdin reader 會卡住 Faiss DLL 初始化；warmup 完成後
         # 才啟用控制執行緒。載入中的 Stop 仍由 service timeout／Job cleanup 保證。
         threading.Thread(target=control, name="rvc-control", daemon=True).start()
-        event("READY", "RVC 模型與 F0 warmup 完成；音訊待驗證")
+        event("READY", "RVC 模型與 F0 warmup 完成；音訊待驗證", phase="audio_open", load_seconds=report["load_seconds"])
         if stop.is_set():
             report["status"] = "CANCELLED"
             return 0
@@ -253,6 +257,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                 mono = resample_poly(mono, 48000 // divisor, rate // divisor).astype("float32")
             if not np.isfinite(mono).all() or not np.any(mono):
                 raise ValueError("SOURCE_INVALID: 來源 WAV 為全零或非有限")
+            mono = denoiser.process_file(mono)
             converted = []
             timings = []
             event("RUNNING", "RVC 使用同一個 rolling block 核心轉換來源 WAV")
@@ -297,7 +302,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                     if stop.is_set():
                         raise sd.CallbackStop
                     started = time.perf_counter()
-                    converted = fx.process(processor.process(indata.mean(axis=1)))
+                    converted = fx.process(processor.process(denoiser.process(indata.mean(axis=1))))
                     outdata[:] = converted[:, None]
                     callback_digest.update(outdata.tobytes())
                     stats["blocks"] += 1
@@ -351,7 +356,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                                dtype="float32", blocksize=processor.block, callback=callback):
                     event("RUNNING", "RVC duplex stream 已啟動；輸入與主輸出使用明確裝置")
                     while not stop.wait(0.5):
-                        metrics = {**stats, "p95_ms": float(np.percentile(list(timings), 95)) if timings else None,
+                        metrics = {**stats, **denoiser.metrics(), "p95_ms": float(np.percentile(list(timings), 95)) if timings else None,
                                    "rtf": float(np.mean(timings)) / (processor.block / 48) if timings else None,
                                    "input_drops": 0, "output_drops": 0}
                         report.update(metrics=metrics)
@@ -372,6 +377,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                           callback_sha256=callback_digest.hexdigest(), output_frames=stats["blocks"] * processor.block,
                           p50_ms=float(np.percentile(list(timings), 50)) if timings else None,
                           p95_ms=float(np.percentile(list(timings), 95)) if timings else None)
+        report["noise_reduction_metrics"] = denoiser.metrics()
         event("OFFLINE", "RVC run 完成；請核對 evidence，LIVE 仍需另驗收")
         return 0
     except Exception as exc:

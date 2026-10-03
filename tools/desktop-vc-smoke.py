@@ -22,12 +22,23 @@ def main():
     parser.add_argument("--seconds", type=float, default=15)
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--postfx", action="store_true")
+    parser.add_argument("--noise-reduction", action="store_true")
+    parser.add_argument("--model", choices=["40ms", "120ms"], default="40ms")
+    parser.add_argument("--parameters", type=Path, help="引擎參數 JSON；由正式 runner 校驗範圍與交叉限制")
+    parser.add_argument("--source", type=Path, default=ROOT / "dataset/reference-voices/voice-male-m1.wav")
     args = parser.parse_args()
+    parameters = {"model": args.model} if args.engine == "meanvc2" else {}
+    if args.parameters:
+        supplied = json.loads(args.parameters.read_text(encoding="utf-8"))
+        if not isinstance(supplied, dict):
+            raise ValueError("參數 JSON 必須是 object")
+        parameters.update(supplied)
     folder = args.output_dir.resolve()
     folder.mkdir(parents=True, exist_ok=False)
     request = dict(reference=str(ROOT / "dataset/reference-voices/voice-female-f1.wav"),
                    input="麥克風 (HyperX QuadCast S)", output="CABLE Input (VB-Audio Virtual Cable)",
-                   host_api="Windows DirectSound", parameters={}, monitor=dict(enabled=False),
+                   host_api="Windows DirectSound", parameters=parameters, monitor=dict(enabled=False),
+                   noise_reduction=dict(enabled=args.noise_reduction, strength_db=12),
                    postfx=dict(enabled=args.postfx, wet=.5, low_db=3, high_db=-2, reverb_mix=.15))
     request_path = folder / "request.json"
     request_path.write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
@@ -39,7 +50,7 @@ def main():
     command = [str(ROOT / f"tools/venvs/{args.engine}/Scripts/python.exe"), "-u", "-B",
                str(ROOT / "services/engines/stream_runtime.py"), "--root", str(ROOT), "--engine", args.engine,
                "--request", str(request_path), "--output-dir", str(folder), "--test-source",
-               str(ROOT / "dataset/reference-voices/voice-male-m1.wav"), "--test-seconds", str(args.seconds)]
+               str(args.source.resolve()), "--test-seconds", str(args.seconds)]
     import os
     started = time.perf_counter()
     process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,

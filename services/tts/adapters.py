@@ -371,6 +371,22 @@ class ResidentGenerationAdapter(BaseGenerationAdapter):
         super().__init__(root, engine_id, distro)
         self._warm_job: WslJob | None = None
         self._mailbox: Path | None = None
+        self._progress = None
+
+    def get_progress(self, request_id: str):
+        with self._job_lock:
+            progress, job, mailbox = self._progress, self._warm_job, self._mailbox
+        if progress is None or progress.request_id != request_id:
+            return None
+        if mailbox is not None:
+            try:
+                value = json.loads((mailbox / "progress.json").read_text(encoding="utf-8"))
+                # 同一 resident worker 的前句結果不能污染目前句子的進度。
+                if value.get("request_id") in (None, request_id):
+                    progress.set(value["phase"], load_seconds=value.get("load_seconds"), runtime_reused=value.get("runtime_reused"))
+            except (OSError, ValueError, KeyError):
+                pass
+        return progress.snapshot(job.poll() is None if job is not None else None)
 
     def _worker_command(self, mailbox: Path) -> list[str]:
         if self.engine_id == "cosyvoice":
@@ -455,6 +471,8 @@ class ResidentGenerationAdapter(BaseGenerationAdapter):
             return job, mailbox
 
     def generate(self, request: Mapping[str, Any], output_path: Path, job_dir: Path, cancel_event: Event) -> GenerationResult:
+        from services.engines.progress import Progress
+        self._progress = Progress(str(request["id"]))
         readiness = self.readiness()
         if not readiness["preflight_valid"]:
             raise GenerationError("MODEL_NOT_FOUND: " + ", ".join(item["path"] for item in readiness["errors"]))
@@ -485,6 +503,7 @@ class ResidentGenerationAdapter(BaseGenerationAdapter):
                 raise GenerationCancelled(json.dumps({"pid_audit": audit}, ensure_ascii=False))
             if result.get("status") != "PASS" or result.get("id") != request_id:
                 raise GenerationError(f"BACKEND_CRASH: {self.engine_id} resident request failed: {result.get('error')}; stderr={job.stderr_path}")
+            self.get_progress(request_id)
             return self._finish_result(
                 request=request, output_path=output_path, started=started, audit=job.audit(),
                 runner={"kind": "resident_wsl_worker", "script": "tools/tts-resident-worker.py",

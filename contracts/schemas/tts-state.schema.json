@@ -22,6 +22,7 @@
         "capabilities"
       ],
       "properties": {
+        "progress": {"anyOf": [{"$ref": "runtime-progress.schema.json"}, {"type": "null"}]},
         "session_id": { "type": "string", "format": "uuid" },
         "state": { "enum": ["IDLE", "QUEUED", "GENERATING", "BUFFERING", "PLAYING", "STOPPING", "ERROR"] },
         "audio_blocked": { "type": "boolean" },
