@@ -11,6 +11,7 @@ AetherTune 是 Windows 本地的語音轉換與語音重建研究工作台。現
 | 選擇 Seed-VC／RVC／STT → TTS 路線並執行 CLI | [後端使用手冊](docs/guides/user-guide.md) |
 | RVC 資料、訓練與模型交接 | [RVC 訓練手冊](docs/guides/model-training-guide.md) |
 | Windows 虛擬音訊、VST、VCClient 與下游接線 | [音訊路由操作手冊](docs/guides/operation-guide.md) |
+| 了解專案目標、願景與優先順序 | [願景與成功標準](docs/specs/vision.md) |
 | 按任務找文件、狀態與驗證 | [文件入口](docs/README.md) |
 | 了解大／小功能與目標進度 | [產品規格](docs/specs/app-requirements.md) → [功能與任務進度](docs/status.md) |
 | Agent 尋找規則與修改位置 | [Agent 控制中心](.agent/README.md) → [Agent 快速地圖](.agent/reference/agent-quick-map.md) |

@@ -2,6 +2,8 @@
 
 **文件邊界：**本頁是功能交付程度、工作狀態、優先順序與阻礙的唯一追蹤入口。功能定義在[產品規格](specs/app-requirements.md)，分層在[App 架構](specs/app-architecture.md)，驗收條件在[驗證計畫](specs/verification-plan.md)。實際 PASS／WAITING 由分項報告與可重跑 artifact 擁有，本頁只摘要並連結。
 
+**2026-11-03 方向調整：**依[願景](specs/vision.md)，優先順序改為實體麥克風 → 即時 → Discord 可用；模組化／UI（MOD／UI 任務）延後。目前在 PC2 開發，先不在 PC1 執行。新增 BENCH-01、VOICE-01、E2E-01、TTS-RT-01。
+
 更新日期：2026-10-03（Asia/Taipei）。規格、資料 baseline、快照排序／投影與 request 驗證拆分，以及條列式需求單／A/A 波動診斷已推送至 `5484500`；功能相容 PASS，效能驗收仍 WAITING。本輪依授權完成 Computer Use 原生拖曳、快捷鍵、Quick Input、Settings Exit 與新 CosyVoice request 的限定補驗，並修正 CDP 拖曳的輸入干擾；只改測試與文件。後續依使用者授權略過 Tray 工具驗收，UI-01 限定範圍結案；冷啟動等待不阻擋離線手動 TTS，正式 LIVE 驗收延後。完整音訊路由／LIVE 的實測狀態未升級，已知路由問題保留；各輪證據以分項報告的日期與範圍為準。
 
 ## 怎麼看與追蹤
@@ -62,6 +64,7 @@
 
 | 批次 | 目的／工作 | 出口 |
 |---|---|---|
+| 願景優先（2026-11-03 起） | BENCH-01、VOICE-01 → E2E-01 → TTS-RT-01；PC1 重測排在 PC2 可用之後 | 依[願景成功標準](specs/vision.md#成功標準)；本列優先於下方批次 1～2 的 MOD／UI 工作 |
 | 0：已完成 | DOC-01 規格、進度、架構邊界與 Agent 交接 | 人能讀功能／進度，Agent 能由 ID 找 owner／驗收；文件檢核通過 |
 | 1：先能看懂、量得準 | BASE-01、UI-01；再做 MOD-01、UI-02 | 保留現有 UI／音訊行為，有 baseline、可核對的載入／錯誤操作，原生拖曳問題有結論 |
 | 2：處理根因 | MOD-02／03／04、DATA-01；依量測做 PERF-01／02 | 模組依賴與資料 writer 清楚，舊資料可升級／復原；改善前後有同條件數字 |
@@ -97,6 +100,10 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 | AUDIO-03／高 | F06.5：四 VC 共用輸入降噪與設定提示 | `services/engines/noise_reduction.py`、四 runtime、UI；無 | DONE | [DSP／模型 WAV／CABLE／UI 限定驗收 PASS](verification/desktop/audio-tuning-verification-latest.md)：bypass、連續性、尾端、延遲及固定底噪目標；實體 Mic 聽感、RVC duplex 與 LIVE 保持 WAITING |
 | SOURCE-01／高 | F05.1／4：角色／reference 來源補齊 | models／dataset registers；需要可查證來源或使用者提供資料 | WAITING | 每個採用資產的 license／revision／dataset／hash 與人工採納記錄明確；未知維持 candidate，Agent 不代填 |
 | LIVE-01／高 | F02／06／08：指定配置的 physical／Rack／接收端／600 秒／聽評 | audio-rack／benchmarks／終端；AUDIO-01（若採 RVC B1）、SOURCE-01（採用資產），需實體接點與使用者聽評 | WAITING | 本輪依[驗收取捨](#acceptance-scope-20261003)延後正式 LIVE 驗收，不阻擋離線 TTS／其他開發；個人使用可先人工短測。若要分類正式 LIVE，仍依 [LIVE gate](specs/live-gate.md) 逐配置驗，首包、持續穩定、路由、identity、human review 齊備才改分類 |
+| BENCH-01／首要 | F02／08：RVC、Seed-VC、MeanVC2、X-VC 延遲上下限與音質矩陣，作為選主力引擎依據 | `benchmarks/`、四 VC runtime；先 PC2，PC1 重測需使用者同意 | PLANNED | 每引擎同一 source／參數掃描，記錄模型處理與 mic → output 端到端延遲 min／p50／p95、RTF、VRAM 與固定樣本音質；附硬體標記與 artifact；使用者據此選主力 |
+| VOICE-01／高 | F05：自然女性目標聲線與比較參考 | reference／model registers、SOURCE-01 | PLANNED | 選定 reference 聲音（不模仿特定人物）及可量測比較參數（如 F0 範圍、共振峰、speaker similarity）；來源與授權記錄 |
+| E2E-01／首要 | F02／06：實體麥克風 → VC → Discord 直播可用 | 四 VC runtime、route、Discord；BENCH-01 選型（可先用暫定引擎） | PLANNED | 實體 Mic 連續使用、Discord 接收端錄音、端到端延遲量測；使用者本人聽評認可；不自動升格正式 LIVE |
+| TTS-RT-01／高 | F03：即時（串流）TTS，延遲優先 | TTS adapters、streaming；PERF-01 量測 | PLANNED | 串流首包延遲與連續播放量測，可接受音質下降；與完整 WAV 模式分開報告 |
 | SHIP-01／後續 | F09：安裝、更新、migration／復原與新機驗證 | app packaging／backend detection；DATA-01，發布清單需對應已驗收功能 | PLANNED | 固定發布功能清單與安裝前置；乾淨環境 install／upgrade／rollback 可重跑，不把 checkout exe 當 portable |
 | FUT-01／後續 | F10：Agent Reply／Phrase Hotkeys | contracts／provider → 既有 speech queue；MOD-02，先確定權限及發聲觸發規格 | PLANNED | 來源、explicit enable、停止／取消、防回授、失敗不自動重送與測試案例先完備，再解除停用 |
 

@@ -4,7 +4,7 @@
 2. 是否接受已部署的 Voicemeeter、VB-CABLE、Graillon 這類免費但非全開源元件？
 3. Voicemeeter 的 `Voicemeeter Input → B1 → Voicemeeter Out B1` synthetic route 已通過；是否要以目前 route 作為第一個實際 backend／Light Host full-chain profile？
 4. VCClient 2.1.4-alpha 對 RTX 5060 Ti `sm_120` 有警告；角色模型產生後要優先驗證 CUDA，還是直接採 ONNX/DirectML 備案？
-5. 最終輸出優先支援 Discord、OBS、LINE、Teams，還是先做 loopback？
-6. 低延遲目標是可接受語音延遲，還是要以實測端到端毫秒數作硬門檻？
+5. ~~最終輸出優先支援 Discord、OBS、LINE、Teams，還是先做 loopback？~~ 已結案（2026-11-03）：先支援 Discord，見[願景](../specs/vision.md)。
+6. ~~低延遲目標是可接受語音延遲，還是要以實測端到端毫秒數作硬門檻？~~ 已結案（2026-11-03）：以實測 mic in → output 端到端 100–300ms 為即時目標，見[願景](../specs/vision.md)。
 7. Dataset 是否允許 TTS 合成音，或必須全部使用真人乾聲？
 8. 最終取樣率要以 RVC/VCClient 相容性、裝置驅動或品質需求哪一項為主？
