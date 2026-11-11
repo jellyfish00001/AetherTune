@@ -1,6 +1,6 @@
 # AetherTune Agent 控制中心
 
-本目錄是跨 Agent 的單一控制來源。各 Agent 的原生入口只連到這裡，不複製規則或 Skill 正文。Codex 使用根目錄 [`AGENTS.md`](../AGENTS.md)；其他 Agent 加入時，依該工具的實際載入機制建立薄入口。
+本目錄是跨 Agent 的單一控制來源。各 Agent 的原生入口只連到這裡，不複製規則或 Skill 正文。根目錄 [`AGENTS.md`](../AGENTS.md)、[`CLAUDE.md`](../CLAUDE.md)、[`GEMINI.md`](../GEMINI.md) 與 [`.cursor/rules/agent-framework.mdc`](../.cursor/rules/agent-framework.mdc) 均為指向本檔與 [`rules/project.md`](rules/project.md) 的薄入口。
 
 ## 讀取順序
 

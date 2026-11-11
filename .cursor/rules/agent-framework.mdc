@@ -1,0 +1,13 @@
+---
+description: Agent framework thin entry; routing and project boundaries live in .agent/README.md and project.md
+alwaysApply: true
+---
+
+本檔為 Cursor 薄入口，不寫規則正文。
+
+- **讀取順序與路由正本**：`.agent/README.md`
+- **專案邊界正本**：`.agent/rules/project.md`
+
+補充（以 `project.md` 為準）：`roles.md`、`multi-agent.md`；`development.md`、`git-policy.md` 僅引用。
+
+路徑專用規則由同目錄 `agent-*.mdc`（若存在）依 globs 載入。

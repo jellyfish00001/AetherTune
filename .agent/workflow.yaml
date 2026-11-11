@@ -1,0 +1,83 @@
+# Project collaboration settings (detached copy; read by the orchestrator when a workflow is created).
+# Edit freely: nothing syncs this file from or back to the framework it was created from. Origin: .agent/bootstrap.lock.json
+#
+# Roles, not agents: profile.planner / developer / reviewer are roles (contracts in .agent/rules/roles.md); the agents
+# listed under them are replaceable drivers.
+# Candidate format: `- agent: <id>` with optional `model: <id>` and `reasoningEffort: low|medium|high|xhigh`. The first
+# candidate is primary, the rest are quota/availability fallbacks. Without `model` the agent's configured default model
+# is used. A requested model must match what the CLI reports or the task blocks (no silent substitution).
+# `overrides` route task categories (frontend | backend | docs | tooling | general | creative) to other candidates.
+# Review independence (reviewer.independence / independenceBasis) is checked on every review; a reviewer that cannot
+# meet it blocks the task instead of skipping the review.
+#
+# Role contracts (min_tier; snapshot copied at init from the framework defaults; the engine does not filter on it yet):
+#   planner: min_tier T3
+#   developer: min_tier T2
+#   reviewer: min_tier T3
+#   Definitions: .agent/rules/roles.md
+schema: ai-agent-shared/project-workflow-v1
+projectId: 204ee399-ffbe-443a-81a4-f99840a4c43e
+collaborationMode: workspace-managed
+repository:
+  baseRef: main
+  testCommands: []
+  # Orchestrator 暫存交接目錄；任務進度正本仍是 docs/status.md，handoffs 不能取代或覆寫該檔所代表的進度。
+  handoffDir: .agent/handoffs
+  forbiddenPaths:
+    - .venv/**
+    - venv/**
+    - .venv-*-backup/**
+    - tools/venvs/**
+    - tools/external/**
+    - tools/cache/**
+    - dataset/raw/**
+    - dataset/processed/**
+    - dataset/sliced/**
+    - dataset/augmented/**
+    - dataset/reference-voices/**
+    - models/weights/**
+    - models/indexes/**
+    - models/meanvc2/**
+    - models/xvc/**
+    - artifacts/**
+    - logs/**
+    - .env
+    - .env.*
+    - "*.pth"
+    - "*.pt"
+    - "*.index"
+    - "*.onnx"
+    - "*.wav"
+    - "*.flac"
+    - "*.mp3"
+    - "*.m4a"
+    - "*.ogg"
+git:
+  policy: reviewed
+  remote: origin
+  autoPush: false
+  commitMessage:
+    language: zh-TW
+    length: short
+review:
+  maxRevisions: 1
+profile:
+  description: 可攜預設：只列角色與候選順序，不指定模型；第一個候選為主，其餘為備援。本 repo 唯一寫入者是 AetherTune Bot；下列候選 Agent 僅為 Orchestrator 備援順序，不是本 repository 的寫入授權。日常 Git 分支慣例以 .agent/rules/project.md 為準（長期分支僅 main，隔離用 codex/<area>-<problem>），非 aw/<taskId>。
+  planner:
+    candidates:
+      - agent: claude
+      - agent: codex
+      - agent: agy
+  developer:
+    candidates:
+      - agent: codex
+      - agent: claude
+      - agent: cursor
+  reviewer:
+    candidates:
+      - agent: claude
+      - agent: codex
+      - agent: agy
+    independence: SAME_AGENT_SEPARATE_SESSION
+    onUnverified: block
+    independenceBasis: agent

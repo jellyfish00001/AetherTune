@@ -1,0 +1,187 @@
+{
+  "schema": "ai-agent-shared/bootstrap-lock-v2",
+  "detached": true,
+  "note": "Independent copies. Edit them freely; nothing syncs from or back to AI_Agent_Hub.",
+  "projectId": "204ee399-ffbe-443a-81a4-f99840a4c43e",
+  "preset": {
+    "id": "mvp-basic",
+    "sha256": "ddab2b043ed8a7036034f6240239b29d2654458f5bd6e6893cae50ab229014c2"
+  },
+  "framework": {
+    "version": "1.3.0"
+  },
+  "capabilities": [
+    "base"
+  ],
+  "gitPolicy": "reviewed",
+  "stack": {
+    "languages": [
+      "node",
+      "rust",
+      "typescript"
+    ],
+    "frameworks": [
+      "react",
+      "vite"
+    ],
+    "testTools": [
+      "playwright"
+    ],
+    "frontend": true,
+    "backend": false,
+    "recommendedCapabilities": [
+      "frontend"
+    ]
+  },
+  "source": {
+    "repository": "AI_Agent_Hub",
+    "path": "08_Orchestrator",
+    "commit": "d265d9c16858688e97a4dcda17c8183f31f04451",
+    "uncommittedChanges": false
+  },
+  "createdAt": "2026-11-11T08:17:20.002Z",
+  "planId": "a7aa8654f0155c85",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "template": "AGENTS.md.tmpl",
+      "sha256": "b6bca46577e4860ca91a628b8a9326d1dee45936cc28683927fe5cae15715c6d",
+      "templateSha256": "b6bca46577e4860ca91a628b8a9326d1dee45936cc28683927fe5cae15715c6d",
+      "localOnly": false
+    },
+    {
+      "path": "CLAUDE.md",
+      "template": "CLAUDE.md.tmpl",
+      "sha256": "240a176689be8903be39ff71be36deca0c3ebe4bb6675c499090684437d2f7d7",
+      "templateSha256": "240a176689be8903be39ff71be36deca0c3ebe4bb6675c499090684437d2f7d7",
+      "localOnly": false
+    },
+    {
+      "path": "GEMINI.md",
+      "template": "GEMINI.md.tmpl",
+      "sha256": "7c0d8c3278159cd709f05c17816fe95d8678ee91222c345e51f7531c2ed0ae62",
+      "templateSha256": "7c0d8c3278159cd709f05c17816fe95d8678ee91222c345e51f7531c2ed0ae62",
+      "localOnly": false
+    },
+    {
+      "path": ".cursor/rules/agent-framework.mdc",
+      "template": ".cursor/rules/agent-framework.mdc.tmpl",
+      "sha256": "35a9722708bb6a5fc21995cf0ea74edb1d1e121738521434579be6b17191372e",
+      "templateSha256": "35a9722708bb6a5fc21995cf0ea74edb1d1e121738521434579be6b17191372e",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/rules/project.md",
+      "template": ".agent/rules/project.portable.md.tmpl",
+      "sha256": "25ca1c0d270e7c6482861f15d998b044da0d2b150eae88427a990b6e5beac9f9",
+      "templateSha256": "25ca1c0d270e7c6482861f15d998b044da0d2b150eae88427a990b6e5beac9f9",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/rules/roles.md",
+      "template": ".agent/rules/roles.md",
+      "sha256": "06c82dde544ad1eab4885bd5fb5e88a86a4b79dd5000d457b3d551de3a9f8b02",
+      "templateSha256": "06c82dde544ad1eab4885bd5fb5e88a86a4b79dd5000d457b3d551de3a9f8b02",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/rules/multi-agent.md",
+      "template": ".agent/rules/multi-agent.md",
+      "sha256": "397456c24cbd29341b660cd511d3de856a868a4fb980254bdede6572f869f429",
+      "templateSha256": "397456c24cbd29341b660cd511d3de856a868a4fb980254bdede6572f869f429",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/rules/development.md",
+      "template": ".agent/rules/development.md",
+      "sha256": "6d8da68940570adec133863efb239b7d63307d2b0dc7694bfbccb85cc0fc16d5",
+      "templateSha256": "6d8da68940570adec133863efb239b7d63307d2b0dc7694bfbccb85cc0fc16d5",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/rules/git-policy.md",
+      "template": ".agent/rules/git-policy.md.tmpl",
+      "sha256": "bffa5b132e2832d7b15f398f4d56d90483e3a328439d4fd8719578ae63c6ef96",
+      "templateSha256": "bffa5b132e2832d7b15f398f4d56d90483e3a328439d4fd8719578ae63c6ef96",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/manifests/rules.yaml",
+      "template": ".agent/manifests/rules.yaml.tmpl",
+      "sha256": "9e93e0db038b274fa00332e255b0abbbf535b462420349e58a291e85907a870c",
+      "templateSha256": "9e93e0db038b274fa00332e255b0abbbf535b462420349e58a291e85907a870c",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/workflow.yaml",
+      "template": ".agent/workflow.portable.yaml",
+      "sha256": "a10420e8240dfa5ba66e839f719df531fede3c969de3f1a8c63b6872678eb84e",
+      "templateSha256": "a10420e8240dfa5ba66e839f719df531fede3c969de3f1a8c63b6872678eb84e",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/docs/README.md",
+      "template": ".agent/docs/README.md",
+      "sha256": "6b642a7f6e73d78208ac352223da9ce0ef20f0bb3388568094ec39e0e2551b7e",
+      "templateSha256": "6b642a7f6e73d78208ac352223da9ce0ef20f0bb3388568094ec39e0e2551b7e",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/plans/README.md",
+      "template": ".agent/plans/README.md",
+      "sha256": "9ed5dce26d482c248e5925cec8064487757bab06199beafb5ee859d4f86930ca",
+      "templateSha256": "9ed5dce26d482c248e5925cec8064487757bab06199beafb5ee859d4f86930ca",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/guides/README.md",
+      "template": ".agent/guides/README.md",
+      "sha256": "26beb9f9c02c0d9020e7db084f1a10a3b6a98f1449e401fe5f80c4debd6e7b1e",
+      "templateSha256": "26beb9f9c02c0d9020e7db084f1a10a3b6a98f1449e401fe5f80c4debd6e7b1e",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/manifests/README.md",
+      "template": ".agent/manifests/README.md",
+      "sha256": "bf5e0d36bdd3cf08d14641123474ec943b8533371eca8cf3b90125cb04858ed9",
+      "templateSha256": "bf5e0d36bdd3cf08d14641123474ec943b8533371eca8cf3b90125cb04858ed9",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/skills/README.md",
+      "template": ".agent/skills/README.portable.md",
+      "sha256": "b4eebbe09c6c24c08b267975960c4f0b770d269afa1b1010ede2fe825dc5b203",
+      "templateSha256": "b4eebbe09c6c24c08b267975960c4f0b770d269afa1b1010ede2fe825dc5b203",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/test-context/README.md",
+      "template": ".agent/test-context/README.md",
+      "sha256": "ff78a8b138cb5f63f5b7b65918c6ee235b1f9717727d5bb4257afcb53ede7749",
+      "templateSha256": "ff78a8b138cb5f63f5b7b65918c6ee235b1f9717727d5bb4257afcb53ede7749",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/scripts/README.md",
+      "template": ".agent/scripts/README.md",
+      "sha256": "7b958640b17e0f3fc78a2a13ea7797bb9b8ac9259b221bcf929f64ac3b0e30e4",
+      "templateSha256": "7b958640b17e0f3fc78a2a13ea7797bb9b8ac9259b221bcf929f64ac3b0e30e4",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/records/README.md",
+      "template": ".agent/records/README.md",
+      "sha256": "b5cb6032d78f97b9fb872d608e602d38e251a2fdd1a641a77ffa7c09e60af801",
+      "templateSha256": "b5cb6032d78f97b9fb872d608e602d38e251a2fdd1a641a77ffa7c09e60af801",
+      "localOnly": false
+    },
+    {
+      "path": ".agent/workflows/README.md",
+      "template": ".agent/workflows/README.md",
+      "sha256": "c7395fe5bb9311e3f1472c51a37cdc1ed6f34d82027792e72f06582d3201d732",
+      "templateSha256": "c7395fe5bb9311e3f1472c51a37cdc1ed6f34d82027792e72f06582d3201d732",
+      "localOnly": false
+    }
+  ],
+  "skills": []
+}

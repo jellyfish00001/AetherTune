@@ -1,0 +1,20 @@
+# 規則套用範圍（單一來源）。project:init 依本檔產生 AGENTS.md、GEMINI.md、.cursor/rules/*.mdc、.claude/rules/*.md。
+# scope: always 所有 Agent 常駐載入；scope: glob 只在修改符合 globs 的檔案時適用。
+# .agent/rules/ 裡未登記的 .md 視為 always。可自行調整 globs 或新增項目，重跑 project:init 時會保留（合併，不覆寫）。
+schema: ai-agent-shared/rules-manifest-v1
+rules:
+  - file: project.md
+    scope: always
+    description: 專案事實、限制與安全規則（專案自有）
+  - file: roles.md
+    scope: always
+    description: 角色、節點契約與 min_tier（不綁定 Agent）
+  - file: multi-agent.md
+    scope: always
+    description: 多 Agent 協作、規則來源與 handoff
+  - file: development.md
+    scope: always
+    description: 探索、修改、驗證與記錄的開發流程
+  - file: git-policy.md
+    scope: always
+    description: Orchestrator 的 commit／push／PR 政策
