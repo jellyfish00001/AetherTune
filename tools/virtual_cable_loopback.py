@@ -77,6 +77,10 @@ def main() -> int:
         input_device = find_wasapi_device(args.input_fragment, output=False)
         # AETHERTUNE_WASAPI_AUTOCONVERT=1：shared mode 由 Windows 轉換取樣率（例如 44.1 kHz 虛擬麥）。
         wasapi = sd.WasapiSettings(exclusive=False, auto_convert=os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1")
+        # AETHERTUNE_WASAPI_EXCLUSIVE_INPUT=<名稱片段;...>：符合的 capture 用 exclusive（Steam 虛擬麥 shared mode 會失真）。
+        exclusive_fragments = [part.strip().lower() for part in os.environ.get("AETHERTUNE_WASAPI_EXCLUSIVE_INPUT", "").split(";") if part.strip()]
+        input_name = str(sd.query_devices(input_device)["name"]).lower()
+        input_wasapi = sd.WasapiSettings(exclusive=True) if any(part in input_name for part in exclusive_fragments) else wasapi
         # 單聲道虛擬麥（例如 Steam Streaming Microphone）只能開 1 channel。
         in_channels = max(1, min(channels, int(sd.query_devices(input_device)["max_input_channels"])))
     except Exception as error:  # pragma: no cover - endpoint inventory is host-specific
@@ -120,7 +124,7 @@ def main() -> int:
                 channels=in_channels,
                 blocksize=960,
                 callback=input_callback,
-                extra_settings=wasapi,
+                extra_settings=input_wasapi,
             ):
                 time.sleep(args.seconds + 0.5)
         except Exception as error:  # pragma: no cover - device contention is host-specific

@@ -238,9 +238,12 @@ def _run_capture(args, analysis) -> int:
     out_idx, out_name = _resolve_device(sd.query_devices, args.output_device, "output", hostapi_index)
     in_idx, in_name = _resolve_device(sd.query_devices, args.input_device, "input", hostapi_index)
     extra = None
-    if os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1" and args.host_api == "Windows WASAPI":
-        # 虛擬麥 shared format 可能是 44.1 kHz；讓 WASAPI 轉換，baseline 與 engine 同條件。
-        extra = (sd.WasapiSettings(auto_convert=True), sd.WasapiSettings(auto_convert=True))
+    if args.host_api == "Windows WASAPI":
+        # 與 services/engines/rvc_runtime.wasapi_settings 同規則，baseline 與 engine 同條件：
+        # AUTOCONVERT=1 讓 shared mode 轉換取樣率；EXCLUSIVE_INPUT 片段符合的 capture 用 exclusive。
+        extra = (_wasapi_extra(sd, in_name, "input"), _wasapi_extra(sd, out_name, "output"))
+        if extra == (None, None):
+            extra = None
 
     playback = np.asarray(ref, dtype=np.float32)
     recorded = sd.playrec(
@@ -298,6 +301,15 @@ def _run_capture(args, analysis) -> int:
     (out_dir / "e2e-latency-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     _print_one_line_summary(report)
     return 0 if report["target_verdict"] in ("PASS", "WAITING") else 0
+
+
+def _wasapi_extra(sd, name: str, kind: str):
+    fragments = [part.strip().lower() for part in os.environ.get("AETHERTUNE_WASAPI_EXCLUSIVE_INPUT", "").split(";") if part.strip()]
+    if kind == "input" and any(part in str(name).lower() for part in fragments):
+        return sd.WasapiSettings(exclusive=True)
+    if os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1":
+        return sd.WasapiSettings(auto_convert=True)
+    return None
 
 
 def main() -> int:

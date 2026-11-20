@@ -255,7 +255,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
         with ExitStack() as streams:
             output_stream = streams.enter_context(sd.OutputStream(device=output_index, samplerate=48000,
                 channels=2, dtype="float32", blocksize=960, callback=output_callback,
-                extra_settings=wasapi_settings(sd, output_index)))
+                extra_settings=wasapi_settings(sd, output_index, "output")))
             monitor_stream = None
             if distinct_monitor:
                 monitor_index = endpoint(sd, monitor["output"], monitor["host_api"], "output", 2)
@@ -263,7 +263,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                     channels=2, dtype="float32", blocksize=960, callback=monitor_callback))
             input_stream = streams.enter_context(sd.InputStream(device=input_index, samplerate=48000,
                 channels=1, dtype="float32", blocksize=960, callback=input_callback,
-                extra_settings=wasapi_settings(sd, input_index)))
+                extra_settings=wasapi_settings(sd, input_index, "input")))
             worker = threading.Thread(target=convert, daemon=True, name="vc-inference")
             worker.start()
             stream_started = time.perf_counter()

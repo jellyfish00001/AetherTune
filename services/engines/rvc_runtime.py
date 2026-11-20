@@ -63,20 +63,36 @@ def registered_model(root: Path, model_id: str) -> dict:
     return row
 
 
-def wasapi_settings(sd, index: int):
-    """AETHERTUNE_WASAPI_AUTOCONVERT=1 時讓 WASAPI shared mode 自動轉換取樣率（例如 44.1 kHz 虛擬麥）。
+def exclusive_input_fragments() -> list[str]:
+    """AETHERTUNE_WASAPI_EXCLUSIVE_INPUT=<名稱片段;...>：符合的 WASAPI capture 改用 exclusive mode。"""
+    raw = os.environ.get("AETHERTUNE_WASAPI_EXCLUSIVE_INPUT", "")
+    return [part.strip().lower() for part in raw.split(";") if part.strip()]
 
-    預設關閉，不改變既有行為；只在量測／特定裝置需要時由呼叫端以環境變數開啟。
+
+def wasapi_settings(sd, index: int, kind: str = "output"):
+    """回傳 WASAPI extra_settings；預設 None，不改變既有行為。
+
+    - AETHERTUNE_WASAPI_AUTOCONVERT=1：shared mode 自動轉換取樣率（例如 44.1 kHz 虛擬麥）。
+    - AETHERTUNE_WASAPI_EXCLUSIVE_INPUT=<名稱片段;...>：名稱符合的 capture（kind="input"）改用
+      exclusive mode。PC2 的 Steam Streaming Microphone 在 shared mode 會把音訊拉長約 2 倍並丟失
+      片段（2026-11-20 實測），exclusive 48 kHz 則正常；只影響該 stream，不改系統設定。
     """
-    if os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") != "1":
+    autoconvert = os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1"
+    fragments = exclusive_input_fragments()
+    if not autoconvert and not fragments:
         return None
     try:
-        api = sd.query_hostapis(sd.query_devices(index)["hostapi"])["name"]
+        device = sd.query_devices(index)
+        api = sd.query_hostapis(device["hostapi"])["name"]
     except Exception:
         return None
     if api != "Windows WASAPI":
         return None
-    return sd.WasapiSettings(auto_convert=True)
+    if kind == "input" and any(part in str(device["name"]).lower() for part in fragments):
+        return sd.WasapiSettings(exclusive=True)
+    if autoconvert:
+        return sd.WasapiSettings(auto_convert=True)
+    return None
 
 
 def endpoint(sd, name: str, api: str, direction: str, channels: int) -> int:
@@ -381,7 +397,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
             try:
                 with sd.Stream(device=(input_index, output_index), samplerate=48000, channels=(1, 2),
                                dtype="float32", blocksize=processor.block, callback=callback,
-                               extra_settings=(wasapi_settings(sd, input_index), wasapi_settings(sd, output_index))):
+                               extra_settings=(wasapi_settings(sd, input_index, "input"), wasapi_settings(sd, output_index, "output"))):
                     event("RUNNING", "RVC duplex stream 已啟動；輸入與主輸出使用明確裝置")
                     while not stop.wait(0.5):
                         metrics = {**stats, **denoiser.metrics(), "p95_ms": float(np.percentile(list(timings), 95)) if timings else None,

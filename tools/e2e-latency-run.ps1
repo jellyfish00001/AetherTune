@@ -607,6 +607,11 @@ if ($Profile -eq 'pc2-virtual' -and -not $env:AETHERTUNE_WASAPI_AUTOCONVERT) {
     # 以 WASAPI auto_convert 由 Windows 轉換（只影響本程序及其子程序，不改系統設定）。
     $env:AETHERTUNE_WASAPI_AUTOCONVERT = '1'
 }
+if ($Profile -eq 'pc2-virtual' -and -not $env:AETHERTUNE_WASAPI_EXCLUSIVE_INPUT) {
+    # Steam Streaming Microphone capture 在 shared mode 會把音訊拉長約 2 倍並丟失脈衝（2026-11-20 實測），
+    # exclusive 48 kHz 則正常；只對該 capture stream 用 exclusive（不改系統設定；同時只能一個程序持有）。
+    $env:AETHERTUNE_WASAPI_EXCLUSIVE_INPUT = 'Steam Streaming Microphone'
+}
 
 $needAudioPython = (-not $SelfTest) -and (-not $RequestOnly)
 $pyExe = if ($needAudioPython) {
