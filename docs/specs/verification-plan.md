@@ -77,7 +77,10 @@
 
 - 加速組合必須分欄報告「Windows 原生可跑」與「需 Linux／WSL／Docker」，兩欄數字不得平均或混充（R8）。
 - 同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出（讓打字發聲與變聲同一聲線），並記錄音檔與逐字稿 hash；短於 9 秒不得作為達標或可接受的依據（R9）。當次結果寫入對應驗證報告（例如 [manual-tts-verification-latest.md](../verification/desktop/manual-tts-verification-latest.md)），規範本身以本節與 [LIVE gate](live-gate.md) 為準。
-- 打完字到出聲：≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受；否則不達標（R10）。此門檻不修改 `LIVE` 分類規則。
+- 延遲以「每句只合成一次（不重複同句、不挑最佳）」的端到端量測為準，從打字到線上出聲。
+- 常駐 TTS 啟動時，用中文、英文、數字都有的句子暖機；暖機時間算在啟動，不算在第一句延遲。
+- 送字前先把數字轉成中文字；CosyVoice2 另外要繁轉簡（例如 OpenCC t2s），字幕仍顯示繁體。
+- 打完字到出聲：≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受；否則不達標（R10）。RTF < 1 須每一句都符合，以單次最大值或 p95 判定，不得只看中位數。引擎短句超過時，短句交給 GSV。此門檻不修改 `LIVE` 分類規則。後端實測套用見 [LIVE gate](live-gate.md)。
 
 ## Phase 3：VCClient 與 Windows 路由
 

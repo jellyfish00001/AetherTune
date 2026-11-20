@@ -37,4 +37,4 @@ RVC 資料與訓練只按[訓練手冊](model-training-guide.md)進行；`FCPE`�
 
 backend 自己的 README 擁有命令與輸出檔名；[逐檔索引](../../.agent/reference/project-file-map.md)說明保留資料夾應放什麼；[文件權責地圖](../README.md)將每輪驗證導向對應報告。音訊檔、模型、venv、第三方 source 和 artifacts 預設不進 Git，也不能因某資料夾沒有 tracked 檔案就當成可刪除。
 
-`LIVE`／`OFFLINE`／`WAITING` 的完整定義只在 [live-gate.md](../specs/live-gate.md)。即時變聲另有直播目標（完整鏈路聲學 p50 ≤ 300 ms），與 5,000 ms 分類門檻分開。直播 TTS 的達標／可接受門檻（打完字到出聲 ≤ 3 秒／≤ 5 秒，且 RTF < 1）以及參考音須至少 9 秒並附逐字稿，見同一份 LIVE gate 與[驗證計畫](../specs/verification-plan.md)。任何路線都要以相同 run identity 驗證 source／mic → backend → Rack bypass/full-chain → virtual route → loopback；再做長時間穩定與人工聽測。聽評應包含「過 Discord 之後」的錄音。離線 WAV、RTF、preflight 或局部 CABLE capture 只回答自己的測試問題。
+`LIVE`／`OFFLINE`／`WAITING` 的完整定義只在 [live-gate.md](../specs/live-gate.md)。即時變聲另有直播目標（完整鏈路聲學 p50 ≤ 300 ms），與 5,000 ms 分類門檻分開。直播 TTS 的達標／可接受門檻（打完字到出聲 ≤ 3 秒／≤ 5 秒，且每一句 RTF < 1，以單次最大值或 p95 判定；引擎短句超過時短句交給 GSV）以及參考音須至少 9 秒並附逐字稿，見同一份 LIVE gate 與[驗證計畫](../specs/verification-plan.md)。任何路線都要以相同 run identity 驗證 source／mic → backend → Rack bypass/full-chain → virtual route → loopback；再做長時間穩定與人工聽測。聽評應包含「過 Discord 之後」的錄音。離線 WAV、RTF、preflight 或局部 CABLE capture 只回答自己的測試問題。

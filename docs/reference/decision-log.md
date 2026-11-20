@@ -2,6 +2,24 @@
 
 本文件不是永久綁定；每個模組都可替換，但替換時要重新做相容性、授權、延遲與音質驗證。
 
+## 2026-11-20 19:38：Johnny 定案：R10 RTF 逐句判定＋直播 TTS 五條併入
+
+決定：Johnny 在卡片上選 Q11 A、Q12 A。Q11 A：R10 每一句都要 RTF < 1，用單次最大值或 p95 判定，短句交給 GSV。Q12 A：下列五條全部併入正式規範，先跑測試，再直接推 `main`。來源為 `exp/live-tts-bench` `056955ee013e8385768827a74a252a4562dc3a47` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`。
+
+五條：
+
+- 直播 TTS 延遲以「每句只合成一次（不重複同句、不挑最佳）」的端到端量測為準，從打字到線上出聲。
+- 常駐 TTS 啟動時，用中文、英文、數字都有的句子暖機，暖機時間算在啟動。
+- 送字前先把數字轉成中文字；CosyVoice2 另外要繁轉簡（例如 OpenCC t2s），字幕仍顯示繁體。
+- R10 的 RTF < 1 每一句都要符合，用單次最大值或 p95 判定。引擎短句超過時，短句交給 GSV。
+- 更新 R10 套用表（同一來源）：
+  - GSV-TTS-Lite（不加速＋zh-fix＋英文暖機）：達標，首包約 92–156 ms，RTF 0.11–0.16，虛擬麥從打字到出聲 218–335 ms。
+  - VoxCPM2：10 步不達標；6 步達標，但接近上限（單次最高 1.05）。依單次最大值判定，標「不穩定達標，有單次超過 1」。
+  - CosyVoice2（簡體輸入＋hop-fix＋TRT＋fp16）：中句和長句達標，首包 1.1–1.6 秒，RTF 0.56–0.83；短句 RTF 1.6–1.67 不達標，短句交給 GSV。
+  - Qwen3-TTS：不達標（串流 RTF 約 1.8–2.0，fp16 不可行）。
+
+寫入的正式文件：[`live-gate.md`](../specs/live-gate.md)、[`verification-plan.md`](../specs/verification-plan.md)、本決策紀錄、[`user-guide.md`](../guides/user-guide.md)（門檻說明與逐句判定對齊）。
+
 ## 2026-11-20 17:34：Johnny 定案併入研究建議 R1–R10
 
 決定：將 `exp/research-realtime-vc-tts`（`8ac3d9a`）`docs/reference/research/2026-11-20-deep-research-r3.md` 中「建議納入規範」的 R1–R9，以及依 Johnny 17:31「可以接受 3–5 秒延遲」新增的 R10，全部併入正式規範。Johnny 原話為「都併入」。本日規則是先在 `exp/specs-r1-r10` 改正式文件，經確認後才進 `main`。
@@ -20,7 +38,7 @@
 
 - R8：加速結果分開標「Windows 原生可跑」與「需 Linux／WSL／Docker」。
 - R9：同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出，並記錄 hash。
-- R10：打完字到出聲 ≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受。套用 `exp/live-tts-bench` `255c12a`：GSV-TTS-Lite 達標；VoxCPM2 預設 10 步 RTF 1.01–1.63 不達標，和 VSF `exp/tts-install` `309200a` 的 1.03–1.53 一致；6 步達標，RTF 中位 0.78–0.92，但單次最高到 1.05，接近上限；未開加速（來源：`exp/live-tts-bench` `dd4f9455b094faef2e5b76b44f52c1ee7cda0294` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`「VoxCPM2 與 VSF 對齊」一節）；CosyVoice2 短句可接受、長句超過；Qwen3-TTS 0.6B 不達標。
+- R10：打完字到出聲 ≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受。當時的後端套用表已由上方 2026-11-20 19:38 條目更新；R10 改為每一句 RTF < 1，以單次最大值或 p95 判定，短句超過時交給 GSV。
 
 寫入的正式文件：[`live-gate.md`](../specs/live-gate.md)、[`verification-plan.md`](../specs/verification-plan.md)、本決策紀錄、[`operation-guide.md`](../guides/operation-guide.md)、[`user-guide.md`](../guides/user-guide.md)、[`parameter-matrix-template.csv`](parameter-matrix-template.csv)、[`voice-conversion-architecture.md`](../specs/voice-conversion-architecture.md)、[`contracts/engines/rvc.json`](../../contracts/engines/rvc.json)（限制說明）。
 
