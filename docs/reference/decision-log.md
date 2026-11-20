@@ -2,6 +2,28 @@
 
 本文件不是永久綁定；每個模組都可替換，但替換時要重新做相容性、授權、延遲與音質驗證。
 
+## 2026-11-20 17:34：Johnny 定案併入研究建議 R1–R10
+
+決定：將 `exp/research-realtime-vc-tts`（`8ac3d9a`）`docs/reference/research/2026-11-20-deep-research-r3.md` 中「建議納入規範」的 R1–R9，以及依 Johnny 17:31「可以接受 3–5 秒延遲」新增的 R10，全部併入正式規範。Johnny 原話為「都併入」。本日規則是先在 `exp/specs-r1-r10` 改正式文件，經確認後才進 `main`。
+
+即時變聲（R1–R7）：
+
+- R1：延遲只認聲學量測（錄音比對）；引擎 trace、GUI 的 `res`／`buf` 一律標 partial。
+- R2：延遲報告固定拆成「引擎淨延遲」與「路由延遲」兩欄，並記錄每一跳的緩衝設定。
+- R3：另訂直播目標：完整鏈路聲學 p50 ≤ 300 ms。現行 `LIVE` 分類門檻 ≤ 5,000 ms **保留**，作為分類可用下限，供非即時功能使用；不修改 `tools/live-gate-validate.py` 的 5000 ms 常數。
+- R4：LIVE_GATE 研究優先級把 RVC＋FCPE 從 `historical-baseline` 改回主線候選。這更新（而非刪除）下方 2026-09-22「RVC 降為 historical baseline」的研究優先級；RVC 仍不是唯一主線，其他引擎繼續獨立比較。
+- R5：聽評一律錄「經過 Discord（實際位元率）之後」的聲音，另附過 Discord 前的對照。
+- R6：操作指南加入 Discord 設定（雜訊抑制、回音消除、自動增益全關，全鏈 48 kHz，建議按鍵發話）與男轉女說話方式。
+- R7：RVC 參數矩陣加入共振峰（formant），與 pitch、index_rate、f0_method 一起掃；標明 protect／RMS mix 在即時路徑不存在。即時 runtime 目前仍把 formant 寫死為 0.0，契約只加限制說明、尚未暴露可調控制，以免出現無效 UI；實作留給後續 exp 實驗。
+
+直播 TTS（R8–R10）：
+
+- R8：加速結果分開標「Windows 原生可跑」與「需 Linux／WSL／Docker」。
+- R9：同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出，並記錄 hash。
+- R10：打完字到出聲 ≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受。套用 `exp/live-tts-bench` `255c12a`：GSV-TTS-Lite 達標；VoxCPM2 預設 10 步 RTF 約 1.06–1.59 不達標，降到 6 步 RTF 0.76–0.94 才達標（未加速，待和 VSF `exp/tts-install` `309200a` 的 RTF 1.03–1.53 對齊）；CosyVoice2 短句可接受、長句超過；Qwen3-TTS 0.6B 不達標。
+
+寫入的正式文件：[`live-gate.md`](../specs/live-gate.md)、[`verification-plan.md`](../specs/verification-plan.md)、本決策紀錄、[`operation-guide.md`](../guides/operation-guide.md)、[`user-guide.md`](../guides/user-guide.md)、[`parameter-matrix-template.csv`](parameter-matrix-template.csv)、[`voice-conversion-architecture.md`](../specs/voice-conversion-architecture.md)、[`contracts/engines/rvc.json`](../../contracts/engines/rvc.json)（限制說明）。
+
 ## 2026-09-29：Desktop 單一圖形入口
 
 決定：移除舊 `AetherTune.cmd`、Tk 控制台及其專用操作腳本；在已準備的 Windows checkout，以根目錄 `AetherTune.exe` 作為圖形入口。`app/dev.ps1 -Build` 從 Tauri build 複製 exe 到根目錄並核對 SHA-256；生成的 exe 不進 Git。
@@ -12,7 +34,7 @@
 
 ## 2026-09-22：從 RVC-centric 改為 Research Workbench
 
-決定：將 AetherTune 的核心定義改為「本地 Streaming VC 與 Speech Reconstruction 比較工作台」，以完整端到端 `<= 5 秒` 作為 `LIVE` 分類門檻；`> 5 秒` 只列為 `OFFLINE`，不與 Live 混排。
+決定：將 AetherTune 的核心定義改為「本地 Streaming VC 與 Speech Reconstruction 比較工作台」，以完整端到端 `<= 5 秒` 作為 `LIVE` 分類門檻；`> 5 秒` 只列為 `OFFLINE`，不與 Live 混排。研究優先級已由上方 2026-11-20 17:34 條目更新：RVC 改回主線候選；此處的 `LIVE` 分類門檻 5 秒仍保留。另見直播目標 p50 ≤ 300 ms 與直播 TTS 的 3／5 秒門檻，三者不可混用。
 
 2026-09-26 gate implementation clarification：`<= 5 秒` 僅通過延遲門檻並進入 `LIVE_CANDIDATE`；分類為 `LIVE` 還須 physical-microphone artifacts/identity、至少 600 秒零 dropout／underrun 與人工聽評。詳見 [`live-gate.md`](../specs/live-gate.md)。
 

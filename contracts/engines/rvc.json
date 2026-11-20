@@ -22,7 +22,8 @@
     "tools/external/Retrieval-based-Voice-Conversion-WebUI/assets/rmvpe/rmvpe.pt"
   ],
   "limitations": [
-    "模型來源／授權仍待核對；Mic、人耳聽評、外部 Rack、Discord 與 600 秒 LIVE 分開驗收。"
+    "模型來源／授權仍待核對；Mic、人耳聽評、外部 Rack、Discord 與 600 秒 LIVE 分開驗收。",
+    "共振峰（formant）目前在即時路徑寫死為 0.0，尚未暴露為可調參數，以免 Desktop 出現無效控制；掃描計畫見 docs/reference/parameter-matrix-template.csv。protect 與 RMS mix 只存在於離線推論，即時路徑不提供。" 
   ],
   "parameters": [
     {

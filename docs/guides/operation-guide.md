@@ -46,6 +46,30 @@ Set-Location D:\AetherTune
 
 不想聽到自己時，關閉 App 的[自己監聽](desktop-user-guide.md#自己監聽)。若仍有自己的聲音，檢查 CABLE Output 的 Windows「聆聽此裝置」與外部 mixer 的監聽路徑。Discord 的「麥克風測試」會把輸入送回輸出，檢查完請按「停止測試」；見[官方麥克風測試說明](https://support.discord.com/hc/en-us/articles/360020641332-Mic-Testing)。上述設定說明不等於這台機器的 Discord 接收 E2E 已通過。
 
+#### Discord 語音處理與取樣率（R6）
+
+在「使用者設定 → 語音與視訊」再確認下列項目。社群最常見的「變聲發悶、電音」來源，是 Discord 又做了一次雜訊抑制、回音消除或自動增益；這些處理會改寫變聲後的高頻與動態。
+
+| 設定 | 建議 |
+|---|---|
+| 雜訊抑制（含 Krisp、標準或 NVIDIA 等選項） | 關閉 |
+| 回音消除 | 關閉 |
+| 自動增益／自動音量調整 | 關閉 |
+| 取樣率 | 全鏈（後端、虛擬線路、Voicemeeter、Discord／OBS）維持 48 kHz；Discord／Opus 原生即為 48 kHz，避免來回重採樣 |
+| 發話方式 | 建議用按鍵發話（PTT），減少底噪與呼吸被送進變聲；若用語音活動偵測，把閾值調到只在說話時觸發 |
+| 頻道位元率 | 預設語音頻道常為 64 kbps；聽評必須按該次實際位元率錄「過 Discord 之後」的版本，見 [LIVE gate](../specs/live-gate.md) |
+
+OBS 若已從 Voicemeeter 匯流排取變聲後的聲音，不要再在 OBS 重複加上一組同樣的降噪／壓縮／EQ。自己監聽應聽「過 Discord 前」的訊號，以便即時調整；聽評則以過 Discord 後的錄音為準。
+
+#### 男轉女說話方式（R6）
+
+參數調完後，最容易讓人聽出是變聲的通常是語調與句尾，而不是音色本身。以下是操作建議，不是本機已完成盲聽的結論：
+
+- 語調起伏大一點、語速稍慢、句尾軟化，避免又平又快、句尾生硬。
+- 麥克風距離約 15–20 cm，說話峰值大約落在電平 60%～75%，避免增益過高把底噪放大成電音，也避免過低而要把後段開很滿。
+- 輸入降噪只去掉底噪，不要開到「絕對安靜」；過強會吃掉氣音與讓聲音自然的細節，再經過 Discord 會更悶。
+- 笑聲、咳嗽、氣音與拉長的「s」本來就較難轉，聽評時應包含這些片段。
+
 ## 3. Light Host／VST
 
 本機已登錄的宿主入口在 `tools/external/LightHostModern/app/Light Host Modern.exe`；Graillon Free 3 VST3 的常見安裝位置為 `C:\Program Files\Common Files\VST3\Auburn Sounds Graillon 3.vst3`。實際檔案、版本與授權以[來源審核](../reference/source-audit.md)、[plugin profile](../../audio-rack/plugin-profiles/README.md)及本機檢查為準，不因這些路徑寫在手冊就當成安裝完成。

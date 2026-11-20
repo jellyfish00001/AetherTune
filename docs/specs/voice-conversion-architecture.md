@@ -29,12 +29,16 @@ RVC 的角色模型採 `.pth/.index` 配對與 f0；Seed-VC、MeanVC2、X-VC 使
 
 | Adapter | 自己負責 | 下游仍需另驗 |
 |---|---|---|
-| RVC + FCPE／RMVPE | `.pth/.index` 配對、CUDA f0、rolling block／SOLA、來源 WAV／Mic duplex callback；訓練流程由[訓練手冊](../guides/model-training-guide.md)擁有 | physical Mic、Rack、600 秒；另選 VCClient 時其 slot／chunk 另驗 |
+| RVC + FCPE／RMVPE | `.pth/.index` 配對、CUDA f0、rolling block／SOLA、來源 WAV／Mic duplex callback；訓練流程由[訓練手冊](../guides/model-training-guide.md)擁有 | physical Mic、Rack、600 秒、「過 Discord 後」聽評；另選 VCClient 時其 slot／chunk 另驗 |
 | Seed-VC upstream | source/reference 的離線、官方 GUI 或 Desktop headless realtime-tiny profile；資產由[seed-vc-assets.md](../reference/seed-vc-assets.md)登記 | 各 profile 分開驗證、physical mic、Rack |
 | MeanVC2／X-VC | 各自 source/reference、固定模型、CLI WAV 或 Desktop resident capture/worker/output | physical mic、600 秒與人工聽評 |
 | CosyVoice2／Breeze | 文字、prompt/reference、完整 TTS WAV 與 generation evidence | 實際 playback、外部 Post-FX、STT provenance |
 
 每個 backend 的實際參數、安裝與限制只由 `backends/<name>/README.md` 擁有；桌面編排的 IPC／程序所有權由[app-architecture.md](app-architecture.md)與[Agent 維護手冊](../../.agent/reference/agent-maintenance-guide.md)擁有。Adapter 的 `PASS` 不會自動傳遞成下游的 `PASS`。
+
+### RVC 即時參數（R7）
+
+即時路徑可調的音色參數是音高（pitch）、共振峰（formant）、index_rate 與 f0 方法（另加 chunk／crossfade／extra_time）。上游 RVC realtime 已有 formant（GUI 範圍約 −2～+2）；目前 `services/engines/rvc_runtime.py` 將其寫死為 0.0，Desktop 契約尚未暴露可調控制，以免出現調了卻無效的 UI。參數矩陣已列入 formant 掃描，待接出後與 pitch、index_rate、f0_method 一起掃。`protect`、RMS mix、filter radius 只存在於離線推論，即時路徑不掃描、也不寫進操作預設。男轉女應將音高與共振峰同向調整，不得只拉音高、不動共振峰。
 
 ## 共用設施的 handoff
 

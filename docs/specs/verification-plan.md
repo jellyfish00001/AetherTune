@@ -41,7 +41,7 @@
 
 初始量測方法：每個受影響配置至少 3 次 cold 記 median／range，warm 至少 20 次記 median／p95 與樣本數；不足就明列樣本限制，不混池推算 p95。UI／storage 案例重跑 3 次。原始 samples、失敗輪次、測量工具與起迄事件都需保留；不同引擎、硬體、DPI、路由不能直接平均。昂貴案例只跑本次受影響配置，已通過且未變動者不反覆重跑。
 
-效能任務開始時由 BASE-01 鎖定目標指標與容許波動，再做修改。初始工程評估準則是：目標 latency 或工作量降低至少 10%，且大於 baseline 的重跑波動；其他關鍵 latency 不惡化超過 10%，無新增音訊失敗／drops／程序殘留。這是待 baseline 校準的內部準則，**不是使用者已承諾接受的等待時間，也不修改 LIVE gate**；若量測波動大於差異，結論只能是無法證明改善。單純拆檔以行為不變及無可辨識效能退步驗收，不強求速度提升。
+效能任務開始時由 BASE-01 鎖定目標指標與容許波動，再做修改。初始工程評估準則是：目標 latency 或工作量降低至少 10%，且大於 baseline 的重跑波動；其他關鍵 latency 不惡化超過 10%，無新增音訊失敗／drops／程序殘留。這是待 baseline 校準的內部準則，**不是使用者已承諾接受的等待時間，也不修改 LIVE gate**；若量測波動大於差異，結論只能是無法證明改善。延遲改善是否成立，只以聲學量測（錄音比對）為準（R1）。引擎 latency trace、GUI 的 `res`／`buf` 或自我回報延遲一律標 partial，不得用來宣稱達到直播目標或改善已達標。報告須同時列出引擎淨延遲與路由延遲，並記下每一跳的緩衝設定（R2）。即時變聲的直播目標是完整鏈路聲學 p50 ≤ 300 ms，與 [LIVE gate](live-gate.md) 的 5,000 ms 分類門檻分開（R3）。單純拆檔以行為不變及無可辨識效能退步驗收，不強求速度提升。
 
 品質與資源 gate 同時適用：輸出 finite／nonzero、sample rate／frame／hash evidence 完整，保留取消／錯誤 recovery；涉及音色／index／precision／buffer 的改善要成對聽評。Stop／Exit 後 audit 本輪 Windows／WSL ownership；長時間記憶體與音訊穩定按該任務時長與 [LIVE gate](live-gate.md) 分別報告。單次 VRAM 截圖或 60 秒 UI idle 不證明沒有 memory leak 或 600 秒 LIVE。
 
@@ -71,6 +71,14 @@
 2. Streaming VC 的 Seed-VC、MeanVC2、X-VC、RVC 各自獨立報告；Speech Reconstruction 的 STT draft、reference transcript 與 TTS WAV 不與 VC 的表演保留結果混成單一品質分數。
 3. 同一 corpus、sample rate／loudness policy 下比較內容正確性 proxy、RMS、peak、clipping、DC、silence 和速度；RTF／backend timing 不能作完整鏈路首包時間。
 
+### 直播 TTS 驗收（R8–R10）
+
+手動打字發聲（直播 TTS）與 Streaming VC 分開驗收，門檻也分開記錄：
+
+- 加速組合必須分欄報告「Windows 原生可跑」與「需 Linux／WSL／Docker」，兩欄數字不得平均或混充（R8）。
+- 同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出（讓打字發聲與變聲同一聲線），並記錄音檔與逐字稿 hash；短於 9 秒不得作為達標或可接受的依據（R9）。當次結果寫入對應驗證報告（例如 [manual-tts-verification-latest.md](../verification/desktop/manual-tts-verification-latest.md)），規範本身以本節與 [LIVE gate](live-gate.md) 為準。
+- 打完字到出聲：≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受；否則不達標（R10）。此門檻不修改 `LIVE` 分類規則。
+
 ## Phase 3：VCClient 與 Windows 路由
 
 VCClient packaged runtime 要獨立於專案 RVC `.venv` 驗證。角色 slot、model/index、f0、實際 GPU provider、有效 output、chunk 和 dropout 依[VCClient gate](vcclient-runtime-gate.md)執行；Web UI 回應不構成音訊通過。
@@ -85,14 +93,16 @@ VCClient packaged runtime 要獨立於專案 RVC `.venv` 驗證。角色 slot、
 | pitch | 其他同 baseline | +6／+9／+12 |
 | index | 其他同 baseline | 0.00／0.50／0.70 |
 | VST | 最佳 RVC 組合 | Graillon bypass／active |
+| formant | 其他同即將採用的音高與 f0 首選 | 0.0／+0.5／+1.0／+1.5／+2.0 |
+| f0 對照 | 其他同最佳組合 | FCPE／RMVPE |
 
-各 case 保存 model/hash、測試句、持續時間、p50/p95、underrun、破音、WAV 和 log；矩陣證據支援後才調整預設值。Windows 操作順序只在[路由手冊](../guides/operation-guide.md)，線路的當次結果只在[線路驗證](../verification/audio/wiring-verification-latest.md)。
+各 case 保存 model/hash、測試句、持續時間、p50/p95、underrun、破音、WAV 和 log；矩陣證據支援後才調整預設值。共振峰（formant）與 pitch、index_rate、f0_method 一起掃（R7）；`protect` 與 RMS mix 在即時路徑不存在，不列入掃描。formant 目前 runtime 寫死為 0.0，矩陣先列掃描值，待參數接出後實測。延遲以聲學量測記入，並拆引擎淨延遲與路由延遲。Windows 操作順序只在[路由手冊](../guides/operation-guide.md)，線路的當次結果只在[線路驗證](../verification/audio/wiring-verification-latest.md)。
 
 ## Phase 4：Rack 與完整線路
 
 1. 在同一 source、backend/model、hardware、route 下保存 `Post-FX bypass` 和 `Post-FX full-chain` 兩筆 WAV／metrics／hash，量實際 `delta_latency_ms`。Plugin、preset 和 paired evidence 欄位由 [`audio-rack/`](../../audio-rack/README.md) 擁有。
 2. 先證明 backend → CABLE，再證明 Light Host／VST → Voicemeeter B1，最後在 Discord／OBS 等終端保存 loopback；每段的 input/output identity 必須能串回同一 run。
-3. 以 physical mic 進入完整路徑，再按 [LIVE gate](live-gate.md) 執行首包、連續穩定、dropout／underrun 與 human listening；局部 CABLE capture 不代替完整鏈路。
+3. 以 physical mic 進入完整路徑，再按 [LIVE gate](live-gate.md) 執行首包、連續穩定、dropout／underrun 與 human listening；局部 CABLE capture 不代替完整鏈路。聽評樣本一律錄「經過 Discord（該次實際位元率）之後」的版本，另附過 Discord 前的對照（R5）；若只能做壓縮模擬，必須標明「模擬 Discord」，不得寫成真實 Discord 聽評。
 
 ## Phase 5：固定比較與候選 intake
 

@@ -2,13 +2,25 @@
 
 **文件邊界：**本頁是 `LIVE`／`LIVE_CANDIDATE`／`OFFLINE`／`WAITING`／`BLOCKED` 的唯一分類規則；實際某輪是否符合，須由該輪 artifact／validator 與對應驗證報告證明。本頁不記錄 backend 當前成績、安裝步驟或人類操作流程。
 
-更新日期：2026-09-26（Asia/Taipei）
+更新日期：2026-11-20（Asia/Taipei）；2026-11-20 17:34 併入 R1–R10，分類常數 5000 ms 未改。
 
 ## 目的
 
 AetherTune 的硬條件是：在 RTX 5060 Ti 16GB、本地運算與完整音訊鏈路下，端到端延遲 `<= 5,000 ms` 才能分類為 `LIVE`。這個門檻不是模型宣稱、單段離線 WAV、RTF、Web UI HTTP 200 或輸出檔存在就能通過。
 
 端到端測量必須從實際 capture input 開始，直到經過 backend、共用 Post-FX、virtual routing 後的可錄製 output 收到第一個有效音訊封包；若只量 backend inference，必須標成 partial，不能升格為 LIVE PASS。
+
+### 兩種延遲門檻與直播 TTS 門檻不可混用
+
+`<= 5,000 ms` 只是 `LIVE`／`LIVE_CANDIDATE` 的**分類可用下限**，不是產品的直播延遲目標；非即時功能仍用此門檻分類。`tools/live-gate-validate.py` 維持 5000 ms，不得因產品目標更嚴而改分類常數。
+
+| 門檻 | 適用 | 數字 | 與分類的關係 |
+|---|---|---|---|
+| `LIVE` 分類門檻 | 完整鏈路首包，判定 `LIVE`／`LIVE_CANDIDATE`／`OFFLINE` | `e2e_first_packet_ms <= 5,000` | 分類規則；通過也不等於達到直播目標 |
+| 直播目標（即時變聲，R3） | 完整鏈路的**聲學量測** p50 | `e2e_p50_ms <= 300`（產品目標 100–300 ms） | 另訂等級，不改 `LIVE`／`OFFLINE` 分類 |
+| 直播 TTS 門檻（R10） | 打完字到第一段可播放聲音（首包／TTFA），且生成須快於播放 | 達標：首包 ≤ 3,000 ms 且 RTF < 1；可接受：首包 ≤ 5,000 ms 且 RTF < 1；否則不達標 | 與即時變聲的 300 ms 直播目標、以及 `LIVE` 分類門檻分開記錄。依據 Johnny 2026-11-20 17:31「可以接受 3–5 秒延遲」與 17:34 定案 |
+
+達到 `LIVE` 不代表達到直播目標；達到直播目標也仍須滿足 600 秒穩定與人工聽評，才能分類為 `LIVE`。
 
 ## 分類規則
 
@@ -32,7 +44,20 @@ AetherTune 的硬條件是：在 RTX 5060 Ti 16GB、本地運算與完整音訊�
 - `e2e_p50_ms`、`e2e_p95_ms`（若有連續事件）、`continuous_seconds`、`dropouts`、`underruns`。
 - output WAV／loopback artifact path、SHA-256、signal validation 結果與人工聽測記錄。
 
-`tools/live-gate-validate.py` 讀取本次實際 input/output WAV 與 metrics JSON，並要求 metrics SHA 綁定完整 `timing_ms`、`continuity`、capture source type、capture sample rate/channels、input/output WAV 的 sample rate/channels/frames/duration，以及整個 `human_review` object。capture 宣告必須與 input WAV header 相符；output metadata 也必須同時符合 manifest、hash-bound metrics 和 output WAV header。只重算 WAV file hash、卻沿用舊 metadata 的修改會 `BLOCKED`；若檔案本身改變，證據、metrics 和實際 header 必須重新一致。若 `human_review.status=PASS`，還需 reviewer/review identity、timezone-aware `reviewed_at_utc`、精確 input/output WAV hashes，以及自然度、音色相似、表演保留、內容正確、噪音／破音與接受度 1–5 ratings；不完整的 PASS review 會 `BLOCKED`。尚未完成的 `status=WAITING` 維持 `LIVE_CANDIDATE`，不會成為 LIVE。它不會替代真實 capture、PortAudio、VST、virtual device 或人工聽測，也不會由 synthetic audio 建立 physical-microphone evidence。paired rack 欄位另見 [`audio-rack/benchmarks/README.md`](../../audio-rack/benchmarks/README.md)。
+用來下結論或與直播目標比較的延遲，只認**聲學量測**（R1）：以錄音比對「實際輸入何時開始」與「可錄製輸出何時出現第一個有效音訊」。引擎內部 latency trace、GUI 顯示的 `res`／`buf` 或自我回報延遲，一律標 `partial`，不得當作完整鏈路延遲或直播目標的通過證據。
+
+延遲報告必須固定拆成兩欄（R2），並記錄每一跳的緩衝設定（裝置、Host API、buffer／block、sample rate）：
+
+| 欄位 | 含義 |
+|---|---|
+| 引擎淨延遲 | backend 處理本身，不含虛擬線路與後段路由 |
+| 路由延遲 | 引擎輸出之後，經過虛擬線路／Post-FX／終端，到可錄製輸出的延遲 |
+
+現有 `timing_ms` 的 `backend_first_packet_ms`、`postfx_first_packet_ms`、`routing_first_packet_ms`、`e2e_*` 應對應到上述兩欄與總和；若某段不是聲學量測，該段標 `partial`。不得只報一個未經拆欄的總和，就宣稱達到直播目標。
+
+`tools/live-gate-validate.py` 讀取本次實際 input/output WAV 與 metrics JSON，並要求 metrics SHA 綁定完整 `timing_ms`、`continuity`、capture source type、capture sample rate/channels、input/output WAV 的 sample rate/channels/frames/duration，以及整個 `human_review` object。capture 宣告必須與 input WAV header 相符；output metadata 也必須同時符合 manifest、hash-bound metrics 和 output WAV header。只重算 WAV file hash、卻沿用舊 metadata 的修改會 `BLOCKED`；若檔案本身改變，證據、metrics 和實際 header 必須重新一致。若 `human_review.status=PASS`，還需 reviewer/review identity、timezone-aware `reviewed_at_utc`、精確 input/output WAV hashes，以及自然度、音色相似、表演保留、內容正確、噪音／破音與接受度 1–5 ratings；不完整的 PASS review 會 `BLOCKED`。尚未完成的 `status=WAITING` 維持 `LIVE_CANDIDATE`，不會成為 LIVE。它不會替代真實 capture、PortAudio、VST、virtual device 或人工聽測，也不會由 synthetic audio 建立 physical-microphone evidence。
+
+人工聽評必須同時保存兩種樣本（R5）：一是**尚未經過 Discord** 的輸出；二是**經過 Discord（該次實際頻道位元率；預設語音頻道常為 64 kbps Opus）之後**錄下的版本。聽評結論以過 Discord 後的版本為準，過 Discord 前只作對照。若當次無法經由真實 Discord 錄製，須改用可說明的 Discord／Opus 壓縮模擬，並在 `human_review` 標明「模擬 Discord」，不得寫成真實 Discord 聽評。paired rack 欄位另見 [`audio-rack/benchmarks/README.md`](../../audio-rack/benchmarks/README.md)。
 
 [`tools/seed-vc-live-capture.py`](../../tools/seed-vc-live-capture.py) 可在官方 Seed-VC GUI 已待命時，以明確指定的實體麥克風、backend loopback 與終端 loopback 同步錄音，保存 callback 數量、frame continuity、ADC timestamps、WAV hash 與訊號檢查。它產生的 onset delta 是跨 stream threshold estimate，不是精確 first-packet timing；capture 報告維持 `WAITING`，需另行核實完整時間線、填入符合 LIVE_GATE schema 的 evidence 並完成聽評，不能直接分類為 LIVE。
 
@@ -40,7 +65,7 @@ AetherTune 的硬條件是：在 RTX 5060 Ti 16GB、本地運算與完整音訊�
 
 ### Streaming VC：保留原始表演
 
-1. RVC + FCPE/RMVPE：`historical-baseline`。保留作既有系統與延遲／失真對照；不再預設為主線。
+1. RVC + FCPE/RMVPE：`priority candidate`（主線候選）。2026-11-20 17:34 依 PC2 聲學量測（`exp/bench-e2e-latency`）從 `historical-baseline` 改回主線候選。仍須按本頁完成 physical mic、600 秒穩定與「過 Discord 後」人工聽評，才能分類為 `LIVE`。這不是把 RVC 訂為唯一主線；其他引擎仍獨立比較。
 2. Seed-VC upstream：`established-baseline`。本機 headless evidence 已有，但 upstream 已 archived。
 3. MeanVC2：`priority candidate / installed`。Windows／RTX 5060 Ti 隔離 runtime 與雙向 CUDA file-driven streaming WAV `PASS`；mic、paired rack、600 秒連續穩定與人工聽評仍 `WAITING`。上游報告的 40 ms chunk／110 ms first-packet latency 不是本機完整鏈路結果。
 4. X-VC：`research-candidate / installed`。固定 code/model 資產與雙向 CUDA streaming WAV `PASS`；完整 physical capture、paired rack、600 秒穩定及人工聽評仍 `WAITING`。GLM tokenizer 的授權範圍需與 repo 及各模型權重分開核對。
@@ -54,6 +79,19 @@ AetherTune 的硬條件是：在 RTX 5060 Ti 16GB、本地運算與完整音訊�
 3. Breeze TTS 2：`offline-candidate`。本機 runtime PASS 不等於 LIVE；目前 RTX 5060 Ti 的 RTF／完整鏈路仍不符合 LIVE 分類。
 
 Speech Reconstruction 重新產生內容、韻律與呼吸，不可宣稱完整保留來源表演；它與 Streaming VC 應分組報告。
+
+直播 TTS（手動打字發聲，目標與變聲同一聲線）另適用下列規則，不與 Streaming VC 的 300 ms 直播目標混用：
+
+- **加速分欄（R8）：**研究與驗證報告必須把「Windows 原生可跑」與「需 Linux／WSL／Docker」分成兩欄；後者屬系統層，不與 Windows 原生數字混成單一結論。
+- **參考音（R9）：**同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出，並記錄音檔與逐字稿 hash。短於 9 秒的參考音不得作為達標或可接受的依據。
+- **門檻與實測套用（R10）：**打完字到出聲（首包）≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受；首包超過 5 秒或 RTF ≥ 1 為不達標。套用 `exp/live-tts-bench` `255c12a` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`：
+
+| 後端 | 對 R10 的判定 |
+|---|---|
+| GSV-TTS-Lite | 達標（首包約 0.09–0.26 秒，RTF 約 0.10–0.13） |
+| VoxCPM2 | 預設 10 步 RTF 約 1.06–1.59，不達標；降到 6 步 RTF 0.76–0.94 才達標（未加速，待和 VSF `exp/tts-install` `309200a` 的 RTF 1.03–1.53 對齊） |
+| CosyVoice2 | 短句可接受、長句超過 |
+| Qwen3-TTS 0.6B | 不達標（開源非串流首包約 6–24 秒） |
 
 ## 重新分類時機
 

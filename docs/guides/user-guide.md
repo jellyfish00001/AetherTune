@@ -8,7 +8,7 @@
 |---|---|---|
 | 保留來源說話內容與表演，不想訓練角色模型 | Seed-VC baseline：source／實體麥克風與 reference voice | [Seed-VC backend](../../backends/seed-vc/README.md)；資產準備見[seed-vc-assets.md](../reference/seed-vc-assets.md) |
 | 比較其他 zero-shot Streaming VC | MeanVC2 或 X-VC：source WAV＋reference WAV；目前重點是 file-driven output | [MeanVC2](../../backends/meanvc2/README.md)、[X-VC](../../backends/xvc/README.md) |
-| 使用既有訓練角色模型作歷史對照 | RVC：訓練後的 `.pth/.index` 配對與 source | [RVC backend](../../backends/rvc/README.md)、[訓練手冊](model-training-guide.md) |
+| 使用既有訓練角色模型作即時變聲主線候選 | RVC：訓練後的 `.pth/.index` 配對與 source；接 Discord／OBS 時依[路由手冊](operation-guide.md)關閉雜訊抑制、回音消除與自動增益，全鏈 48 kHz，並參考男轉女說話方式 | [RVC backend](../../backends/rvc/README.md)、[訓練手冊](model-training-guide.md)、[路由手冊](operation-guide.md) |
 | 先辨識文字，再重新說一遍 | STT → TTS：source WAV、目標文字／reference 與人工核對 transcript | [Speech Reconstruction backend](../../backends/speech-reconstruction/README.md) |
 | 直接打字發聲、不使用 STT | Desktop Manual TTS | [快速說明](quick-start.md)；不使用本頁的 CLI 流程 |
 
@@ -37,4 +37,4 @@ RVC 資料與訓練只按[訓練手冊](model-training-guide.md)進行；`FCPE`�
 
 backend 自己的 README 擁有命令與輸出檔名；[逐檔索引](../../.agent/reference/project-file-map.md)說明保留資料夾應放什麼；[文件權責地圖](../README.md)將每輪驗證導向對應報告。音訊檔、模型、venv、第三方 source 和 artifacts 預設不進 Git，也不能因某資料夾沒有 tracked 檔案就當成可刪除。
 
-`LIVE`／`OFFLINE`／`WAITING` 的完整定義只在 [live-gate.md](../specs/live-gate.md)。任何路線都要以相同 run identity 驗證 source／mic → backend → Rack bypass/full-chain → virtual route → loopback；再做長時間穩定與人工聽測。離線 WAV、RTF、preflight 或局部 CABLE capture 只回答自己的測試問題。
+`LIVE`／`OFFLINE`／`WAITING` 的完整定義只在 [live-gate.md](../specs/live-gate.md)。即時變聲另有直播目標（完整鏈路聲學 p50 ≤ 300 ms），與 5,000 ms 分類門檻分開。直播 TTS 的達標／可接受門檻（打完字到出聲 ≤ 3 秒／≤ 5 秒，且 RTF < 1）以及參考音須至少 9 秒並附逐字稿，見同一份 LIVE gate 與[驗證計畫](../specs/verification-plan.md)。任何路線都要以相同 run identity 驗證 source／mic → backend → Rack bypass/full-chain → virtual route → loopback；再做長時間穩定與人工聽測。聽評應包含「過 Discord 之後」的錄音。離線 WAV、RTF、preflight 或局部 CABLE capture 只回答自己的測試問題。
