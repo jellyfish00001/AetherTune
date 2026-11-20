@@ -414,22 +414,37 @@ def build_report(
 
 
 def _read_wav_frames(path: Path) -> tuple[list[float], int, int]:
-    with wave.open(str(path), "rb") as wf:
-        channels = wf.getnchannels()
-        width = wf.getsampwidth()
-        rate = wf.getframerate()
-        frames = wf.getnframes()
-        raw = wf.readframes(frames)
-    if width == 2:
-        count = len(raw) // 2
-        ints = struct.unpack(f"<{count}h", raw)
+    """讀 16-bit PCM 或 32-bit float WAV（含 WAVE_FORMAT_IEEE_FLOAT=3；stdlib wave 讀不了 format 3）。"""
+    raw = Path(path).read_bytes()
+    if raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+        raise ValueError(f"not a RIFF/WAVE file: {path}")
+    pos, fmt, data = 12, None, None
+    while pos + 8 <= len(raw):
+        chunk_id = raw[pos : pos + 4]
+        size = struct.unpack("<I", raw[pos + 4 : pos + 8])[0]
+        body = raw[pos + 8 : pos + 8 + size]
+        if chunk_id == b"fmt ":
+            fmt = body
+        elif chunk_id == b"data":
+            data = body
+        pos += 8 + size + (size & 1)
+    if fmt is None or data is None:
+        raise ValueError(f"WAV missing fmt/data chunk: {path}")
+    tag, channels, rate = struct.unpack("<HHI", fmt[:8])
+    width = struct.unpack("<H", fmt[14:16])[0] // 8
+    if tag == 0xFFFE and len(fmt) >= 26:  # WAVE_FORMAT_EXTENSIBLE：SubFormat 前 2 bytes 即 format tag
+        tag = struct.unpack("<H", fmt[24:26])[0]
+    if width == 2 and tag == 1:
+        count = len(data) // 2
+        ints = struct.unpack(f"<{count}h", data[: count * 2])
         mono = [sum(ints[i : i + channels]) / (32768.0 * channels) for i in range(0, count, channels)]
-    elif width == 4:
-        count = len(raw) // 4
-        floats = struct.unpack(f"<{count}f", raw)
+    elif width == 4 and tag in (1, 3):
+        # tag 1＋32-bit：舊版 write_wav_float32 把 float 資料標成 PCM，仍以 float 讀以相容舊證據。
+        count = len(data) // 4
+        floats = struct.unpack(f"<{count}f", data[: count * 4])
         mono = [sum(floats[i : i + channels]) / channels for i in range(0, count, channels)]
     else:
-        raise ValueError(f"unsupported WAV width: {width}")
+        raise ValueError(f"unsupported WAV format tag={tag} width={width}")
     return mono, rate, channels
 
 
@@ -450,14 +465,21 @@ def write_wav_pcm16(path: Path, samples: list[float], sample_rate: int) -> None:
 
 
 def write_wav_float32(path: Path, samples: list[float], sample_rate: int) -> None:
+    """32-bit IEEE float WAV（format tag 3＋fact chunk）。
+
+    舊版用 stdlib wave 寫成 PCM 標頭，soundfile／DAW 會把 float 位元當整數讀成雜訊。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     data = b"".join(struct.pack("<f", float(x)) for x in samples)
-    with wave.open(str(path), "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(4)
-        wf.setframerate(sample_rate)
-        wf.setcomptype("NONE", "not compressed")
-        wf.writeframes(data)
+    frames = len(data) // 4
+    fmt = struct.pack("<HHIIHH", 3, 1, sample_rate, sample_rate * 4, 4, 32)
+    body = (
+        b"WAVE"
+        + b"fmt " + struct.pack("<I", len(fmt)) + fmt
+        + b"fact" + struct.pack("<I", 4) + struct.pack("<I", frames)
+        + b"data" + struct.pack("<I", len(data)) + data
+    )
+    path.write_bytes(b"RIFF" + struct.pack("<I", len(body)) + body)
 
 
 def apply_fractional_delay(samples: list[float], delay_samples: float) -> list[float]:
