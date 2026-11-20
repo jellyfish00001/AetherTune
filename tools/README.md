@@ -19,7 +19,9 @@ Agent 先用[快速地圖](../.agent/reference/agent-quick-map.md)找 owner；�
 - `portaudio-callback-telemetry.py`／`portaudio-callback-telemetry-regression.py`：統計 callback、frame continuity、PortAudio status 與 ADC timestamp drift；不保留音訊 samples，合成 regression 不代表實際裝置通過。
 - `e2e_latency_analysis.py`／`e2e-latency-analysis-regression.py`：脈衝列互相關 E2E 延遲離線分析（stdlib 核心）；彙總 `e2e_*_ms` 與研究目標 100–300 ms verdict，不等於 LIVE gate。
 - `e2e-latency-bench.py`：playrec 脈衝基準（loopback／engine）；`--dry-run`／`--self-test` 不需 sounddevice；實測輸出至 `artifacts/`。
-- `e2e-latency-run.ps1`：一行編排 baseline＋引擎量測或 `-SelfTest`；彙總 `artifacts/e2e-latency/*-summary.json`／`.md`。
+- `e2e-latency-run.ps1`：一行編排 baseline（雙虛擬線 loopback 相加）＋引擎量測；`-Profile pc2-virtual|cable-voicemeeter`、路由 precheck、`RequestOnly`、`-SelfTest`；彙總 `artifacts/e2e-latency/*-summary.json`／`.md`。
+- `e2e-latency-run-regression.ps1`：離線 regression（PS 解析、SelfTest、RequestOnly、probe `-List`、analysis regression、latency_trace 單元測試）。
+- `virtual-line-probe.ps1`：winmm（MME）虛擬線粗 loopback／crosstalk 探測與 `-List`；名稱以片段比對（31 字截斷）；onset 非 E2E 延遲。
 - `wav-evidence.py`／`seed-vc-wav-check.py`：用 WAV header 與 PCM payload 檢查實際 metadata、hash、finite/non-zero 訊號；不能取代 paired rack 或 LIVE_GATE。
 - `seed-vc-live-capture.py`：在官方 Seed-VC GUI 已待命時，錄製使用者明確指定的實體 mic、backend loopback 與終端 loopback，輸出 WAV／callback evidence。onset delta 是估算值，報告保持 `WAITING`，不自動升格 LIVE。
 - `voice-backend-check.ps1`：唯讀檢查 RVC venv、Seed-VC source／isolated environment／checkpoint、男／女 reference voice 與 CosyVoice/Breeze TTS 2 模型狀態；不代表端到端品質通過。

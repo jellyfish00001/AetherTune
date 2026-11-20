@@ -1,22 +1,31 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  E2E 延遲一行編排：loopback baseline、可選 streaming engine、彙總 artifacts。
+  E2E 延遲一行編排：雙虛擬線 baseline 相加、routing precheck、自動 request、streaming engine、彙總 artifacts。
+
+.NOTES
+  `-Profile pc2-virtual`（預設）或 `cable-voicemeeter`；`-RequestOnly`／`-SelfTest` 不接實機音訊。
+  pc2-virtual 不使用 `verify_wiring.ps1`（CABLE／Voicemeeter 專用）。
 #>
 [CmdletBinding()]
 param(
     [string]$Root = '',
     [string]$Python = '',
+    [ValidateSet('pc2-virtual', 'cable-voicemeeter', 'custom')]
+    [string]$Profile = 'pc2-virtual',
     [ValidateSet('none', 'meanvc2', 'xvc', 'seed-vc', 'all')]
     [string]$Engine = 'none',
-    [string]$In = 'Voicemeeter Out B1',
-    [string]$Out = 'CABLE Input',
-    [string]$EngineIn = 'CABLE Output',
-    [string]$EngineOut = 'Voicemeeter Input',
-    [string]$BaselineIn = '',
-    [string]$BaselineOut = '',
+    [string]$In = '',
+    [string]$Out = '',
+    [string]$EngineIn = '',
+    [string]$EngineOut = '',
+    [string]$LineAOut = '',
+    [string]$LineAIn = '',
+    [string]$LineBOut = '',
+    [string]$LineBIn = '',
     [string]$HostApi = 'Windows WASAPI',
     [string]$Request = '',
+    [string]$Reference = '',
     [ValidateSet('click', 'chirp')]
     [string]$Signal = 'chirp',
     [int]$Pulses = 8,
@@ -24,7 +33,9 @@ param(
     [double]$MaxDelayMs = 900,
     [int]$LoadTimeoutSec = 300,
     [string]$ResultsDir = '',
-    [switch]$SelfTest
+    [switch]$SelfTest,
+    [switch]$RequestOnly,
+    [switch]$SkipPrecheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,13 +53,23 @@ function Resolve-RepoRoot {
 }
 
 function Resolve-PythonExe {
-    param([string]$RootPath, [string]$Explicit)
+    param(
+        [string]$RootPath,
+        [string]$Explicit,
+        [switch]$AllowMissing
+    )
     if ($Explicit) {
         if (-not (Test-Path -LiteralPath $Explicit)) {
+            if ($AllowMissing) { return $null }
             Write-Error "Python not found: $Explicit"
             exit 2
         }
         return (Resolve-Path -LiteralPath $Explicit).Path
+    }
+  if ($AllowMissing) {
+        $cmd = Get-Command python -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+        return $null
     }
     $venvPy = Join-Path $RootPath '.venv\Scripts\python.exe'
     if (Test-Path -LiteralPath $venvPy) {
@@ -58,6 +79,176 @@ function Resolve-PythonExe {
     if ($cmd) { return $cmd.Source }
     Write-Error '找不到 python；請以 -Python 指定含 sounddevice／numpy 的直譯器（本腳本不自動安裝）。'
     exit 2
+}
+
+function Get-ProfileDefaults {
+    param([string]$Name)
+    switch ($Name) {
+        'pc2-virtual' {
+            return @{
+                Out       = 'Steam Streaming Microphone'
+                In        = 'Voice Changer Virtual Audio'
+                EngineIn  = 'Steam Streaming Microphone'
+                EngineOut = 'Voice Changer Virtual Audio'
+                LineAOut  = 'Steam Streaming Microphone'
+                LineAIn   = 'Steam Streaming Microphone'
+                LineBOut  = 'Voice Changer Virtual Audio'
+                LineBIn   = 'Voice Changer Virtual Audio'
+                HostApi   = 'Windows WASAPI'
+            }
+        }
+        'cable-voicemeeter' {
+            return @{
+                Out       = 'CABLE Input'
+                In        = 'Voicemeeter Out B1'
+                EngineIn  = 'CABLE Output'
+                EngineOut = 'Voicemeeter Input'
+                LineAOut  = 'CABLE Input'
+                LineAIn   = 'CABLE Output'
+                LineBOut  = 'Voicemeeter Input'
+                LineBIn   = 'Voicemeeter Out B1'
+                HostApi   = 'Windows WASAPI'
+            }
+        }
+        default { return @{} }
+    }
+}
+
+function Test-PythonImportsSounddevice {
+    param([string]$Py)
+    if (-not $Py) { return $false }
+    $code = "import importlib.util; print('ok' if importlib.util.find_spec('sounddevice') and importlib.util.find_spec('soundfile') else 'no')"
+    try {
+        $out = & $Py -c $code 2>$null
+        return ($LASTEXITCODE -eq 0 -and ($out | Select-Object -Last 1) -eq 'ok')
+    } catch { return $false }
+}
+
+function New-AutoEngineRequest {
+    param(
+        [string]$RootPath,
+        [string]$EngineId,
+        [string]$EngineInName,
+        [string]$EngineOutName,
+        [string]$HostApiName,
+        [string]$ReferencePath
+    )
+    $manifestPath = Join-Path $RootPath "contracts\engines\$EngineId.json"
+    if (-not (Test-Path -LiteralPath $manifestPath)) {
+        throw "找不到 manifest: $manifestPath"
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $parameters = @{}
+    foreach ($p in $manifest.parameters) {
+        $parameters[$p.name] = $p.default
+    }
+    return [ordered]@{
+        reference       = $ReferencePath
+        input           = $EngineInName
+        output          = $EngineOutName
+        host_api        = $HostApiName
+        parameters      = $parameters
+        postfx          = @{
+            enabled                 = $false
+            wet                     = 0.3
+            low_db                  = 0.0
+            mid_db                  = 0.0
+            high_db                 = 0.0
+            compressor_threshold_db = -18.0
+            compressor_ratio        = 3.0
+            reverb_mix              = 0.12
+            output_gain_db          = 0.0
+        }
+        noise_reduction = @{ enabled = $false; strength_db = 12.0 }
+        monitor         = @{ enabled = $false }
+    }
+}
+
+function Merge-BaselineSummaries {
+    param([object[]]$Parts)
+    $keys = @('min_ms', 'p50_ms', 'p95_ms', 'max_ms', 'mean_ms', 'e2e_first_packet_ms')
+    $merged = @{}
+    foreach ($key in $keys) {
+        $sum = 0.0
+        $ok = $true
+        foreach ($part in $Parts) {
+            if (-not $part) { $ok = $false; break }
+            $s = if ($part.summary) { $part.summary } else { $part }
+            $v = $s.$key
+            if ($null -eq $v) { $ok = $false; break }
+            $sum += [double]$v
+        }
+        if ($ok) { $merged[$key] = $sum }
+    }
+    $detected = 0
+    $count = 0
+    foreach ($part in $Parts) {
+        $s = if ($part.summary) { $part.summary } else { $part }
+        if ($s.detected) { $detected += [int]$s.detected }
+        if ($s.count) { $count += [int]$s.count }
+    }
+    if ($count -gt 0) {
+        $merged['detected'] = $detected
+        $merged['count'] = $count
+    }
+    return $merged
+}
+
+function Write-CombinedBaselineReport {
+    param(
+        [string]$Path,
+        [object]$LineAReport,
+        [object]$LineBReport,
+        [hashtable]$MergedSummary,
+        [hashtable]$Meta
+    )
+    $payload = [ordered]@{
+        schema           = 'aethertune-e2e-latency/v1'
+        mode             = 'loopback_baseline'
+        baseline_kind    = 'dual_line_sum'
+        summary          = $MergedSummary
+        line_a           = $LineAReport
+        line_b           = $LineBReport
+        baseline_meta    = $Meta
+    }
+    ($payload | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $Path -Encoding UTF8
+    return $Path
+}
+
+function Invoke-RoutingPrecheck {
+    param(
+        [string]$ProbeScript,
+        [string]$PrecheckDir,
+        [string]$LineAOutFrag,
+        [string]$LineAInFrag,
+        [string]$LineBOutFrag,
+        [string]$LineBInFrag,
+        [string]$Py,
+        [string]$LoopbackPy
+    )
+    $issues = New-Object System.Collections.Generic.List[string]
+    $lineAJson = Join-Path $PrecheckDir 'precheck-lineA.json'
+    $codeA = & pwsh -NoProfile -File $ProbeScript -Out $LineAOutFrag -In $LineAInFrag -Label 'lineA' -Crosstalk `
+        -CrosstalkOut $LineAOutFrag -CrosstalkIn $LineBInFrag -OutJson $lineAJson
+    if ($LASTEXITCODE -ne 0) { $issues.Add("lineA winmm probe FAIL (exit $codeA)") }
+
+    $lineBJson = Join-Path $PrecheckDir 'precheck-lineB.json'
+    $codeB = & pwsh -NoProfile -File $ProbeScript -Out $LineBOutFrag -In $LineBInFrag -Label 'lineB' -Crosstalk `
+        -CrosstalkOut $LineBOutFrag -CrosstalkIn $LineAInFrag -OutJson $lineBJson
+    if ($LASTEXITCODE -ne 0) { $issues.Add("lineB winmm probe FAIL (exit $codeB)") }
+
+    if ($Py -and $LoopbackPy -and (Test-PythonImportsSounddevice -Py $Py)) {
+        foreach ($pair in @(
+            @{ label = 'lineA-sd'; out = $LineAOutFrag; inp = $LineAInFrag },
+            @{ label = 'lineB-sd'; out = $LineBOutFrag; inp = $LineBInFrag }
+        )) {
+            $sdCode = & $Py -u -B $LoopbackPy --seconds 1.5 --output-fragment $pair.out --input-fragment $pair.inp 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                $issues.Add("$($pair.label) sounddevice loopback exit $sdCode")
+            }
+        }
+    }
+    return @{ ok = ($issues.Count -eq 0); reasons = $issues; artifacts = @($lineAJson, $lineBJson) }
 }
 
 function Get-GitHead {
@@ -132,6 +323,10 @@ function New-SummaryRow {
         run_dir                  = $RunDir
         devices                  = $Devices
         bench_exit_code          = $ExitCode
+        blocked_reason           = if ($Devices.blocked_reason) { $Devices.blocked_reason } else { $null }
+        baseline_line_a          = if ($Devices.baseline_line_a) { $Devices.baseline_line_a } else { $null }
+        baseline_line_b          = if ($Devices.baseline_line_b) { $Devices.baseline_line_b } else { $null }
+        baseline_sum             = if ($Devices.baseline_sum) { $Devices.baseline_sum } else { $null }
     }
 }
 
@@ -168,6 +363,7 @@ function Write-SummaryArtifacts {
         python          = $Meta.python
         root            = $Meta.root
         self_test       = [bool]$Meta.self_test
+        profile         = $Meta.profile
         rows            = $Rows
     }
     ($payload | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $jsonPath -Encoding UTF8
@@ -335,11 +531,12 @@ function Copy-StreamEvidence {
 
 function Get-EngineList {
     param([string]$Choice)
-    switch ($Choice) {
-        'all' { return @('meanvc2', 'xvc', 'seed-vc') }
-        { $_ -in @('meanvc2', 'xvc', 'seed-vc') } { return @($Choice) }
-        default { return @() }
+    $list = switch ($Choice) {
+        'all' { @('meanvc2', 'xvc', 'seed-vc') }
+        { $_ -in @('meanvc2', 'xvc', 'seed-vc') } { @($Choice) }
+        default { @() }
     }
+    return [string[]]$list
 }
 
 function Common-BenchArgs {
@@ -368,8 +565,34 @@ function Common-BenchArgs {
 }
 
 $repoRoot = Resolve-RepoRoot -Candidate $Root
-$pyExe = Resolve-PythonExe -RootPath $repoRoot -Explicit $Python
+$profileDefaults = Get-ProfileDefaults -Name $Profile
+foreach ($key in @('Out', 'In', 'EngineIn', 'EngineOut', 'LineAOut', 'LineAIn', 'LineBOut', 'LineBIn', 'HostApi')) {
+    if (-not $PSBoundParameters.ContainsKey($key)) {
+        $dv = $profileDefaults[$key]
+        if ($dv) { Set-Variable -Name $key -Value $dv }
+    }
+}
+if (-not $Reference) {
+    $Reference = Join-Path $repoRoot 'dataset\reference-voices\voice-female-f1.wav'
+}
+
+$needAudioPython = (-not $SelfTest) -and (-not $RequestOnly)
+$pyExe = if ($needAudioPython) {
+    Resolve-PythonExe -RootPath $repoRoot -Explicit $Python
+} else {
+    Resolve-PythonExe -RootPath $repoRoot -Explicit $Python -AllowMissing
+}
+if (-not $pyExe -and ($SelfTest -or $RequestOnly)) {
+    $pyExe = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $pyExe) {
+        Write-Error 'SelfTest／RequestOnly 仍需可執行的 python。'
+        exit 2
+    }
+}
+
 $bench = Join-Path $repoRoot 'tools\e2e-latency-bench.py'
+$probeScript = Join-Path $repoRoot 'tools\virtual-line-probe.ps1'
+$loopbackPy = Join-Path $repoRoot 'tools\virtual_cable_loopback.py'
 if (-not (Test-Path -LiteralPath $bench)) {
     Write-Error "找不到 $bench"
     exit 2
@@ -380,14 +603,37 @@ if (-not $ResultsDir) {
 }
 $ResultsDir = (New-Item -ItemType Directory -Force -Path $ResultsDir).FullName
 
-if (-not $BaselineIn) { $BaselineIn = $In }
-if (-not $BaselineOut) { $BaselineOut = $Out }
-
 $sessionStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $gitHead = Get-GitHead -RootPath $repoRoot
 $rows = New-Object System.Collections.Generic.List[object]
 $anyBlocked = $false
 $baselineReportPath = $null
+$globalBlockedReason = $null
+
+if ($RequestOnly) {
+    if ($Engine -eq 'none') {
+        Write-Error 'RequestOnly 需要 -Engine（例如 meanvc2）。'
+        exit 2
+    }
+    $engines = @(Get-EngineList -Choice $Engine)
+    if ($engines.Count -ne 1) {
+        Write-Error 'RequestOnly 一次僅支援單一 engine（勿用 all）。'
+        exit 2
+    }
+    $engineId = $engines[0]
+    $runDir = Join-Path $ResultsDir "$sessionStamp-requestonly-$engineId"
+    New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+    $reqPath = Join-Path $runDir 'engine-request.json'
+    if (-not (Test-Path -LiteralPath $Reference)) {
+        Write-Host "BLOCKED: reference 不存在: $Reference"
+        exit 1
+    }
+    $reqObj = New-AutoEngineRequest -RootPath $repoRoot -EngineId $engineId -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -ReferencePath $Reference
+    ($reqObj | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $reqPath -Encoding UTF8
+    Write-Host ($reqObj | ConvertTo-Json -Depth 10)
+    Write-Host "Wrote $reqPath"
+    exit 0
+}
 
 if ($SelfTest) {
     $runDir = Join-Path $ResultsDir "$sessionStamp-selftest"
@@ -402,33 +648,133 @@ if ($SelfTest) {
     [void]$rows.Add($row)
     if ($row.status -eq 'BLOCKED') { $anyBlocked = $true }
 } else {
-    if ($Engine -ne 'none' -and (-not $Request -or -not (Test-Path -LiteralPath $Request))) {
-        Write-Error '非 -SelfTest 的 engine 量測需要 -Request 指向含 reference 的 JSON。'
-        exit 2
+    $precheckDir = Join-Path $ResultsDir "$sessionStamp-precheck"
+    if (-not $SkipPrecheck) {
+        New-Item -ItemType Directory -Force -Path $precheckDir | Out-Null
+        if (-not (Test-Path -LiteralPath $probeScript)) {
+            $globalBlockedReason = '找不到 virtual-line-probe.ps1'
+        } else {
+            $pc = Invoke-RoutingPrecheck -ProbeScript $probeScript -PrecheckDir $precheckDir `
+                -LineAOutFrag $LineAOut -LineAInFrag $LineAIn -LineBOutFrag $LineBOut -LineBInFrag $LineBIn `
+                -Py $pyExe -LoopbackPy $loopbackPy
+            if (-not $pc.ok) {
+                $globalBlockedReason = 'routing precheck: ' + ($pc.reasons -join '; ')
+            }
+        }
     }
 
-    if ($Engine -eq 'none' -or $Engine -eq 'all') {
-        $runDir = Join-Path $ResultsDir "$sessionStamp-baseline"
-        New-Item -ItemType Directory -Force -Path $runDir | Out-Null
-        $code = Invoke-E2EBench -Py $pyExe -BenchScript $bench -ExtraArgs (Common-BenchArgs -Mode 'loopback' -RunDir $runDir -InputDev $BaselineIn -OutputDev $BaselineOut -BaselineReport '')
-        $reportPath = Join-Path $runDir 'e2e-latency-report.json'
-        $report = Read-BenchReport -Path $reportPath
-        if ($code -eq 3) { $anyBlocked = $true }
-        if (Test-Path -LiteralPath $reportPath) { $baselineReportPath = $reportPath }
-        $row = New-SummaryRow -EngineId 'baseline' -Mode 'loopback_baseline' -RunDir $runDir -Report $report -ExitCode $code -Devices @{ input = $BaselineIn; output = $BaselineOut; host_api = $HostApi }
-        [void]$rows.Add($row)
-        if ($row.status -eq 'BLOCKED') { $anyBlocked = $true }
+    function Invoke-DualBaseline {
+        param([string]$ParentDir)
+        $lineADir = Join-Path $ParentDir 'baseline-lineA'
+        $lineBDir = Join-Path $ParentDir 'baseline-lineB'
+        New-Item -ItemType Directory -Force -Path $lineADir | Out-Null
+        New-Item -ItemType Directory -Force -Path $lineBDir | Out-Null
+        $codeA = Invoke-E2EBench -Py $pyExe -BenchScript $bench -ExtraArgs (Common-BenchArgs -Mode 'loopback' -RunDir $lineADir -InputDev $LineAIn -OutputDev $LineAOut -BaselineReport '')
+        $codeB = Invoke-E2EBench -Py $pyExe -BenchScript $bench -ExtraArgs (Common-BenchArgs -Mode 'loopback' -RunDir $lineBDir -InputDev $LineBIn -OutputDev $LineBOut -BaselineReport '')
+        $reportA = Read-BenchReport -Path (Join-Path $lineADir 'e2e-latency-report.json')
+        $reportB = Read-BenchReport -Path (Join-Path $lineBDir 'e2e-latency-report.json')
+        $merged = Merge-BaselineSummaries -Parts @($reportA, $reportB)
+        $combinedPath = Join-Path $ParentDir 'baseline-combined.json'
+        Write-CombinedBaselineReport -Path $combinedPath -LineAReport $reportA -LineBReport $reportB -MergedSummary $merged -Meta @{
+            profile = $Profile
+            line_a  = @{ out = $LineAOut; in = $LineAIn }
+            line_b  = @{ out = $LineBOut; in = $LineBIn }
+        } | Out-Null
+        $blocked = ($codeA -ne 0) -or ($codeB -ne 0) -or ($codeA -eq 3) -or ($codeB -eq 3)
+        return @{
+            combined_path = $combinedPath
+            report_a      = $reportA
+            report_b      = $reportB
+            merged        = $merged
+            exit_a        = $codeA
+            exit_b        = $codeB
+            blocked       = $blocked
+            parent        = $ParentDir
+        }
     }
 
-    foreach ($engineId in (Get-EngineList -Choice $Engine)) {
+    $runBaseline = ($Engine -eq 'none' -or $Engine -eq 'all')
+    if ($runBaseline) {
+        $baseDir = Join-Path $ResultsDir "$sessionStamp-baseline"
+        New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
+        if ($globalBlockedReason) {
+            $row = New-SummaryRow -EngineId 'baseline' -Mode 'loopback_baseline' -RunDir $baseDir -Report $null -ExitCode 3 -Devices @{
+                blocked_reason = $globalBlockedReason
+                profile        = $Profile
+            }
+            [void]$rows.Add($row)
+            $anyBlocked = $true
+        } else {
+            $dual = Invoke-DualBaseline -ParentDir $baseDir
+            if ($dual.blocked) { $anyBlocked = $true }
+            $baselineReportPath = $dual.combined_path
+            $fakeReport = @{ summary = $dual.merged; target_verdict = if ($dual.blocked) { 'BLOCKED' } else { 'WAITING' } }
+            $row = New-SummaryRow -EngineId 'baseline' -Mode 'loopback_baseline' -RunDir $baseDir -Report $fakeReport -ExitCode $(if ($dual.blocked) { 3 } else { 0 }) -Devices @{
+                host_api       = $HostApi
+                profile        = $Profile
+                baseline_line_a = @{ dir = (Join-Path $baseDir 'baseline-lineA'); out = $LineAOut; in = $LineAIn; summary = $dual.report_a.summary }
+                baseline_line_b = @{ dir = (Join-Path $baseDir 'baseline-lineB'); out = $LineBOut; in = $LineBIn; summary = $dual.report_b.summary }
+                baseline_sum    = $dual.merged
+            }
+            [void]$rows.Add($row)
+            if ($row.status -eq 'BLOCKED') { $anyBlocked = $true }
+        }
+    }
+
+    foreach ($engineId in @(Get-EngineList -Choice $Engine)) {
         $runDir = Join-Path $ResultsDir "$sessionStamp-$engineId"
         New-Item -ItemType Directory -Force -Path $runDir | Out-Null
         $reqPath = Join-Path $runDir 'engine-request.json'
-        Merge-EngineRequest -RootPath $repoRoot -RequestPath $Request -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -DestPath $reqPath
+        if ($globalBlockedReason) {
+            $blocked = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $null -ExitCode 3 -Devices @{
+                blocked_reason = $globalBlockedReason
+                profile        = $Profile
+            }
+            [void]$rows.Add($blocked)
+            $anyBlocked = $true
+            continue
+        }
+        $requestPath = $Request
+        if (-not $requestPath -or -not (Test-Path -LiteralPath $requestPath)) {
+            if (-not (Test-Path -LiteralPath $Reference)) {
+                $blocked = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $null -ExitCode 3 -Devices @{
+                    blocked_reason = "reference 不存在: $Reference（PC2 上 dataset/ 可能缺席）"
+                    profile        = $Profile
+                }
+                [void]$rows.Add($blocked)
+                $anyBlocked = $true
+                continue
+            }
+            $reqObj = New-AutoEngineRequest -RootPath $repoRoot -EngineId $engineId -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -ReferencePath $Reference
+            ($reqObj | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $reqPath -Encoding UTF8
+            $requestPath = $reqPath
+        } else {
+            Merge-EngineRequest -RootPath $repoRoot -RequestPath $requestPath -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -DestPath $reqPath
+            $requestPath = $reqPath
+        }
+
+        if (-not $baselineReportPath -and $Engine -ne 'none') {
+            $engBaseDir = Join-Path $runDir 'baseline'
+            $dual = Invoke-DualBaseline -ParentDir $engBaseDir
+            if ($dual.blocked) {
+                $blocked = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $null -ExitCode 3 -Devices @{
+                    blocked_reason = 'baseline loopback failed'
+                    baseline_sum   = $dual.merged
+                }
+                [void]$rows.Add($blocked)
+                $anyBlocked = $true
+                continue
+            }
+            $baselineReportPath = $dual.combined_path
+        }
+
         $stdoutLog = Join-Path $runDir 'engine-stdout.jsonl'
-        $runner = Start-RunnerAndWaitRunning -Py $pyExe -RootPath $repoRoot -EngineId $engineId -RequestPath $reqPath -StdoutLog $stdoutLog -TimeoutSec $LoadTimeoutSec
+        $runner = Start-RunnerAndWaitRunning -Py $pyExe -RootPath $repoRoot -EngineId $engineId -RequestPath $requestPath -StdoutLog $stdoutLog -TimeoutSec $LoadTimeoutSec
         if (-not $runner.ok) {
-            $blocked = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $null -ExitCode 1 -Devices @{ input = $In; output = $Out; engine_in = $EngineIn; engine_out = $EngineOut; note = $runner.reason }
+            $blocked = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $null -ExitCode 1 -Devices @{
+                input = $In; output = $Out; engine_in = $EngineIn; engine_out = $EngineOut
+                note = $runner.reason; profile = $Profile
+            }
             [void]$rows.Add($blocked)
             $anyBlocked = $true
             continue
@@ -438,7 +784,9 @@ if ($SelfTest) {
         Copy-StreamEvidence -ArtifactDir $runner.artifact -DestDir $runDir
         $report = Read-BenchReport -Path (Join-Path $runDir 'e2e-latency-report.json')
         if ($code -eq 3) { $anyBlocked = $true }
-        $row = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $report -ExitCode $code -Devices @{ input = $In; output = $Out; engine_in = $EngineIn; engine_out = $EngineOut; host_api = $HostApi }
+        $row = New-SummaryRow -EngineId $engineId -Mode 'through_engine' -RunDir $runDir -Report $report -ExitCode $code -Devices @{
+            input = $In; output = $Out; engine_in = $EngineIn; engine_out = $EngineOut; host_api = $HostApi; profile = $Profile
+        }
         [void]$rows.Add($row)
         if ($row.status -eq 'BLOCKED') { $anyBlocked = $true }
     }
@@ -449,6 +797,7 @@ $meta = @{
     python     = $pyExe
     root       = $repoRoot
     self_test  = [bool]$SelfTest
+    profile    = $Profile
 }
 Write-SummaryArtifacts -OutDir $ResultsDir -Stamp $sessionStamp -Rows $rows -Meta $meta | Out-Null
 Write-ConsoleTable -Rows $rows
