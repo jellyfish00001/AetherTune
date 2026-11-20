@@ -32,6 +32,7 @@ param(
     [double]$IntervalMs = 1000,
     [double]$MaxDelayMs = 900,
     [int]$LoadTimeoutSec = 300,
+    [int]$WarmupSec = 0,
     [string]$ResultsDir = '',
     [switch]$SelfTest,
     [switch]$RequestOnly,
@@ -817,6 +818,11 @@ if ($SelfTest) {
             [void]$rows.Add($blocked)
             $anyBlocked = $true
             continue
+        }
+        if ($WarmupSec -gt 0) {
+            # RUNNING 後先讓引擎處理一段輸入（靜音）完成 CUDA kernel／cache 暖機，再開始量測。
+            Write-Host "warmup ${WarmupSec}s: $engineId"
+            Start-Sleep -Seconds $WarmupSec
         }
         $code = Invoke-E2EBench -Py $pyExe -BenchScript $bench -ExtraArgs (Common-BenchArgs -Mode 'engine' -RunDir $runDir -InputDev $In -OutputDev $Out -BaselineReport $baselineReportPath)
         Stop-RunnerProcess -Process $runner.process -Stdin $runner.stdin -LogWriter $runner.log -Stdout $runner.stdout
