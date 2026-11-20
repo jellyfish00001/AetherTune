@@ -1,5 +1,6 @@
 """GSV-TTS-Lite（GPT-SoVITS V2ProPlus 加速後端）infer_stream 量測。"""
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -23,6 +24,8 @@ def main():
     ap.add_argument("--stream-chunk", type=int, default=25)
     ap.add_argument("--overlap", type=int, default=5)
     ap.add_argument("--flash-attn", action="store_true", help="use_flash_attn=True（需實驗 venv 內裝 flash-attn Windows 輪檔）")
+    ap.add_argument("--no-en-warmup", action="store_true",
+                    help="不做 common.GSV_WARMUP_TEXTS 常駐暖機（對照用：第一句含英文時首包約 5.6 s）")
     ap.add_argument("--cut-minlen", type=int, default=10, help="切句最短長度；預設 10 會把短子句併到下一句")
     ap.add_argument("--zh-fix", action="store_true",
                     help="純中日韓文字時略過 LangSegment 語言偵測、整段當中文；修 0.4.7 遇到「囉」等字整段被丟掉的尾句截斷")
@@ -74,6 +77,15 @@ def main():
                                      overlap_len=a.overlap, cut_minlen=a.cut_minlen):
             yield clip.audio_data
 
+    warm = {}
+    if not a.no_en_warmup:
+        for wt in common.GSV_WARMUP_TEXTS:
+            t1 = time.perf_counter()
+            for _ in synth(wt):
+                pass
+            warm[wt] = round(time.perf_counter() - t1, 3)
+        print("GSV_WARMUP", json.dumps(warm, ensure_ascii=False), flush=True)
+
     name = "gsv-tts-lite" + ("-bert" if a.bert else "") + ("-noboost" if a.no_boost else "")
     if a.flash_attn:
         name += "-fa"
@@ -81,6 +93,8 @@ def main():
         name += f"-sdp{a.sdp}"
     if a.zh_fix:
         name += "-zhfix"
+    if a.no_en_warmup:
+        name += "-noenwarm"
     if a.cut_minlen != 10:
         name += f"-cut{a.cut_minlen}"
     if (a.stream_chunk, a.overlap) != (25, 5):
@@ -89,7 +103,8 @@ def main():
                      {"package": "gsv-tts-lite==0.4.7", "model": "s1v3.ckpt + s2Gv2ProPlus.pth（內建底模）",
                       "stream_mode": "token", "stream_chunk": a.stream_chunk, "overlap_len": a.overlap,
                       "boost_first_chunk": not a.no_boost, "use_bert": a.bert,
-                      "flash_attn": bool(getattr(tts.tts_config, "use_flash_attn", False)), "sdp_backend": a.sdp, "cut_minlen": a.cut_minlen, "zh_fix": a.zh_fix}, Path(ref), load)
+                      "flash_attn": bool(getattr(tts.tts_config, "use_flash_attn", False)), "sdp_backend": a.sdp, "cut_minlen": a.cut_minlen, "zh_fix": a.zh_fix,
+                      "en_warmup_s": warm or None}, Path(ref), load)
 
 
 if __name__ == "__main__":

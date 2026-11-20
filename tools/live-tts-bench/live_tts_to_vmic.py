@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--loopback", help="同時錄虛擬線的錄音端（例如 CABLE Output），量「送出 → 線上真的出現聲音」")
     ap.add_argument("--threshold", type=float, default=0.01)
     ap.add_argument("--text-file", help="UTF-8 文字檔，一行一句（自動化量測用；不填就讀 stdin）")
+    ap.add_argument("--no-en-warmup", action="store_true", help="只用「你好。」暖機（舊行為，對照用）")
     ap.add_argument("--log", default=r"D:\AetherTune-exp\artifacts\live-tts-bench\vmic\latency-log.jsonl")
     a = ap.parse_args()
     import sounddevice as sd
@@ -118,10 +119,12 @@ def main():
     th.start()
     log = Path(a.log)
     log.parent.mkdir(parents=True, exist_ok=True)
-    # 暖機一次，避免第一句吃到 CUDA graph 建立時間
-    for _ in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=ref_text,
-                              text="你好。", text_language="zh", prompt_language=a.ref_lang, debug=False):
-        pass
+    # 暖機：避免第一句吃到 CUDA graph 建立時間；第二句含英文字母，讓英文前端第一次載入（約 5 s）發生在這裡
+    import common  # noqa: PLC0415
+    for wt in (("你好。",) if a.no_en_warmup else common.GSV_WARMUP_TEXTS):
+        for _ in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=ref_text,
+                                  text=wt, text_language="zh", prompt_language=a.ref_lang, debug=False):
+            pass
     print("準備好了，輸入文字後按 Enter：", flush=True)
     n = 0
     lines = (Path(a.text_file).read_text(encoding="utf-8").splitlines() if a.text_file else sys.stdin)
@@ -159,7 +162,7 @@ def main():
                "first_write_ms": round((first_written[n] - t0) * 1000, 1), "gen_total_ms": round(gen_done * 1000, 1),
                "out_stream_latency_ms": round(out_latency.get("s", 0) * 1000, 1),
                "heard_on_line_ms": round((heard[n] - t0) * 1000, 1) if n in heard else None,
-               "ref": Path(ref).name, "flash_attn": a.flash_attn, "zh_fix": True}
+               "ref": Path(ref).name, "flash_attn": a.flash_attn, "zh_fix": True, "en_warmup": not a.no_en_warmup}
         print(json.dumps(rec, ensure_ascii=False), flush=True)
         with log.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")

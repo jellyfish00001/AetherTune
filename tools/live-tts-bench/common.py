@@ -55,6 +55,8 @@ def use_simplified():
 LISTEN = False
 LISTEN_RAW: dict[str, str] = {}
 WARMUP_TEXT = "大家好，歡迎來到直播間。"
+# GSV-TTS-Lite 常駐暖機：第二句含英文字母，讓第一次載入英文前端（約 5 秒）發生在暖機，不落在第一句中英混合句。
+GSV_WARMUP_TEXTS = ("大家好，歡迎來到直播間。", "OK，等一下我們一起來玩 game 吧。")
 _ZH_DIGIT = "零一二三四五六七八九"
 
 
@@ -92,7 +94,7 @@ def load_listening(path) -> None:
     for it in items:
         LISTEN_RAW[it["id"]] = it["text"]
         SENTENCES[it["id"]] = num_to_zh(it["text"])
-    LISTEN, RUNS, WARMUP = True, 1, 0
+    LISTEN, RUNS, WARMUP = True, int(os.environ.get("LIVE_TTS_RUNS", "1")), 0
 
 # 兩組參考音（都存「音檔＋同名逐字稿 .txt」，VSF exp/research-archive 801c0b3 07-配音參考音來源.md）。
 REF_SETS = {
