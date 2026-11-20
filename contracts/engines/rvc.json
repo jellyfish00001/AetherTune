@@ -35,7 +35,9 @@
         "Chinese_Narrator_Uncle",
         "Kafka_CN_Yujie",
         "Sage_CN_HeroicFemale",
-        "Wukong_HeroicMale"
+        "Wukong_HeroicMale",
+        "ChineseBluetooth_F",
+        "EGirl_F"
       ],
       "runtime": false
     },
