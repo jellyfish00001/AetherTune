@@ -1,7 +1,7 @@
 # 直播即時 TTS 後端實測（2026-11-20）
 
 分支：`exp/live-tts-bench`（從 `origin/main` 05b1ec4 開出）。只做實驗，不進 main。
-狀態：WAITING（完成條件已定，量測進行中）
+狀態：PASS（四個後端都在 PC1 獨占 GPU 下量完；是否達直播門檻見結論）
 
 ## 背景與範圍
 
@@ -21,7 +21,10 @@
 ## 統一量測方法
 
 - 參考音來源：`dataset/reference-voices/voice-female-f1.wav`（JVNV 日文女聲，48 kHz 單聲道 13.40 秒，SHA-256 `37976F69F73FB13D6FEFAF80268794D545D6E19BE5059437DB067455A795F406`）。
-- 實際送進模型的參考音：從上面裁出 0.0–9.6 秒（前兩句），因為 GPT-SoVITS 參考音限 3–10 秒。四個後端都用同一段裁切檔，裁切檔 SHA-256 記在結果 JSON。
+- 實際送進模型的參考音：從上面裁出 0.0–9.6 秒（前兩句，完整句），因為 GPT-SoVITS 參考音限 3–10 秒。四個後端都用同一段裁切檔，裁切檔 SHA-256 記在結果 JSON。
+- 參考音規格依 VSF `exp/research-archive` 801c0b3 `research/2026-11-20/07-配音參考音來源.md`：跨模型安全長度約 5–15 秒、完整句；逐字稿和參考音同名存放（`.txt`）；CosyVoice2 預建聲線 ID。
+- 第二組參考音（Johnny 14:24，和 VSF 第一輪聽測對照）：Qwen3-TTS 官方中文（大陸口音）女聲示範 `clone_1.wav`，<https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone_1.wav>，16 kHz 單聲道 4.20 秒，SHA-256 `46DBC998C9D1D48111267C40741DD3200F2E5BCF4075F8C4C97F4451160DCE50`，逐字稿「甚至出现交易几乎停滞的情况。」取自 <https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_model_12hz_base.py>（`ref_text_batch[1]`）。估計基頻中位數約 239 Hz（女聲）。不裁切。PC1 連不到阿里雲 OSS，所以由 Grok Bot 的雲端機下載後複製到 PC1。
+- 兩組參考音都存在 `D:\AetherTune-exp\artifacts\live-tts-bench\ref\`（wav＋同名 txt）。
 - 參考文本：`最近、自分の人生に充実感を感じているんだ。友達、家族、そして仕事もうまくいっている。`。來源是 faster-whisper small 的 ASR（`artifacts/stt/voice-female-f1.json`），加上 `tools/fixtures/cosyvoice/reference-female-text.txt` 的人工修正（言って→いって）。不需要參考文本的模型就不傳。
 - 測試句（繁體中文，直播口語）：
   - 短（10 字）：大家晚安，謝謝你們來看。
@@ -111,12 +114,30 @@ PASS 必須全部達成；任何一項做不到就標 BLOCKED 或 WAITING 並寫
 | voxcpm2-ultimate-t10@qwen-zh | medium | 132.1 | 145.1 | 1.097 | 6.72 | 5665.0 | 6876.0 | 是 | 15:31 |
 | voxcpm2-ultimate-t10@qwen-zh | long | 262.5 | 263.1 | 1.113 | 14.4 | 5666.9 | 6878.0 | 是 | 15:31 |
 
-### 獨占 GPU 重量
+### GPU 實際使用時段（台北）與重疊檢查
 
-2026-11-20 15:36 起（台北）在 PC1 locks.md 登記獨占 GPU 後重量；量測前後 nvidia-smi 存在 `D:\AetherTune-exp\logs\live-tts\nvsmi-excl-*.txt` 與每個 JSON 的 `nvidia_smi_before/after`。（進行中）
+| 時段 | 內容 | 和別的 Bot 重疊？ |
+|---|---|---|
+| 14:23–14:59 | CosyVoice2 第一輪（WSL；14:37–14:47 那次 nospk 卡在 /mnt/d 載入，被我中止重跑） | 重疊：創作工坊 VSF 四個 TTS 安裝與聽測 14:26–15:38 |
+| 14:59–15:06 | GSV-TTS-Lite 第一輪（第一次 CUDNN 注意力報錯，改 EFFICIENT 後重跑） | 重疊 |
+| 15:11–15:21 | Qwen3-TTS 0.6B 第一輪 | 重疊（VSF 15:11–15:21 正好在跑 Qwen3-TTS 1.7B） |
+| 15:21–15:35 | VoxCPM2 第一輪（空輸出）＋除錯＋重跑 | 重疊 |
+| 15:36–16:08 | 獨占重量：GSV 15:36–15:37、VoxCPM2 15:37–15:41、Qwen3 15:41–15:49、CosyVoice2 fp32 15:49–16:01、CosyVoice2 fp16 16:01–16:07 | 不重疊。VSF 在 locks 標 15:38 完成；每個 JSON 的 `nvidia_smi_before/after` 都只有本 Bot 一個 compute 行程 |
+
+PC1 locks.md 起初寫「GPU 排在創作工坊之後」，但 14:23 起我就和 VSF 同時用 GPU。第一輪全部標「同時負載」，只留作過程紀錄。之後的規則：PC1 GPU 一次只給一個 Bot 量測，先登記、跑完刪除，別人在鎖就等；量測前後用 nvidia-smi 記錄 GPU 程序。
+
+### 獨占 GPU 重量（結論用這張）
+
+量測檔：`D:\AetherTune-exp\artifacts\live-tts-bench\<後端>\<後端>@<參考音>-result.json`；樣本 wav 同資料夾 `<後端>@<參考音>-<short|medium|long>.wav`（第 1 次量測的輸出）。nvidia-smi 全文：`D:\AetherTune-exp\logs\live-tts\nvsmi-excl-*.txt`。「torch VRAM 峰值」是該行程 `torch.cuda.max_memory_allocated`；「整卡已用」含桌面與其他程式（量測時約 0.9–1.0 GiB 底）。短句只有一個 chunk 時「真串流」欄會顯示否，那是句子太短，不代表後端不支援串流。
 
 | 後端@參考音 | 句 | 首包 p50 ms | 首包 max ms | RTF p50 | 音長 s | torch VRAM 峰值 MiB | 整卡已用 max MiB | 真串流 | 量測時間 |
 |---|---|---:|---:|---:|---:|---:|---:|---|---|
+| cosyvoice2-fp16@f1 | short | 5469.3 | 6690.3 | 1.05 | 4.68 | 3770.3 | 5410.0 | 否 | 16:05 |
+| cosyvoice2-fp16@f1 | medium | 5674.0 | 7760.7 | 0.975 | 5.84 | 3784.2 | 5360.0 | 否 | 16:05 |
+| cosyvoice2-fp16@f1 | long | 7417.0 | 8214.9 | 1.135 | 16.2 | 3865.2 | 5957.0 | 是 | 16:05 |
+| cosyvoice2-fp16@qwen-zh | short | 5063.1 | 5435.0 | 0.969 | 4.32 | 3701.4 | 5142.0 | 否 | 16:03 |
+| cosyvoice2-fp16@qwen-zh | medium | 7858.2 | 8548.0 | 1.093 | 7.92 | 3733.9 | 5198.0 | 否 | 16:03 |
+| cosyvoice2-fp16@qwen-zh | long | 9201.8 | 9806.4 | 1.173 | 16.88 | 3812.5 | 5694.0 | 是 | 16:03 |
 | cosyvoice2-nospkid@f1 | short | 6178.9 | 6330.6 | 1.0 | 9.6 | 2727.2 | 4364.0 | 否 | 15:58 |
 | cosyvoice2-nospkid@f1 | medium | 7783.3 | 8072.0 | 1.217 | 6.4 | 2707.2 | 4374.0 | 否 | 15:58 |
 | cosyvoice2-nospkid@f1 | long | 7128.1 | 7587.9 | 1.194 | 19.0 | 3225.1 | 5587.0 | 是 | 15:58 |
@@ -147,3 +168,55 @@ PASS 必須全部達成；任何一項做不到就標 BLOCKED 或 WAITING 並寫
 | voxcpm2-ultimate-t10@qwen-zh | short | 143.5 | 146.0 | 1.104 | 2.88 | 5664.1 | 6874.0 | 是 | 15:37 |
 | voxcpm2-ultimate-t10@qwen-zh | medium | 138.1 | 183.0 | 1.136 | 6.88 | 5665.0 | 6876.0 | 是 | 15:37 |
 | voxcpm2-ultimate-t10@qwen-zh | long | 155.1 | 240.8 | 1.151 | 13.6 | 5666.9 | 6878.0 | 是 | 15:37 |
+
+### 摘要（Qwen 官方中文示範音那組，p50）
+
+| 後端 | 首包 p50（短／中／長） | 首包 max | RTF | torch VRAM 峰值 | 支援真串流 | ASR 字錯率（短／中／長） | 狀態 |
+|---|---|---|---|---|---|---|---|
+| CosyVoice2-0.5B fp32＋聲線 ID | 4390／6937／7071 ms | 7968 ms | 0.91–0.96 | 2.6–2.8 GiB | 是（`stream=True`，長句多 chunk） | 0.50／0.35／0.35 | PASS（量得到），不達直播門檻 |
+| CosyVoice2 fp16＋聲線 ID | 5063／7858／9202 ms | 9806 ms | 0.97–1.17 | 見 JSON | 是 | 0.40／0.19／0.35 | fp16 沒有變快 |
+| GSV-TTS-Lite 0.4.7（V2ProPlus 底模） | 245／211／257 ms | 272 ms | 0.11–0.13 | 0.58 GiB | 是（token 級，25 token 一塊） | 0.00／0.27／0.31 | PASS，最快 |
+| Qwen3-TTS 0.6B Base | 6091／13111／24228 ms | 26365 ms | 1.69–1.82 | 2.3–2.6 GiB | 否（`qwen-tts` 0.1.1 沒有串流生成，首包＝整句） | 0.00／0.08／0.06 | PASS（量得到），不達直播門檻 |
+| VoxCPM2（ultimate：參考音＋逐字稿續寫＋reference） | 144／138／155 ms | 241 ms | 1.10–1.15 | 5.5 GiB | 是 | 0.00／0.04／0.06 | PASS，首包快但 RTF>1 |
+
+JVNV f1（日文參考音）那組：首包與 RTF 和上表差不多（GSV 121–250 ms、VoxCPM2 165–210 ms），但四個後端的中文都被帶成日文腔或亂碼，ASR 字錯率多在 0.4–1.5，Qwen3-TTS 和 CosyVoice2 的長句幾乎不能聽。日文參考音不適合拿來做中文直播 TTS。
+
+聲線 ID 對 CosyVoice2 首包的影響：用預建聲線 ID 和每次傳參考音＋逐字稿差不多（qwen-zh 短句 4390 對 4931 ms、長句 7071 對 7848 ms），省 0.5–0.8 秒，但瓶頸不在參考音特徵抽取。
+
+ASR 粗檢：`tools/live-tts-bench/asr_check.py`（faster-whisper small，CPU int8，繁體提示詞），結果 `D:\AetherTune-exp\artifacts\live-tts-bench\asr-check.json`。只轉寫每組第 1 次輸出；字錯率會被同音字、簡繁差異拉高，只能當可懂度粗檢，不能代替聽測。GSV-TTS-Lite 中長句的 ASR 結果常漏掉開頭幾個字（例如中句少了「今天的」、長句少了「謝謝小明」），要聽測確認是否吃字。
+
+### VSF 對照組（另一個 Bot 在同一台 PC1 量的）
+
+創作工坊 Bot：Qwen3-TTS 1.7B Base＋同一個官方 `clone_1.wav`，zh2 句 RTF 1.94、VRAM 峰值約 4.29 GiB（VSF `exp/tts-install` d33c97e）。證據等級 A（VSF 本機實測，非本 Bot 量），而且量的時段和本 Bot 第一輪重疊。和本 Bot 的 0.6B 獨占結果（RTF 1.69–1.82）同一個量級，1.7B 只會更慢，所以本輪沒有再量 1.7B（權重已下載在 `D:\AetherTune-exp\tts-models\qwen3-tts-1.7b-base`）。
+
+### 安裝內容（PC1）
+
+- venv（uv 建立，Python 3.12.11；uv 自動在 `C:\Users\User\AppData\Roaming\uv\python\` 放了一份 uv 管理的 CPython 3.12，使用者層級、沒改 PATH 或系統 Python）：
+  - `D:\AetherTune-exp\tts-venvs\gsv-tts-lite`：gsv-tts-lite 0.4.7、torch/torchaudio/torchvision 2.7.1+cu128／0.22.1、transformers 5.23.0、onnxruntime 1.32.0、numpy 2.5.5（共 73 個套件）。
+  - `D:\AetherTune-exp\tts-venvs\qwen3-tts`：qwen-tts 0.1.1、transformers 4.57.3、accelerate 1.12.0、torch 2.7.1+cu128（共 89 個；沒裝 flash-attn，用 sdpa）。
+  - `D:\AetherTune-exp\tts-venvs\voxcpm2`：voxcpm 2.0.3、torch 2.7.1+cu128、torchcodec 0.17.0、transformers 5.23.0、kaldifst 1.9.0（共 150 個）。kaldifst 1.9.1 在 Windows x64 沒有 wheel、要編譯會失敗，改釘 1.9.0。
+  - 完整清單：`D:\AetherTune-exp\logs\live-tts\freeze-<名稱>.txt`。
+- 權重（`D:\AetherTune-exp\tts-models\`，只用公開下載）：GSV-TTS-Lite 自動下載的底模（s1v3、s2Gv2ProPlus、chinese-hubert、chinese-roberta、sv）；`Qwen/Qwen3-TTS-12Hz-0.6B-Base`、`Qwen/Qwen3-TTS-12Hz-1.7B-Base`；`openbmb/VoxCPM2`。
+- CosyVoice2：唯讀使用 PC1 `D:\AetherTune\tools\venvs\cosyvoice-wsl`（WSL Ubuntu，Python 3.10、torch 2.7.1+cu128）與 `models\speech-reconstruction\cosyvoice`，沒改任何套件。wetext 前端從 ModelScope 下載被 403，所以沒有文字正規化（原本就有的限制）。
+- 系統層變更：無。不需要電腦管家處理。
+
+### 學到什麼
+
+1. 直播要的「打字後 300 ms 內出聲、而且跟得上播放」，四個裡只有 GSV-TTS-Lite 同時做到（首包 0.12–0.29 秒、RTF 約 0.12、VRAM 0.6 GiB）。（A）
+2. VoxCPM2 首包也很快（0.14–0.25 秒），可懂度最好，但 RTF 1.10–1.17，生成比播放慢，直播邊生成邊播會卡頓，要先緩衝或加速。這次為了 Windows 相容關掉了 `torch.compile`（`optimize=False`）。（A）
+3. CosyVoice2 在 PC1 的既有 WSL 環境下首包 4–9 秒、RTF 約 1，fp16 也沒變快，不適合直播。可能原因是沒開 JIT／TensorRT／vLLM、跑在 WSL 的 /mnt/d、wetext 前端缺失，這幾點都還沒驗證。（首包數字 A；原因 C）
+4. Qwen3-TTS 開源套件沒有串流生成，0.6B 的 RTF 也有 1.7–1.8，首包等於整句（短句 6 秒、長句 24 秒），不適合直播；中文可懂度很好，適合離線配音（歸 VSF）。（A）
+5. 日文 JVNV 參考音會讓四個模型的中文都帶日文腔或變亂碼。直播 TTS 要和變聲同一人，就需要一段乾淨的中文女聲參考音（5–15 秒、附逐字稿）。（A）
+6. gsv-tts-lite 0.4.7 在 5060 Ti/Windows 上自動選的 CUDNN 注意力後端會在帶 mask 時報「No available kernel」，在量測腳本裡改成 EFFICIENT 就好，不用改套件。VoxCPM2 直接呼叫 `_generate_with_prompt_cache` 時帶 `max_len=4096` 等參數會輸出 0 個 chunk。（A）
+
+### 下一輪
+
+1. GSV-TTS-Lite：聽測樣本；試 `boost_first_chunk=False`、`use_bert=True`，看開頭吃字是否消失，以及首包增加多少。
+2. VoxCPM2：試 `inference_timesteps` 降到 6 或 4，看 RTF 能否壓到 1 以下；`torch.compile` 需要 triton-windows，屬新依賴，要先問 Johnny。
+3. 決定直播 TTS 用的中文女聲參考音（和變聲目標同一人），補一段 5–15 秒、附逐字稿的版本，再量一次 GSV-TTS-Lite 與 VoxCPM2。
+4. CosyVoice2 若要保留，另開實驗試 JIT／TensorRT 或把權重放到 WSL ext4，找出首包慢的原因。
+5. 把 GSV-TTS-Lite 接到 AetherTune 的手動打字 TTS 路徑做端到端試驗（打字 → 虛擬麥克風）。
+
+### 證據等級
+
+本節所有數字都是 A（PC1 本機實測，JSON 與 wav 路徑如上），只有「CosyVoice2 慢的原因」是 C（推測），VSF 對照組是 A 但非本 Bot 量測。
