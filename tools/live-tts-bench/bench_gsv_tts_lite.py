@@ -19,6 +19,9 @@ def base_args():
 def main():
     ap = base_args()
     ap.add_argument("--bert", action="store_true", help="use_bert=True（README 建議中文開）")
+    ap.add_argument("--no-boost", action="store_true", help="boost_first_chunk=False（官方說 True 會降首包但短句可能有雜音）")
+    ap.add_argument("--stream-chunk", type=int, default=25)
+    ap.add_argument("--overlap", type=int, default=5)
     ap.add_argument("--sdp", choices=["efficient", "math", "auto"], default="efficient",
                     help="gsv-tts-lite 0.4.7 自動選 CUDNN_ATTENTION，在 PC1 5060 Ti/Windows 帶 mask 時報 No available kernel，預設改 EFFICIENT")
     a = ap.parse_args()
@@ -39,7 +42,8 @@ def main():
             pass
 
     t = time.perf_counter()
-    tts = TTS(models_dir=a.model_dir, use_bert=a.bert)
+    tts = TTS(models_dir=a.model_dir, use_bert=a.bert,
+              sovits_cache=[a.stream_chunk * 2, a.stream_chunk * 2 + a.overlap])
     tts.load_gpt_model()
     tts.load_sovits_model()
     tts.init_language_module("zh")
@@ -50,12 +54,18 @@ def main():
 
     def synth(text):
         for clip in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=common.REF_TEXT,
-                                     text=text, text_language="zh", prompt_language=common.REF_LANG, debug=False):
+                                     text=text, text_language="zh", prompt_language=common.REF_LANG, debug=False,
+                                     boost_first_chunk=not a.no_boost, stream_chunk=a.stream_chunk,
+                                     overlap_len=a.overlap):
             yield clip.audio_data
 
-    common.run_bench("gsv-tts-lite" + ("-bert" if a.bert else ""), synth, tts.samplerate, out,
+    name = "gsv-tts-lite" + ("-bert" if a.bert else "") + ("-noboost" if a.no_boost else "")
+    if (a.stream_chunk, a.overlap) != (25, 5):
+        name += f"-c{a.stream_chunk}o{a.overlap}"
+    common.run_bench(name, synth, tts.samplerate, out,
                      {"package": "gsv-tts-lite==0.4.7", "model": "s1v3.ckpt + s2Gv2ProPlus.pth（內建底模）",
-                      "stream_mode": "token", "stream_chunk": 25, "overlap_len": 5, "use_bert": a.bert,
+                      "stream_mode": "token", "stream_chunk": a.stream_chunk, "overlap_len": a.overlap,
+                      "boost_first_chunk": not a.no_boost, "use_bert": a.bert,
                       "flash_attn": False, "sdp_backend": a.sdp}, Path(ref), load)
 
 

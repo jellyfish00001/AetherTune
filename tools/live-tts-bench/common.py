@@ -37,6 +37,10 @@ REF_SETS = {
     # 逐字稿來源：https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_model_12hz_base.py ref_text_batch[1]
     "qwen-zh": {"text": "甚至出现交易几乎停滞的情况。", "lang": "zh", "clip_end_s": None,
                 "clip_name": "qwen3-tts-clone_1.wav"},
+    # 「和變聲同一人」：VoxCPM2（Qwen 中文示範音克隆）合成中文句 → RVC Sage_CN_HeroicFemale（FCPE、pitch 0、index 0.75）。
+    # 逐字稿＝合成時的輸入文字，再以 faster-whisper 轉寫比對（見研究文件）。由 make_zh_source.py＋tools/rvc-fcpe-gpu-infer.py 產生。
+    "rvc-sage": {"text": "歡迎來到我的直播間，今天天氣有點冷，大家記得多穿一點衣服，我們先來看看留言吧。", "lang": "zh",
+                 "clip_end_s": None, "clip_name": "rvc-sage-zh.wav"},
 }
 REF_NAME = "f1"
 REF_TEXT = REF_SETS["f1"]["text"]
