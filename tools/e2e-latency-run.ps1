@@ -242,7 +242,9 @@ function Invoke-RoutingPrecheck {
             @{ label = 'lineA-sd'; out = $LineAOutFrag; inp = $LineAInFrag },
             @{ label = 'lineB-sd'; out = $LineBOutFrag; inp = $LineBInFrag }
         )) {
-            $sdCode = & $Py -u -B $LoopbackPy --seconds 1.5 --output-fragment $pair.out --input-fragment $pair.inp 2>&1 | Out-Null
+            # 證據寫入 precheck 目錄，不落在呼叫端 cwd 的 artifacts/。
+            $sdWav = Join-Path $PrecheckDir "$($pair.label)-loopback.wav"
+            $sdCode = & $Py -u -B $LoopbackPy --seconds 1.5 --output-fragment $pair.out --input-fragment $pair.inp --out $sdWav 2>&1 | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 $issues.Add("$($pair.label) sounddevice loopback exit $sdCode")
             }

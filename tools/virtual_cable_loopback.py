@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,12 +69,16 @@ def main() -> int:
     output_device: int | None = None
     input_device: int | None = None
     stream_error: str | None = None
+    in_channels = channels
     try:
         # 裝置查找也必須納入本次測試的錯誤範圍；找不到端點時仍要覆寫
         # WAV/JSON，避免 verifier 繼續引用上一次的 PASS 證據。
         output_device = find_wasapi_device(args.output_fragment, output=True)
         input_device = find_wasapi_device(args.input_fragment, output=False)
-        wasapi = sd.WasapiSettings(exclusive=False)
+        # AETHERTUNE_WASAPI_AUTOCONVERT=1：shared mode 由 Windows 轉換取樣率（例如 44.1 kHz 虛擬麥）。
+        wasapi = sd.WasapiSettings(exclusive=False, auto_convert=os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1")
+        # 單聲道虛擬麥（例如 Steam Streaming Microphone）只能開 1 channel。
+        in_channels = max(1, min(channels, int(sd.query_devices(input_device)["max_input_channels"])))
     except Exception as error:  # pragma: no cover - endpoint inventory is host-specific
         stream_error = repr(error)
 
@@ -91,7 +96,7 @@ def main() -> int:
         end = min(in_cursor + callback_frames, frames)
         count = end - in_cursor
         if count > 0:
-            captured[in_cursor:end] = indata[:count, :channels]
+            captured[in_cursor:end, :in_channels] = indata[:count, :in_channels]
         in_cursor = end
 
     if stream_error is None:
@@ -112,7 +117,7 @@ def main() -> int:
             ), sd.InputStream(
                 device=input_device,
                 samplerate=sample_rate,
-                channels=channels,
+                channels=in_channels,
                 blocksize=960,
                 callback=input_callback,
                 extra_settings=wasapi,
