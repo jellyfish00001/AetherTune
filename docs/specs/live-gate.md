@@ -89,7 +89,7 @@ Speech Reconstruction 重新產生內容、韻律與呼吸，不可宣稱完整�
 | 後端 | 對 R10 的判定 |
 |---|---|
 | GSV-TTS-Lite | 達標（首包約 0.09–0.26 秒，RTF 約 0.10–0.13） |
-| VoxCPM2 | 預設 10 步 RTF 約 1.06–1.59，不達標；降到 6 步 RTF 0.76–0.94 才達標（未加速，待和 VSF `exp/tts-install` `309200a` 的 RTF 1.03–1.53 對齊） |
+| VoxCPM2 | 預設 10 步 RTF 1.01–1.63，不達標，和 VSF `exp/tts-install` `309200a` 的 1.03–1.53 一致；6 步達標，RTF 中位 0.78–0.92，但單次最高到 1.05，接近上限；未開加速。來源：`exp/live-tts-bench` `dd4f9455b094faef2e5b76b44f52c1ee7cda0294` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`「VoxCPM2 與 VSF 對齊」一節 |
 | CosyVoice2 | 短句可接受、長句超過 |
 | Qwen3-TTS 0.6B | 不達標（開源非串流首包約 6–24 秒） |
 

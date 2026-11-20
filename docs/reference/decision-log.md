@@ -20,7 +20,7 @@
 
 - R8：加速結果分開標「Windows 原生可跑」與「需 Linux／WSL／Docker」。
 - R9：同人參考音至少 9 秒、附逐字稿、由目標 RVC 女聲轉出，並記錄 hash。
-- R10：打完字到出聲 ≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受。套用 `exp/live-tts-bench` `255c12a`：GSV-TTS-Lite 達標；VoxCPM2 預設 10 步 RTF 約 1.06–1.59 不達標，降到 6 步 RTF 0.76–0.94 才達標（未加速，待和 VSF `exp/tts-install` `309200a` 的 RTF 1.03–1.53 對齊）；CosyVoice2 短句可接受、長句超過；Qwen3-TTS 0.6B 不達標。
+- R10：打完字到出聲 ≤ 3 秒且 RTF < 1 為達標；≤ 5 秒且 RTF < 1 為可接受。套用 `exp/live-tts-bench` `255c12a`：GSV-TTS-Lite 達標；VoxCPM2 預設 10 步 RTF 1.01–1.63 不達標，和 VSF `exp/tts-install` `309200a` 的 1.03–1.53 一致；6 步達標，RTF 中位 0.78–0.92，但單次最高到 1.05，接近上限；未開加速（來源：`exp/live-tts-bench` `dd4f9455b094faef2e5b76b44f52c1ee7cda0294` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`「VoxCPM2 與 VSF 對齊」一節）；CosyVoice2 短句可接受、長句超過；Qwen3-TTS 0.6B 不達標。
 
 寫入的正式文件：[`live-gate.md`](../specs/live-gate.md)、[`verification-plan.md`](../specs/verification-plan.md)、本決策紀錄、[`operation-guide.md`](../guides/operation-guide.md)、[`user-guide.md`](../guides/user-guide.md)、[`parameter-matrix-template.csv`](parameter-matrix-template.csv)、[`voice-conversion-architecture.md`](../specs/voice-conversion-architecture.md)、[`contracts/engines/rvc.json`](../../contracts/engines/rvc.json)（限制說明）。
 
