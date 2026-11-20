@@ -220,3 +220,46 @@ ASR 粗檢：`tools/live-tts-bench/asr_check.py`（faster-whisper small，CPU in
 ### 證據等級
 
 本節所有數字都是 A（PC1 本機實測，JSON 與 wav 路徑如上），只有「CosyVoice2 慢的原因」是 C（推測），VSF 對照組是 A 但非本 Bot 量測。
+## 第二輪（2026-11-20 16:14–16:31 台北，PC1 獨占 GPU）
+
+鎖檔：16:16 登記「獨占 GPU」，**16:31:24 刪行**（刪後 `AetherTune Bot` 行數 0；整卡 1014 MiB、0%，無我方 python 行程）。
+實際 GPU 時段：16:14:38–16:31:16。注意 16:20–16:22 我方兩支腳本（r2 的 VoxCPM2 t6 與 r2b 的來源/RVC）重疊，該次 t6 結果已刪除，16:25 於獨占下重量；下表皆為非重疊量測。
+
+### 同一人參考音（rvc-sage）
+
+- 產生方式：VoxCPM2（qwen-zh 參考）合成中文來源 `artifacts\live-tts-bench\ref\zh-source-voxcpm2.wav`（9.28 s）→ PC1 RVC `Sage_CN_HeroicFemale`（rvc-fcpe-gpu-infer.py）→ `D:\AetherTune-exp\dataset\reference-voices\rvc-sage-zh.wav`（9.26 s，SHA256 9D8AA839…AB12F3）。PC2 未使用（不搭 PC2 GPU）。
+- 逐字稿（同名 .txt）：「歡迎來到我的直播間，今天天氣有點冷，大家記得多穿一點衣服，我們先來看看留言吧。」faster-whisper small 轉寫結果與稿逐字一致（僅簡繁差異），人工校正為繁體。
+
+### 結果（首包 p50 ms / RTF p50 / ASR CER，短·中·長）
+
+| 組合 | 首包 p50 | RTF | torch VRAM 峰值 | CER |
+|---|---|---|---|---|
+| GSV 預設 @qwen-zh（第一輪獨占） | 211–257 | 0.11–0.13 | 0.58 GiB | 0–0.31 |
+| GSV boost_first_chunk=False @qwen-zh | 253 / 217 / 228 | 0.153 / 0.112 / 0.122 | 0.58 GiB | 0.40 / 0.35 / 0.52 |
+| GSV use_bert @qwen-zh | 247 / 247 / 246 | 0.158 / 0.126 / 0.143 | 1.19 GiB | 0.20 / 0.31 / 0.52 |
+| GSV use_bert + noboost @qwen-zh | 237 / 226 / 293 | 0.152 / 0.114 / 0.154 | 1.19 GiB | 0.40 / 0.31 / 0.58 |
+| **GSV 預設 @rvc-sage** | **124 / 87 / 128** | 0.125 / 0.097 / 0.103 | 0.58 GiB | **0 / 0.08 / 0.23** |
+| GSV noboost @rvc-sage | 172 / 148 / 185 | 0.122 / 0.102 / 0.096 | 0.58 GiB | 0 / 0.08 / 0.25 |
+| VoxCPM2 t10 @rvc-sage | 240 / 199 / 157 | 1.59 / 1.06 / 1.41 | 5.5 GiB | 0 / 0.04 / 0.06 |
+| **VoxCPM2 t6 @qwen-zh** | 103 / 101 / 127 | **0.757 / 0.774 / 0.777** | 5.5 GiB | 0 / 0.04 / 0.06 |
+| VoxCPM2 t4 @qwen-zh | 151 / 117 / 145 | 0.866 / 0.856 / 0.844 | 5.5 GiB | 0 / 0.04 / 0.06 |
+| **VoxCPM2 t6 @rvc-sage** | 118 / 115 / 123 | **0.768 / 0.783 / 0.942** | 5.5 GiB | 0 / 0.04 / 0.04 |
+
+CER 為 faster-whisper small（CPU int8）對合成音轉寫，含簡繁/數字（12 vs 十二）/同音字誤差，只作相對比較；**不是真人評聽**。
+
+### 結論
+
+1. **GSV 開頭吃字的主因是參考音，不是 boost_first_chunk**：qwen-zh 參考只有約 3 秒單句，任何參數組合都吃掉開頭（短句「大家晚安」常消失）；換成 9 秒 rvc-sage 後短句 CER 0、首包降到 87–128 ms。boost_first_chunk=False 與 use_bert 在 qwen-zh 上沒改善（CER 反而略高），use_bert 多佔約 0.6 GiB。建議：預設參數 + 9 秒左右完整句參考音。（證據等級：本機實測 3 次量測 + ASR，A）
+2. **VoxCPM2 步數 10→6 時 RTF 壓到 1 以下（0.76–0.94），CER 不變**；t4 沒有比 t6 更快（0.84–0.87，屬量測波動或其他瓶頸），故 t6 為建議值。t10@rvc-sage 的 RTF（1.06–1.59）比第一輪 t10@qwen-zh（1.10–1.15）波動大，原因未查明。
+3. GSV 長句 CER 0.23–0.25 主要是「小明送→小明宋/松」「十二→12」等 ASR 差異與句尾「下次開台就不會錯過囉」被截，句尾截斷待查。
+
+### 樣本路徑（PC1，不進 git）
+
+- `D:\AetherTune-exp\artifacts\live-tts-bench\gsv-tts-lite\gsv-tts-lite{,-noboost,-bert,-bert-noboost}@{qwen-zh,rvc-sage}-{short,medium,long}.wav`
+- `D:\AetherTune-exp\artifacts\live-tts-bench\voxcpm2\voxcpm2-ultimate-t{4,6,10}@{qwen-zh,rvc-sage}-{short,medium,long}.wav`
+- 參考音：`D:\AetherTune-exp\dataset\reference-voices\rvc-sage-zh.wav` + `.txt`
+- nvidia-smi：`D:\AetherTune-exp\logs\live-tts\r2b-nvsmi-end.txt`、`r2c-nvsmi-start/end.txt`、`r2d-nvsmi-end.txt`；ASR：`artifacts\live-tts-bench\asr-check.json`
+
+### 虛擬麥原型
+
+`tools/live-tts-bench/live_tts_to_vmic.py`（GSV → sounddevice → `CABLE Input (VB-Audio Virtual Cable)`）已寫好並推送，**尚未上 GPU 實測**（本輪 GPU 時段用完），待下一個獨占時段。
