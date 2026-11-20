@@ -433,6 +433,8 @@ function Start-RunnerAndWaitRunning {
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
     [void]$proc.Start()
+    # stderr 從頭以非同步方式排空；否則 torch／tqdm 輸出塞滿管線後引擎會卡住。
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
     $stdout = $proc.StandardOutput
     $stdin = $proc.StandardInput
     $artifactPath = $null
@@ -485,7 +487,9 @@ function Start-RunnerAndWaitRunning {
         Stop-RunnerProcess -Process $proc -Stdin $stdin -LogWriter $logWriter -Stdout $stdout
         return @{ ok = $false; reason = 'runner ended before RUNNING'; process = $null; artifact = $artifactPath }
     }
-    return @{ ok = $true; reason = ''; process = $proc; stdin = $stdin; artifact = $artifactPath; log = $logWriter; stdout = $stdout }
+    # RUNNING 之後持續排空 stdout（量測期間引擎每個 block 都會輸出）；結束時再寫入 log。
+    $stdoutTask = $stdout.ReadToEndAsync()
+    return @{ ok = $true; reason = ''; process = $proc; stdin = $stdin; artifact = $artifactPath; log = $logWriter; stdout = $stdout; stdout_task = $stdoutTask; stderr_task = $stderrTask }
 }
 
 function Stop-RunnerProcess {
@@ -493,7 +497,10 @@ function Stop-RunnerProcess {
         [System.Diagnostics.Process]$Process,
         [System.IO.StreamWriter]$Stdin,
         [System.IO.StreamWriter]$LogWriter = $null,
-        [System.IO.StreamReader]$Stdout = $null
+        [System.IO.StreamReader]$Stdout = $null,
+        [object]$StdoutTask = $null,
+        [object]$StderrTask = $null,
+        [string]$StderrLog = ''
     )
     if ($null -eq $Process) {
         if ($LogWriter) { $LogWriter.Flush(); $LogWriter.Close() }
@@ -511,7 +518,20 @@ function Stop-RunnerProcess {
     } catch {
         try { $Process.Kill() } catch { }
     }
-    if ($Stdout -and $LogWriter) {
+    if ($StderrTask -and $StderrLog) {
+        try {
+            if ($StderrTask.Wait(10000)) {
+                [System.IO.File]::WriteAllText($StderrLog, $StderrTask.Result, [System.Text.UTF8Encoding]::new($false))
+            }
+        } catch { }
+    }
+    if ($StdoutTask -and $LogWriter) {
+        try {
+            if ($StdoutTask.Wait(10000)) { $LogWriter.Write($StdoutTask.Result) }
+        } catch { }
+        $LogWriter.Flush()
+        $LogWriter.Close()
+    } elseif ($Stdout -and $LogWriter) {
         while ($null -ne ($tail = $Stdout.ReadLine())) {
             $LogWriter.WriteLine($tail)
         }
@@ -825,7 +845,7 @@ if ($SelfTest) {
             Start-Sleep -Seconds $WarmupSec
         }
         $code = Invoke-E2EBench -Py $pyExe -BenchScript $bench -ExtraArgs (Common-BenchArgs -Mode 'engine' -RunDir $runDir -InputDev $In -OutputDev $Out -BaselineReport $baselineReportPath)
-        Stop-RunnerProcess -Process $runner.process -Stdin $runner.stdin -LogWriter $runner.log -Stdout $runner.stdout
+        Stop-RunnerProcess -Process $runner.process -Stdin $runner.stdin -LogWriter $runner.log -Stdout $runner.stdout -StdoutTask $runner.stdout_task -StderrTask $runner.stderr_task -StderrLog (Join-Path $runDir 'engine-stderr.log')
         Copy-StreamEvidence -ArtifactDir $runner.artifact -DestDir $runDir
         $report = Read-BenchReport -Path (Join-Path $runDir 'e2e-latency-report.json')
         if ($code -eq 3) { $anyBlocked = $true }
