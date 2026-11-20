@@ -430,6 +430,9 @@ function Start-RunnerAndWaitRunning {
     $psi.RedirectStandardError = $true
     $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
     $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
+    # runner_service 本身也以 UTF-8 輸出：預設 cp950 遇到 upstream 簡體字（例如 RVC「耗时」）會讓轉送執行緒
+    # UnicodeEncodeError 中止，引擎管線塞滿後卡在 LOADING。只影響這個子程序。
+    $psi.EnvironmentVariables['PYTHONIOENCODING'] = 'utf-8'
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
     [void]$proc.Start()
