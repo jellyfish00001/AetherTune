@@ -22,6 +22,7 @@ def main():
     ap.add_argument("--trt", action="store_true", help="load_trt：flow decoder estimator 轉 TensorRT plan（首次會在 model_dir 建 plan）")
     ap.add_argument("--vllm", action="store_true", help="load_vllm：LLM 走 vLLM（僅 Linux）")
     ap.add_argument("--tag", default="", help="名稱尾碼，例如 win、wsl")
+    ap.add_argument("--zhs", action="store_true", help="測試句改用簡體（對照繁體字唸錯）")
     ap.add_argument("--hop-fix", action="store_true",
                     help="每次合成前把 cv.model.token_hop_len 設回 25。CosyVoice2Model.tts 串流時會把它乘 2 直到 100 且不重設，"
                          "同一行程第二次之後首包要等 100+ 個 token（約 4 s 音訊）")
@@ -30,6 +31,8 @@ def main():
     a = ap.parse_args()
     srcs = dict(s.split("=", 1) for s in a.ref_src)
     out = Path(a.out_dir)
+    if a.zhs:
+        common.use_simplified()
     from cosyvoice.cli.cosyvoice import CosyVoice2
 
     t = time.perf_counter()
@@ -57,9 +60,9 @@ def main():
                 yield item["tts_speech"]
 
         name = ("cosyvoice2" + (f"-{a.tag}" if a.tag else "") + ("-fp16" if a.fp16 else "") + ("-jit" if a.jit else "")
-                + ("-trt" if a.trt else "") + ("-vllm" if a.vllm else "") + ("-hopfix" if a.hop_fix else "") + ("-nospkid" if mode == "nospk" else ""))
+                + ("-trt" if a.trt else "") + ("-vllm" if a.vllm else "") + ("-hopfix" if a.hop_fix else "") + ("-zhs" if a.zhs else "") + ("-nospkid" if mode == "nospk" else ""))
         common.run_bench(name, synth, cv.sample_rate, out,
-                         {"model": "CosyVoice2-0.5B", "stream": True, "fp16": a.fp16, "jit": a.jit, "trt": a.trt, "vllm": a.vllm, "tag": a.tag, "platform": sys.platform, "hop_fix": a.hop_fix, "text_frontend": getattr(cv.frontend, "text_frontend", None), "spk_id": mode == "spk",
+                         {"model": "CosyVoice2-0.5B", "stream": True, "fp16": a.fp16, "jit": a.jit, "trt": a.trt, "vllm": a.vllm, "tag": a.tag, "platform": sys.platform, "hop_fix": a.hop_fix, "simplified_text": a.zhs, "text_frontend": getattr(cv.frontend, "text_frontend", None), "spk_id": mode == "spk",
                           "spk_cache_seconds": round(spk_seconds, 3),
                           "token_hop_len": getattr(cv.model, "token_hop_len", None)}, ref, load)
 

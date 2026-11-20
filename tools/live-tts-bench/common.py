@@ -26,6 +26,19 @@ SENTENCES = {
     "long": "謝謝小明送的禮物，真的太感動了！今天我們會一路玩到十二點，如果你也喜歡這個遊戲，記得按下追蹤，下次開台就不會錯過囉。",
 }
 
+# 同三句的簡體版（逐字對應，長度相同）。CosyVoice2 對繁體字（謝、禮、會、點、遊、戲、記…）常唸錯，用來對照。
+SENTENCES_ZHS = {
+    "short": "大家晚安，谢谢你们来看。",
+    "medium": "今天的直播先陪大家聊聊天，等一下再一起来玩新出的游戏喔。",
+    "long": "谢谢小明送的礼物，真的太感动了！今天我们会一路玩到十二点，如果你也喜欢这个游戏，记得按下追踪，下次开台就不会错过啰。",
+}
+# 只涵蓋本測試句用到的繁→簡字，讓 CER 可以忽略簡繁差異。
+T2S = {t: s_ for k in SENTENCES for t, s_ in zip(SENTENCES[k], SENTENCES_ZHS[k]) if t != s_}
+
+
+def use_simplified():
+    SENTENCES.update(SENTENCES_ZHS)
+
 # 兩組參考音（都存「音檔＋同名逐字稿 .txt」，VSF exp/research-archive 801c0b3 07-配音參考音來源.md）。
 REF_SETS = {
     # JVNV 日文女聲 voice-female-f1.wav 裁 0.0–9.6 秒（前兩句）。逐字稿來源：faster-whisper small ASR

@@ -34,7 +34,11 @@
 | CosyVoice2 | 不加速（WSL /mnt/d，fp32 + 預建聲線 ID，第一輪） | 4400–7100 | ≈0.93 | 2.6 GiB | 0.35–0.5 | 有亂詞 | 基準 | A | 第一輪 |
 | CosyVoice2 | **Windows 原生**實驗 venv（fp32 + 聲線 ID） | 2993 / 4562 / 4729 | **0.66 / 0.62 / 0.69** | 2.6 GiB | 0.50 / 0.19 / 0.42 | 短句轉寫「大家晚安嚇傻你懵快」，有亂詞（與 WSL 同樣問題，非加速造成） | 可行：RTF −30%，首包略降但仍 3–5 s；**載入 158 s（有下載佔用磁碟，首次讀複本）** | A | 17:27–17:31 |
 | CosyVoice2 | Windows 原生 + JIT（flow.encoder TorchScript，CPU 匯出） | 4147 / 5011 / 5156 | 0.75 / 0.68 / 0.72 | 2.6 GiB | 0.50 / 0.19 / 0.40 | 同上 | 可行但沒變快（反而略慢） | A | 17:31–17:33 |
-| CosyVoice2 | Windows 原生 + JIT + TensorRT + fp16 | — | — | — | — | — | 失敗：venv 沒裝 tensorrt（為了不和 61 GiB 下載搶頻寬先略過），17:36 已開始安裝 tensorrt-cu12 10.13.3.9，待下一段 | B | 17:33 |
+| CosyVoice2 | Windows 原生 + JIT + TensorRT + fp16（第 2 段） | — | — | — | — | — | 失敗：venv 當時還沒裝 tensorrt（不跟下載搶頻寬），17:49 裝好後第 3 段重量 | B | 17:33 |
+| CosyVoice2 | **Windows 原生 + hop-fix**（每次合成前把 token_hop_len 設回 25） | 1993 / 2038 / 2013 | 0.87 / 0.84 / 0.83 | 2.6 GiB | 0.40 / 0.19 / 0.40 | 每 1–2 s 一塊（真串流），繁體字仍唸錯 | 可行：首包 3–5 s → 2.0 s | A | 17:57 |
+| CosyVoice2 | Windows 原生 + hop-fix @rvc-sage | 2251 / 2151 / 2076 | 1.14 / 0.87 / 1.01 | 2.7 GiB | 0.70 / 0.23 / 0.40 | 同上；9 秒參考音沒有改善錯字 | 可行 | A | 17:59 |
+| CosyVoice2 | **Windows 原生 + hop-fix + JIT + TensorRT + fp16**（tensorrt-cu12 10.13.3.9，plan 首次建立在本機複本） | **1611 / 1611 / 1618** | **0.79 / 0.74 / 0.74** | 3.2 GiB | 0.50 / 0.27 / 0.52 | 同上 | 可行：首包再 −20%；**載入 191 s（含建 TRT plan，開始時磁碟 12.7%／56 MB/s，有其他 I/O）** | A | 18:01–18:04 |
+| CosyVoice2 | 同上 @rvc-sage | 1545 / 1431 / 1537 | 0.79 / 0.67 / 0.76 | 3.2 GiB | 0.40 / 0.31 / 0.39 | 同上 | 可行 | A | 18:06 |
 
 ## 虛擬麥原型（GSV + rvc-sage → VB-CABLE）
 
@@ -63,10 +67,10 @@
 | 項目 | 原因 | 證據 |
 |---|---|---|
 | GSV cut_minlen 4 | 觸發上面的空段落例外（長句整句失敗） | A |
-| CosyVoice2 vLLM | vLLM 不支援 Windows；WSL 要另建 Linux venv 並下載 vllm 與對應 torch（數 GB）。本輪還沒做 | C |
-| CosyVoice2 TensorRT | 見矩陣，tensorrt 安裝中，待下一段 GPU | B |
-| CosyVoice2 首包 3–5 s | 在 WSL 與 Windows 原生都一樣，短/中句只出 1 塊（`streamed_all` 否），表示 stream=True 在這個 zero-shot 聲線 ID 用法下，等到整句 token 才出第一塊；另外 ASR 有亂詞（CER 0.2–0.5）。這是用法或前端（wetext 嘗試從 ModelScope 下載失敗，沒有文字正規化）的問題，不是加速能解的，待查 | B |
-| Qwen3-TTS fp16 | 腳本已有 `--dtype fp16`，還沒量 | — |
+| CosyVoice2 vLLM | **BLOCKED（Johnny 17:50 決定先不做）**：vLLM 不支援 Windows，要在 WSL 另建 Linux venv、下載好幾 GB（vllm 與對應 torch）；而且 CosyVoice2 的首包與錯字問題不在 LLM 速度（見下方 CosyVoice2 調查），加速 LLM 解決不了 | C |
+| CosyVoice2 首包 3–5 s、錯字 | 已查，見下方「CosyVoice2 首包與錯字調查」 | A/B |
+| Qwen3-TTS fp16 | 腳本已有 `--dtype fp16`；第 3 段為了讓 VSF 先用 GPU，量完 CosyVoice2 TRT 就放鎖，還沒量 | — |
+| GSV flash-attn + zh-fix 接虛擬麥 | 同上，待下一段 | — |
 
 ## 安裝紀錄（只在實驗 venv）
 
@@ -82,6 +86,7 @@
 |---|---|---|---|---|
 | 1 | 16:55:31（登記 16:55） | 17:16:20 | **17:16:29**（AetherTune Bot 行數 0） | GSV 參數/FA、虛擬麥、VoxCPM2 compile、Qwen3 串流 |
 | 2 | 17:27:10（登記 17:27，距上次放鎖 10 分 40 秒） | 17:44:58 | **17:45:35**（AetherTune Bot 行數 0） | CosyVoice2 Windows 原生/JIT、Qwen3 1.7B 串流、VoxCPM2 與 VSF 對齊 |
+| 3 | 17:55:48（登記 17:55，距上次放鎖 10 分 13 秒） | 18:08:07 | **18:08:07**（AetherTune Bot 行數 0） | CosyVoice2 hop-fix、hop-fix+JIT+TRT+fp16。VSF 要用 GPU，這組跑完就放鎖，Qwen3 fp16 與虛擬麥順延 |
 
 nvidia-smi 前後：`D:\AetherTune-exp\logs\live-tts\accel\nvsmi-*.txt`。
 
@@ -135,3 +140,17 @@ RTF 為 3 次的 p50，括號內是第 1 次（對應 VSF 只量 1 次）。首�
 - 量後 nvidia-smi（7301 MiB / 70%）是在我們自己的行程還沒結束時取的，是自己的佔用，17:45 放鎖時整卡回到 927 MiB / 0%。
 
 檔案：`D:\AetherTune-exp\artifacts\live-tts-bench\vsf-align\voxcpm2-vsfalign-hifi-result.json`（每次的原始列與摘要）、`voxcpm2-vsfalign-hifi-t{10,6}-{zh1,zh2,en1,en2}-r{1,2,3}.wav`；nvidia-smi 在 `D:\AetherTune-exp\logs\live-tts\accel\nvsmi-vsfalign-{start,end}.txt`；log 在 `accel\vsfalign.out`。
+
+## CosyVoice2 首包與錯字調查
+
+### 首包 3–5 s：呼叫方式 / 上游狀態沒有重設（已修，證據 A）
+
+`cosyvoice/cli/model.py` 的 `CosyVoice2Model.tts(stream=True)` 每送出一塊就做 `self.token_hop_len = min(self.token_max_hop_len, self.token_hop_len * self.stream_scale_factor)`，是改**模型物件本身**的屬性，而且下一次呼叫不會設回 25。同一行程第一次合成第一塊是 25 個 token（約 1.6 s 音訊）；之後每次第一塊都要等 100 個 token 加 prompt 補齊（log 裡第一塊 7.64 s 音訊），所以首包變 3–5 s，短句只出 1 塊。
+修法：量測腳本 `--hop-fix` 在每次合成前設 `cv.model.token_hop_len = 25`，不改套件檔。首包 3–5 s → 2.0 s，再加 JIT+TRT+fp16 → 1.4–1.6 s。直播常駐服務要在每句開始前重設，或改用每句新的 model 狀態。
+
+### 錯字：主要是繁體字（推論，證據 B，待 GPU 驗證）
+
+- **文字前端確實缺**：log 顯示 `no frontend is avaliable`。ttsfrd 沒裝；wetext 0.0.4 用 `modelscope.snapshot_download("pengzhendong/wetext")` 下載資源，未登入時 ModelScope 回 403；Hugging Face 上沒有公開的同名 repo（API 回 401）。依規則不用 token，所以沒有文字正規化。但本測試句沒有阿拉伯數字或符號要正規化（「十二點」已經是中文數字），**缺前端不是錯字主因**。
+- **錯字集中在繁體字**：不論 WSL 或 Windows、fp32 或 fp16+TRT、qwen-zh 或 9 秒 rvc-sage 參考音，ASR 都在同樣的字出錯：謝謝→沙沙/嚇傻、禮物→流霧、會→看、點→鼻/比、遊戲→冷食/永瘦、記得→踢得、追蹤→追欠、錯過→撒卡。簡繁同形的字（大家晚安、今天的直播先陪大家聊聊天、小明送的、真的太）幾乎都對。CosyVoice2 的 LLM 用 Qwen2 tokenizer，訓練語料以簡體為主，繁體字的發音學得差。
+- **呼叫方式**：zero-shot 聲線 ID（`add_zero_shot_spk` 後 `inference_zero_shot(text, "", "", zero_shot_spk_id=...)`）和官方範例一致；prompt_text 與參考音逐字相符。沒有看到「合成句太短」的警告。
+- **下一步**：`bench_cosyvoice2.py --zhs` 已加上，同三句改用簡體（common.SENTENCES_ZHS），下一段 GPU 量一次。如果 CER 明顯下降，直播端在送 CosyVoice2 前先做繁→簡轉換即可（字幕仍顯示繁體）。
