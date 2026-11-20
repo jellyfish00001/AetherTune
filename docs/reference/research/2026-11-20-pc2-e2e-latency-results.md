@@ -206,3 +206,42 @@ $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $e
 - 建議人耳盲聽時優先比較：base、index 0.5、index 0.3、rmvpe、formant +0.5。如果聽感也是 index 0.5 較好，下一步可以把 index_rate 預設改成 0.5 再量一次（本輪不改預設）。
 
 <!-- rvc-naturalness:end -->
+
+<!-- rvc-naturalness-zh:start -->
+
+## RVC 中文自然度（PC2，2026-11-20 晚上，AISHELL-3 公開輸入）
+
+### 輸入清單（公開資料集，音檔不進 repo）
+
+- 來源：AISHELL-3（OpenSLR SLR93），取自 Hugging Face 鏡像 <https://huggingface.co/datasets/AISHELL/AISHELL-3>，revision `f20d5db4a31fe779ef07bb1af4ea92da5c786622`，只下載用到的單檔（train/wav）。授權（僅標註、未評估）：Apache-2.0（HF 資料卡標示；僅標註、未評估）；OpenSLR 原頁 <https://www.openslr.org/93/>。
+- 每位說話者取 12～22 字的句子（排除含「亿／万／零」的數字串），依檔名順序接到約 11～14 秒，句間 0.3 秒靜音；44.1 kHz PCM16 單聲道。存放：`D:\AetherTune-exp\dataset\public-zh\`（含 `manifest.json`、`SHA256SUMS.txt`）。逐字稿來自資料集 `train/content.txt`（簡體）。
+
+| 標籤 | 說話者 ID | 性別 | 年齡組／口音（spk-info） | 長度 (s) | SHA256 | 組成檔 | 逐字稿 |
+|---|---|---|---|---|---|---|---|
+| zh-m1 | SSB0535 | male | B／north | 11.32 | `595F79DE669308B12DC4A42454FD84640D6807057543087DEFB69F3B25B05101` | SSB05350001.wav、SSB05350005.wav | 结合智慧单元式温湿度系统的硬件儿部署往往只关注研报中给出的股票目标价位 |
+| zh-m2 | SSB0407 | male | C／north | 13.86 | `C319804022617AE8D0EE880A495BF629719F01BFF58B0B425CDF77E6676BFA2C` | SSB04070006.wav、SSB04070007.wav、SSB04070010.wav、SSB04070011.wav | 稻垣吾郎出演的电视剧有什么我会信守承诺带你去阿卡普尔科还有一批出身低级别联赛的被告人京本政树出演的电视剧有什么 |
+| zh-f1 | SSB0043 | female | B／north | 11.07 | `DD678ADFD010259FC4AC4EA81E2DE37B807E8734BB6FA9150D83DF472C65FBA6` | SSB00430005.wav、SSB00430009.wav、SSB00430014.wav | 你觉得你可以跟我玩儿一场我就跟你说那个儿科医生说话不负责任的但是连尤尼丝都不愿用那玩意 |
+| zh-f2 | SSB0534 | female | C／north | 11.13 | `BF44538393DE722A74936746A6EDEAE3FFEAA7A723CA58A945EFE75267FFB43B` | SSB05340001.wav、SSB05340002.wav | 登顶最佳影片最佳导演最佳女配角三项大奖北京四块高溢价土地均来自北京大兴区 |
+
+### 結果
+
+- 基準：c80／x20／e0.5，Sage_CN_HeroicFemale；A 段＝女聲輸入（zh-f1、zh-f2，pitch 0），B 段＝男轉女（zh-m1、zh-m2，index 0.75、fcpe）。
+- 延遲：每組一次 speech 訊號聲學量測（等級 A，起音估計器），淨值＝經引擎 p50 − 兩條虛擬線 p50；RTF／underrun 來自引擎計數。延遲與輸入語音無關（量測用固定 bench 訊號），所以每組一個值。
+- CER：SenseVoiceSmall（language=zh、不做 ITN），去標點／空白、NFKC。**絕對 CER** 對資料集逐字稿；**相對 CER** 對「輸入原音的辨識結果」。表中是兩位說話者的平均（括號內為各自的值）。
+
+| 組 | 段 | pitch | formant | index | f0 | 淨 p50 / p95 (ms) | RTF | underrun | 絕對 CER | 相對 CER | 絕對 CER（Opus 64k 後） |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| f-base | A | 0 | 0 | 0.75 | fcpe | 112.5 / 139.8 | 0.570 | 0 | — | — | — |
+| f-ix0.5 | A | 0 | 0 | 0.5 | fcpe | 120.0 / 125.0 | 0.474 | 0 | — | — | — |
+| f-ix0.3 | A | 0 | 0 | 0.3 | fcpe | 115.0 / 141.2 | 0.485 | 0 | — | — | — |
+| f-rmvpe | A | 0 | 0 | 0.75 | rmvpe | 120.0 / 168.2 | 0.642 | 0 | — | — | — |
+| f-fm+0.5 | A | 0 | 0.5 | 0.75 | fcpe | 195.0 / 259.0 | 0.538 | 0 | — | — | — |
+| f-ix0.5-rmvpe | A | 0 | 0 | 0.5 | rmvpe | 105.0 / 118.2 | 0.633 | 0 | — | — | — |
+
+### 進度註記
+
+- A 段（女聲 6 組）的離線轉換與聲學延遲已完成。鎖的使用時段：18:13–18:31（台北）。
+- 中文 CER、B 段（男轉女）與盲聽樣本要等鎖檔沒有衝突的「進行中」項目之後再做。18:29 起 Hub Bot 在跑完整測試（預計 90 分鐘），量測會受 CPU 負載影響。
+- f-fm+0.5 的淨 p50 是 195 ms、p95 389 ms，明顯高於上一輪日語同設定的 120 ms。它在 18:27–18:30 量測，和 Hub 測試開始的時間重疊，懷疑是負載干擾，B 段時會重量一次。
+
+<!-- rvc-naturalness-zh:end -->
