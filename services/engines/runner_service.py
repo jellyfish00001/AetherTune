@@ -251,6 +251,10 @@ def main() -> int:
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--validate", action="store_true")
     args = parser.parse_args()
+    # Windows 主控台編碼（cp950）無法編碼 upstream 簡體字（例如 RVC 每個 block 印的「耗时」），
+    # emit 會拋 UnicodeEncodeError 讓轉送執行緒中止、引擎管線塞滿後卡在 LOADING；改為替換字元，不改編碼。
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     return serve(args.root.resolve(), args.engine, json.loads(args.request.read_text(encoding="utf-8")), args.validate)
 
 
