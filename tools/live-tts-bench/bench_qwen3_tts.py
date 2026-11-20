@@ -13,14 +13,16 @@ def base_args():
     ap.add_argument("--model-dir", required=True)
     ap.add_argument("--ref-src", required=True)
     ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--ref-set", choices=sorted(common.REF_SETS), default="f1")
     return ap
 
 def main():
     ap = base_args()
     ap.add_argument("--xvec-only", action="store_true")
     a = ap.parse_args()
+    common.select_ref(a.ref_set)
     out = Path(a.out_dir)
-    ref = str(common.make_ref_clip(Path(a.ref_src), out.parent / "ref" / "voice-female-f1-0-9.6s.wav"))
+    ref = str(common.prepare_ref(Path(a.ref_src), out))
     import torch
     from qwen_tts import Qwen3TTSModel
 

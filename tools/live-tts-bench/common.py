@@ -26,11 +26,35 @@ SENTENCES = {
     "long": "謝謝小明送的禮物，真的太感動了！今天我們會一路玩到十二點，如果你也喜歡這個遊戲，記得按下追蹤，下次開台就不會錯過囉。",
 }
 
-# 參考音 voice-female-f1.wav 的 0.0–9.6 秒（前兩句）。來源：faster-whisper small ASR
-# （artifacts/stt/voice-female-f1.json）＋ tools/fixtures/cosyvoice/reference-female-text.txt 人工修正。
-REF_TEXT = "最近、自分の人生に充実感を感じているんだ。友達、家族、そして仕事もうまくいっている。"
-REF_LANG = "ja"
-REF_CLIP_END_S = 9.6
+# 兩組參考音（都存「音檔＋同名逐字稿 .txt」，VSF exp/research-archive 801c0b3 07-配音參考音來源.md）。
+REF_SETS = {
+    # JVNV 日文女聲 voice-female-f1.wav 裁 0.0–9.6 秒（前兩句）。逐字稿來源：faster-whisper small ASR
+    # （artifacts/stt/voice-female-f1.json）＋ tools/fixtures/cosyvoice/reference-female-text.txt 人工修正。
+    "f1": {"text": "最近、自分の人生に充実感を感じているんだ。友達、家族、そして仕事もうまくいっている。",
+           "lang": "ja", "clip_end_s": 9.6, "clip_name": "voice-female-f1-0-9.6s.wav"},
+    # Qwen3-TTS 官方中文（大陸口音）女聲示範音，4.20 秒 16 kHz，不裁切。
+    # URL：https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone_1.wav
+    # 逐字稿來源：https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_model_12hz_base.py ref_text_batch[1]
+    "qwen-zh": {"text": "甚至出现交易几乎停滞的情况。", "lang": "zh", "clip_end_s": None,
+                "clip_name": "qwen3-tts-clone_1.wav"},
+}
+REF_NAME = "f1"
+REF_TEXT = REF_SETS["f1"]["text"]
+REF_LANG = REF_SETS["f1"]["lang"]
+REF_CLIP_END_S = REF_SETS["f1"]["clip_end_s"]
+
+
+def select_ref(name: str) -> None:
+    global REF_NAME, REF_TEXT, REF_LANG, REF_CLIP_END_S
+    cfg = REF_SETS[name]
+    REF_NAME, REF_TEXT, REF_LANG, REF_CLIP_END_S = name, cfg["text"], cfg["lang"], cfg["clip_end_s"]
+
+
+def prepare_ref(src: Path, out_dir: Path) -> Path:
+    """依目前參考音組，在 out_dir/../ref/ 建立共用參考音與同名逐字稿。"""
+    return make_ref_clip(Path(src), Path(out_dir).parent / "ref" / REF_SETS[REF_NAME]["clip_name"], REF_CLIP_END_S)
+
+
 WARMUP = 1
 RUNS = 3
 
@@ -43,7 +67,7 @@ def sha256(path: Path) -> str:
     return h.hexdigest().upper()
 
 
-def make_ref_clip(src: Path, dst: Path, end_s: float = REF_CLIP_END_S) -> Path:
+def make_ref_clip(src: Path, dst: Path, end_s: float | None = None) -> Path:
     """用標準庫 wave 裁出參考音前段，四個後端共用同一個檔。"""
     dst = Path(dst)
     # 逐字稿與參考音同名存放（VSF exp/research-archive 801c0b3 07-配音參考音來源.md 建議）。
@@ -54,7 +78,7 @@ def make_ref_clip(src: Path, dst: Path, end_s: float = REF_CLIP_END_S) -> Path:
     dst.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(src), "rb") as r:
         params = r.getparams()
-        frames = r.readframes(int(end_s * r.getframerate()))
+        frames = r.readframes(int(end_s * r.getframerate()) if end_s else r.getnframes())
     with wave.open(str(dst), "wb") as w:
         w.setparams(params)
         w.writeframes(frames)
@@ -165,6 +189,7 @@ def measure_once(synth: Callable[[str], Iterable], text: str, sr: int):
 
 def run_bench(backend: str, synth: Callable[[str], Iterable], sr: int, out_dir: Path,
               meta: dict, ref_clip: Path, load_seconds: float | None = None) -> dict:
+    backend = f"{backend}@{REF_NAME}"
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     torch = _torch()
@@ -174,8 +199,8 @@ def run_bench(backend: str, synth: Callable[[str], Iterable], sr: int, out_dir: 
         "host": platform.node(),
         "python": platform.python_version(),
         "meta": meta,
-        "reference": {"path": str(ref_clip), "sha256": sha256(ref_clip), "text": REF_TEXT,
-                       "clip_end_s": REF_CLIP_END_S},
+        "reference": {"set": REF_NAME, "path": str(ref_clip), "sha256": sha256(ref_clip), "text": REF_TEXT,
+                       "lang": REF_LANG, "clip_end_s": REF_CLIP_END_S},
         "load_seconds": load_seconds,
         "nvidia_smi_before": nvidia_smi_snapshot(),
         "sentences": {},

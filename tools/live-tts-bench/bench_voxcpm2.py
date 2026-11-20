@@ -13,6 +13,7 @@ def base_args():
     ap.add_argument("--model-dir", required=True)
     ap.add_argument("--ref-src", required=True)
     ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--ref-set", choices=sorted(common.REF_SETS), default="f1")
     return ap
 
 def main():
@@ -22,8 +23,9 @@ def main():
     ap.add_argument("--timesteps", type=int, default=10)
     ap.add_argument("--optimize", action="store_true", help="torch.compile（Windows 需 triton，預設關）")
     a = ap.parse_args()
+    common.select_ref(a.ref_set)
     out = Path(a.out_dir)
-    ref = str(common.make_ref_clip(Path(a.ref_src), out.parent / "ref" / "voice-female-f1-0-9.6s.wav"))
+    ref = str(common.prepare_ref(Path(a.ref_src), out))
     from voxcpm import VoxCPM
 
     t = time.perf_counter()

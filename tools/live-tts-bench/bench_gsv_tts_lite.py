@@ -13,14 +13,16 @@ def base_args():
     ap.add_argument("--model-dir", required=True)
     ap.add_argument("--ref-src", required=True)
     ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--ref-set", choices=sorted(common.REF_SETS), default="f1")
     return ap
 
 def main():
     ap = base_args()
     ap.add_argument("--bert", action="store_true", help="use_bert=True（README 建議中文開）")
     a = ap.parse_args()
+    common.select_ref(a.ref_set)
     out = Path(a.out_dir)
-    ref = str(common.make_ref_clip(Path(a.ref_src), out.parent / "ref" / "voice-female-f1-0-9.6s.wav"))
+    ref = str(common.prepare_ref(Path(a.ref_src), out))
     from gsv_tts import TTS
 
     t = time.perf_counter()
@@ -30,12 +32,12 @@ def main():
     tts.init_language_module("zh")
     tts.init_language_module("ja")
     tts.cache_spk_audio(ref)
-    tts.cache_prompt_audio(prompt_audio_paths=ref, prompt_audio_texts=common.REF_TEXT, prompt_language="ja")
+    tts.cache_prompt_audio(prompt_audio_paths=ref, prompt_audio_texts=common.REF_TEXT, prompt_language=common.REF_LANG)
     load = time.perf_counter() - t
 
     def synth(text):
         for clip in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=common.REF_TEXT,
-                                     text=text, text_language="zh", prompt_language="ja", debug=False):
+                                     text=text, text_language="zh", prompt_language=common.REF_LANG, debug=False):
             yield clip.audio_data
 
     common.run_bench("gsv-tts-lite" + ("-bert" if a.bert else ""), synth, tts.samplerate, out,
