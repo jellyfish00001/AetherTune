@@ -176,23 +176,23 @@ $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $e
 
 - **不是真的經過 Discord**：本輪沒有登入 Discord、也沒有建立語音頻道，所以用 ffmpeg 9.0.2（libopus）模擬 Discord 語音的編碼：Opus、48 kHz、單聲道、64 kbps VBR、`-application voip`、20 ms frame，編碼後再解回 48 kHz PCM16。Discord 自己的噪音抑制、回音消除、自動增益、網路掉包沒有模擬。
 - 盲聽樣本：`D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\blind-opus64\S01.wav`～`S12.wav`，附 `SHA256SUMS.txt`。檔名由固定 seed 20261120 打亂。
-- 對照表另存在 `D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\blind-key-DO-NOT-OPEN.csv`（code、label、來源路徑、SHA256），聽完再打開。內容包括 Sage 的 9 組設定、ChineseBluetooth_F、EGirl_F 與原始輸入（作為參考錨點）。
-- 下表依 label 排序，看表就等於知道答案，盲聽前請不要看。
+- 對照表另存在 `D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\blind-key-DO-NOT-OPEN.csv`（code、label、來源路徑、SHA256）。內容包括 Sage 的 9 組設定、ChineseBluetooth_F、EGirl_F 與原始輸入（作為參考錨點）。
+- 18:07 定案：日語這批 S01–S12 **不提交聽測**，等中文輸入重做後再聽。盲聽代號和組別的對應只放在另存的 key，文件裡不寫。
 
-| label | 盲聽代號 | 相對 CER（離線） | 相對 CER（Opus 64k 後） |
-|---|---|---|---|
-| ChineseBluetooth_F-c80x20e0.5 | S05 | — | 0.047 |
-| EGirl_F-c80x20e0.5 | S02 | — | 0.070 |
-| Sage-base-fm0-ix075-fcpe | S06 | 0.070 | 0.093 |
-| Sage-f0-rmvpe | S11 | 0.023 | 0.023 |
-| Sage-fm+0.5 | S08 | 0.047 | 0.047 |
-| Sage-fm+1.0 | S07 | 0.093 | 0.093 |
-| Sage-fm-0.5 | S04 | 0.093 | 0.116 |
-| Sage-fm-1.0 | S01 | 0.093 | 0.070 |
-| Sage-ix0.30 | S09 | 0.023 | 0.023 |
-| Sage-ix0.50 | S12 | 0.023 | 0.023 |
-| Sage-ix1.00 | S10 | 0.070 | 0.093 |
-| source-voice-female-f1 | S03 | 0.000 | 0.000 |
+| 組別 | 相對 CER（離線） | 相對 CER（Opus 64k 後） |
+|---|---|---|
+| ChineseBluetooth_F-c80x20e0.5 | — | 0.047 |
+| EGirl_F-c80x20e0.5 | — | 0.070 |
+| Sage-base-fm0-ix075-fcpe | 0.070 | 0.093 |
+| Sage-f0-rmvpe | 0.023 | 0.023 |
+| Sage-fm+0.5 | 0.047 | 0.047 |
+| Sage-fm+1.0 | 0.093 | 0.093 |
+| Sage-fm-0.5 | 0.093 | 0.116 |
+| Sage-fm-1.0 | 0.093 | 0.070 |
+| Sage-ix0.30 | 0.023 | 0.023 |
+| Sage-ix0.50 | 0.023 | 0.023 |
+| Sage-ix1.00 | 0.070 | 0.093 |
+| source-voice-female-f1 | 0.000 | 0.000 |
 
 ### 自然度掃描的觀察（CER 只反映可懂度，自然度仍要靠人耳聽）
 
