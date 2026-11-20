@@ -39,10 +39,10 @@ def main():
     load = time.perf_counter() - t
 
     def synth(text):
+        # 只傳必要參數；先前帶 max_len=4096 等參數時串流產生 0 個 chunk（見研究文件）。
         gen = vc.tts_model._generate_with_prompt_cache(
-            target_text=text, prompt_cache=cache, min_len=2, max_len=4096,
-            inference_timesteps=a.timesteps, cfg_value=2.0, retry_badcase=False,
-            retry_badcase_max_times=0, retry_badcase_ratio_threshold=6.0, streaming=True)
+            target_text=text, prompt_cache=cache, inference_timesteps=a.timesteps, cfg_value=2.0,
+            streaming=True)
         try:
             for wav, _, _ in gen:
                 yield wav.squeeze(0)
@@ -53,7 +53,7 @@ def main():
     common.run_bench(f"voxcpm2-{a.mode}-t{a.timesteps}", synth, sr, out,
                      {"package": "voxcpm==2.0.3", "model": "openbmb/VoxCPM2", "mode": a.mode,
                       "inference_timesteps": a.timesteps, "cfg_value": 2.0, "optimize": a.optimize,
-                      "retry_badcase": False}, Path(ref), load)
+                      "retry_badcase": False, "max_len": "預設 2000"}, Path(ref), load)
 
 
 if __name__ == "__main__":

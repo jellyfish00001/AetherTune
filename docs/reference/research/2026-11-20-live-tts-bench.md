@@ -72,7 +72,11 @@ PASS 必須全部達成；任何一項做不到就標 BLOCKED 或 WAITING 並寫
 
 ## 結果
 
-（量測進行中，下表由 `tools/live-tts-bench/summarize.py` 產生，證據等級 A。最終表與結論見完成後更新。）
+### 第一輪（同時負載，不拿來做結論）
+
+2026-11-20 14:23–15:35（台北）在 PC1 量的第一輪，和創作工坊 Bot 在 PC1 GPU 上安裝與聽測 VSF 四個 TTS（locks.md 登記 14:26–15:38）重疊，所以整輪標「同時負載」。JSON 已移到 `D:\AetherTune-exp\artifacts\live-tts-bench\_concurrent-load\`，每個檔加了 `concurrent_load: true`。下表只保留當作過程紀錄；結論只看下面的獨占重量。
+
+另外：VoxCPM2 第一次跑（15:21–15:25）直接呼叫 `_generate_with_prompt_cache` 時帶了 `min_len/max_len=4096/retry_*` 參數，結果每句 0 個音訊 chunk（`*-EMPTY.json`）。拿掉這些參數、只傳 `inference_timesteps/cfg_value/streaming` 後正常出聲（15:31–15:35 那一輪）。
 
 | 後端@參考音 | 句 | 首包 p50 ms | 首包 max ms | RTF p50 | 音長 s | torch VRAM 峰值 MiB | 整卡已用 max MiB | 真串流 | 量測時間 |
 |---|---|---:|---:|---:|---:|---:|---:|---|---|
@@ -100,3 +104,13 @@ PASS 必須全部達成；任何一項做不到就標 BLOCKED 或 WAITING 並寫
 | qwen3-tts-0.6b-base@qwen-zh | short | 7025.8 | 7179.7 | 2.189 | 3.28 | 2338.8 | 8444.0 | 否 | 15:14 |
 | qwen3-tts-0.6b-base@qwen-zh | medium | 13635.0 | 16731.4 | 1.775 | 7.6 | 2471.4 | 3743.0 | 否 | 15:14 |
 | qwen3-tts-0.6b-base@qwen-zh | long | 28380.4 | 33409.1 | 1.988 | 14.24 | 2689.7 | 10466.0 | 否 | 15:14 |
+| voxcpm2-ultimate-t10@f1 | short | 155.4 | 214.8 | 1.157 | 3.52 | 5667.4 | 7068.0 | 是 | 15:33 |
+| voxcpm2-ultimate-t10@f1 | medium | 204.4 | 250.0 | 1.114 | 6.56 | 5668.3 | 7070.0 | 是 | 15:33 |
+| voxcpm2-ultimate-t10@f1 | long | 176.4 | 236.7 | 1.171 | 13.76 | 5670.2 | 7072.0 | 是 | 15:33 |
+| voxcpm2-ultimate-t10@qwen-zh | short | 240.2 | 270.6 | 1.222 | 2.56 | 5664.1 | 6874.0 | 是 | 15:31 |
+| voxcpm2-ultimate-t10@qwen-zh | medium | 132.1 | 145.1 | 1.097 | 6.72 | 5665.0 | 6876.0 | 是 | 15:31 |
+| voxcpm2-ultimate-t10@qwen-zh | long | 262.5 | 263.1 | 1.113 | 14.4 | 5666.9 | 6878.0 | 是 | 15:31 |
+
+### 獨占 GPU 重量
+
+（15:40 起登記獨占 GPU 後重量，完成後填入）
