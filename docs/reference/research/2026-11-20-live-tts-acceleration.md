@@ -20,7 +20,7 @@
 | GSV-TTS-Lite | **flash-attn 2.8.2**（use_flash_attn） | 78 / 70 / 85 | **0.106 / 0.081 / 0.075** | 0.58 GiB | 0 / 0.12 / 0.27 | 同上，尾句消失 | 可行，首包 −30%、RTF −25% | A | 16:58 |
 | GSV-TTS-Lite | stream_chunk 12 / overlap 4 | **69 / 65 / 75** | 0.154 / 0.129 / 0.116 | 0.58 GiB | 0 / 0.08 / 0.27 | 同上，尾句消失 | 可行，首包最低、RTF 略升 | A | 16:58 |
 | GSV-TTS-Lite | **zh-fix**（純中文略過語言偵測） | 117 / 94 / 105 | 0.124 / 0.097 / 0.089 | 0.58 GiB | 0 / 0.19 / **0.08** | 長句 15.2 s，尾句完整唸出 | **修好尾句截斷** | A | 17:07 |
-| GSV-TTS-Lite | **flash-attn + zh-fix** | 102 / 73 / 83 | 0.108 / 0.089 / 0.078 | 0.59 GiB | 0 / 0.12 / **0.10** | 尾句完整；中句 ASR 有同音字錯 | **建議組合** | A | 17:07 |
+| GSV-TTS-Lite | **flash-attn + zh-fix** | 102 / 73 / 83 | 0.108 / 0.089 / 0.078 | 0.59 GiB | 0 / 0.12 / **0.10** | 尾句完整；中句 ASR 有同音字錯 | bench 最佳，但**直播虛擬麥實測 FA 反而慢**（見虛擬麥節），直播用不加速 + zh-fix | A | 17:07 |
 | GSV-TTS-Lite | cut_minlen 4 | 89 / 92 / — | 0.133 / 0.107 / — | — | 0 / 0.04 / — | 長句直接拋例外（見下方尾句截斷原因） | 不可行（套件例外） | A | 16:55 |
 | GSV-TTS-Lite | use_bert / boost off（第二輪） | 見研究文件第二輪 | | 1.19 / 0.58 GiB | | 沒改善 | 無增益 | A | 16:16–16:28 |
 | VoxCPM2 | 不加速 t10 | 240 / 199 / 157 | 1.59 / 1.06 / 1.41 | 5.5 GiB | 0 / 0.04 / 0.06 | 尾句完整 | 基準，RTF>1 | A | 16:23 |
@@ -55,7 +55,24 @@
 | 歡迎新來的朋友。 | 91 | 91 | **292** | 295 |
 | 好，那我們開始吧。 | 119 | 119 | **306** | 309 |
 
-打字送出到虛擬線出聲約 **250–335 ms**；其中約 90 ms 是 MME 輸出緩衝（`out_stream_latency_ms` 91），其餘約 100 ms 是 GSV 開頭的靜音被裁掉前後的音訊與 VB-CABLE 本身延遲。換 WASAPI 獨占或 flash-attn 可再省一點（未量）。紀錄：`D:\AetherTune-exp\artifacts\live-tts-bench\vmic\latency-log.jsonl`。
+打字送出到虛擬線出聲約 **250–335 ms**；其中約 90 ms 是 MME 輸出緩衝（`out_stream_latency_ms` 91），其餘約 100 ms 是 GSV 開頭的靜音被裁掉前後的音訊與 VB-CABLE 本身延遲。換 WASAPI 獨占可再省一點（未量）。紀錄：`D:\AetherTune-exp\artifacts\live-tts-bench\vmic\latency-log.jsonl`。
+
+### flash-attn + zh-fix 接虛擬麥（第 4、5 段）
+
+同腳本加 `--flash-attn`。第 4 段（18:36）量到 FA 反而慢，第 5 段（18:57–19:00）把「不加速 / FA」交錯各跑兩輪（同一行程內 5 句、每句都是第一次合成、沒有暖機重複），確認可重現。GPU 時脈 2670 MHz P0、使用率 1%，沒有其他 GPU 工作。
+
+| 組合 | 首塊產生 ms（5 句） | **線上出聲 ms** | 整句生成 ms | 紀錄檔 |
+|---|---|---|---|---|
+| 不加速 + zh-fix（17:07） | 91–152 | **248–335** | 295–911 | latency-log.jsonl |
+| 不加速 + zh-fix r2（18:57） | 97–171 | **263–335** | 295–879 | latency-log-nofa-r2.jsonl |
+| 不加速 + zh-fix r3（18:58） | 102–169 | **218–326** | 303–915 | latency-log-nofa-r3.jsonl |
+| flash-attn + zh-fix（18:36） | 304–357 | **446–665** | 581–1292 | latency-log-fa.jsonl |
+| flash-attn + zh-fix r2（18:58） | 271–404 | **414–582** | 565–1226 | latency-log-fa-r2.jsonl |
+| flash-attn + zh-fix r3（18:59） | 272–404 | **384–579** | 527–1286 | latency-log-fa-r3.jsonl |
+
+- **結論（證據 A）**：直播實際的用法（每句都是新文字、只合成一次）flash-attn 讓首塊慢約 170–230 ms，線上出聲從約 0.22–0.34 s 變成 0.38–0.67 s。**虛擬麥用不加速 + zh-fix**。
+- 與矩陣 FA 列（首包 −30%）不一致：bench 同一句先暖機再重複量，FA 每遇到新的序列長度可能要額外配置/建立 kernel，重複同句時被暖機吃掉（推論，證據 C，沒有再拆）。所以 bench 的 FA 增益不能直接套到直播。
+- 紀錄都在 `D:\AetherTune-exp\artifacts\live-tts-bench\vmic\`；腳本 `D:\AetherTune-exp\logs\live-tts\accel-gpu5.ps1`。
 
 ## GSV 長句尾句截斷原因（已找到並修好）
 
@@ -89,6 +106,8 @@
 | 1 | 16:55:31（登記 16:55） | 17:16:20 | **17:16:29**（AetherTune Bot 行數 0） | GSV 參數/FA、虛擬麥、VoxCPM2 compile、Qwen3 串流 |
 | 2 | 17:27:10（登記 17:27，距上次放鎖 10 分 40 秒） | 17:44:58 | **17:45:35**（AetherTune Bot 行數 0） | CosyVoice2 Windows 原生/JIT、Qwen3 1.7B 串流、VoxCPM2 與 VSF 對齊 |
 | 3 | 17:55:48（登記 17:55，距上次放鎖 10 分 13 秒） | 18:08:07 | **18:08:07**（AetherTune Bot 行數 0） | CosyVoice2 hop-fix、hop-fix+JIT+TRT+fp16。VSF 要用 GPU，這組跑完就放鎖，Qwen3 fp16 與虛擬麥順延 |
+| 4 | 18:30:43（登記 18:30，VSF 18:17 那行 18:25 標完成後；距上次放鎖 22 分） | 18:37:53 | **18:40:15**（AetherTune Bot 行數 0） | CosyVoice2 TRT+fp16+簡體、Qwen3 fp16（失敗）、GSV FA+zh-fix 虛擬麥 |
+| 5 | 18:57:42（登記 18:57，距上次放鎖 17 分） | 19:00:00 | **19:00:18**（AetherTune Bot 行數 0） | 虛擬麥 不加速 / FA 交錯重量各 2 輪 |
 
 nvidia-smi 前後：`D:\AetherTune-exp\logs\live-tts\accel\nvsmi-*.txt`。
 
