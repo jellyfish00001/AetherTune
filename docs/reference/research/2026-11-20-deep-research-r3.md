@@ -37,17 +37,18 @@
 
 | 參數 | 社群常見起點 | 調高的效果／風險 | 調低的效果／風險 | 我們目前（A） | 證據 |
 |---|---|---|---|---|---|
-| 音高（transpose） | 男轉女 **+10～+12**，不超過 +14；本音與模型接近時 +3～+5 | 太高 → 卡通、緊繃；「花栗鼠音」 | 太低 → 女聲模型唱男音、混濁 | RVC Sage 設定以 bench 預設為準，尚未系統掃描 | D〔miaoyin 110137／110248、xportstudio〕、C〔w-okada 教學 +12〕 |
+| 音高（transpose） | 男轉女 **+10～+12**，不超過 +14；本音與模型接近時 +3～+5 | 太高 → 卡通、緊繃；「花栗鼠音」 | 太低 → 女聲模型唱男音、混濁 | contract 預設 **0**（範圍 −24～+24）；尚未系統掃描男轉女音高 | D〔miaoyin 110137／110248、xportstudio〕、C〔w-okada 教學 +12〕 |
 | 共振峰（formant） | 與音高**同向小幅抬高**；少女音略抬、御姐音音高 +10 且共振峰略壓 | 太高 → 小孩聲 | 不動 → 「音高變了腔體沒變」，大腦立刻識破 | **固定 0.0**：`services/engines/rvc_runtime.py` 呼叫 `RVC(values["pitch"], 0.0, …)`，第二個參數就是上游的 formant | A〔repo 程式碼〕；C〔上游 `infer/rtrvc.py`、`realtime_gui.py`「性别因子/声线粗细」滑桿 −2～+2〕；D〔miaoyin〕；C〔Applio formant shifting〕 |
-| Index rate（檢索比例） | 0.3～0.75；沒有 index 時 0；即時用途比離線低 | 更像目標，但訓練資料的噪音也會被拉進來、更吃效能 | 更乾淨、但更像自己的音色 | 依模型預設 | B〔Samer Al-Qaisi〕、C〔AI Hub docs〕、D〔miaoyin 0.2～0.5〕 |
-| Protect（無聲子音保護） | 0.33；0.5＝關閉 | — | 太低 → 字被吞掉、「不像人」 | 0.33 類預設 | C〔AI Hub docs、xportstudio〕 |
+| Index rate（檢索比例） | 0.3～0.75；沒有 index 時 0；即時用途比離線低 | 更像目標，但訓練資料的噪音也會被拉進來、更吃效能 | 更乾淨、但更像自己的音色 | contract 預設 **0.75**（社群即時用途建議較低） | B〔Samer Al-Qaisi〕、C〔AI Hub docs〕、D〔miaoyin 0.2～0.5〕 |
+| Protect（無聲子音保護） | 0.33；0.5＝關閉 | — | 太低 → 字被吞掉、「不像人」 | **即時路徑沒有這個參數**：上游 `infer/rtrvc.py` 只有 key／formant／index_rate，protect 與 RMS mix 只在離線推論 | A〔`contracts/engines/rvc.json`〕、C〔上游 rtrvc.py、AI Hub docs、xportstudio〕 |
 | f0 方法 | 即時：FCPE 或 RMVPE；crepe 太慢不適合即時 | RMVPE 準但聲音略「硬」 | FCPE 快但較怕噪音 | **fcpe**（最佳組合） | C〔FCPE 論文 RTF 表〕、B〔pitch-benchmark〕、D〔AI Hub：RMVPE 略刺、FCPE 較柔〕 |
-| RMS mix rate | 說話 0～0.25（保留自己的音量起伏） | 越高越跟模型訓練音量走，動態變平 | 保留表演 | 依預設 | C〔xportstudio、DeepWiki RVC 參數表〕 |
+| RMS mix rate | 說話 0～0.25（保留自己的音量起伏） | 越高越跟模型訓練音量走，動態變平 | 保留表演 | **即時路徑沒有**（同上） | C〔xportstudio、DeepWiki RVC 參數表〕 |
 | Filter radius | 3（只對 harvest／dio 有效） | — | — | 不適用（fcpe） | C〔OpenVoiceChanger 環境變數說明〕 |
 | 模型本身 | 選與本音「條件接近」的：清亮年輕男聲 → 少女；低沉男聲 → 中性女聲／御姐 | 跨度太大必失真 | — | Sage／ChineseBluetooth_F／EGirl_F 三選一，試聽檔待做 | D〔miaoyin 第 4 條〕 |
 
 **關鍵發現：**
 - 「音高 +12、共振峰不動」是社群最常點名的經典破綻。**上游 RVC realtime 早就有共振峰參數，AetherTune 只是寫死成 0.0**〔A，`services/engines/rvc_runtime.py` 第 130 行 `RVC(values["pitch"], 0.0, …)`〕。上游做法是把輸出長度乘上 `2^(formant/12)` 再重採樣、同時把 f0 key 扣掉 formant〔C，上游 `infer/rtrvc.py` 約第 279–287 行〕；上游 GUI 的滑桿範圍是 −2～+2、步進 0.05〔C，`realtime_gui.py`〕。**這代表補共振峰不需要任何新依賴**，只要把 values 裡多一個 `formant` 傳進去，是本輪找到 CP 值最高的一個實驗。
+- **即時 RVC 能調的其實只有四個：音高、共振峰、index rate、f0 方法**（加上 chunk／crossfade／extra）。社群教學常提的 protect、RMS mix、filter radius 只存在於離線推論〔C，上游 `infer/rtrvc.py` 建構子只收 key／formant／index_rate〕；AetherTune 的 contract 也只暴露 pitch（預設 0）、index_rate（預設 0.75）、f0_method、chunk（最小 80）、crossfade、extra_time〔A，`contracts/engines/rvc.json`〕。所以教學裡「protect 調 0.33」的建議對我們的即時路徑**不適用**，不要浪費實驗時間。
 - Beatrice v2 的使用教學一律是「Pitch 與 Formant 一起往上調」〔D，note.com uunin、shellbe〕；Beatrice 把共振峰當一級參數，是它在 VTuber 圈評價自然的原因之一。〔D〕
 - Index rate 不只影響音色：w-okada 教學說 index>0 會讓搜尋時間變長〔C〕；Applio 的即時化 PR 把 index 檢索改成純 PyTorch 暴力搜尋以省延遲〔C，Applio PR #1245〕。所以即時用途的 index rate 要和延遲一起掃，不能只憑耳朵。
 
@@ -135,3 +136,225 @@
 |---|---|---|---|
 | **砍掉一跳：引擎直接輸出到 Voicemeeter 虛擬輸入（或直接到 CABLE），VST 處理移進引擎或 Voicemeeter 內建 EQ** | 路由是最大的可壓項；不需新驅動（Johnny 13:23：用既有虛擬裝置） | 要改 rack 路由與 Post-FX 位置；Light Host 的 VST 若不可替代就省不了 | A〔120–130 ms〕、C〔VB-CABLE 14–21 ms〕、D〔推論〕 |
 | **檢查並縮小每一跳的緩衝**：Voicemeeter A1 改 WDM／ASIO（若硬體有）、VB-CABLE 最大緩衝從 7168 降到 2048 以下、引擎端 PortAudio 用 WASAPI 低延遲或 exclusive（只用於不需共享的那一端） | 不換任何元件；每一跳都有明確數字可量 | exclusive 會讓其他 App 抓不到裝置；VB-Audio 稱 WDM exclusive 屬實驗性 | C〔VB-Audio 手冊與論壇、Microsoft Learn〕、B〔w-okada #1305〕 |
+
+---
+
+## 3. 維度三：現成女聲模型的來源與評價
+
+前序[第 2 輪 §2.1–2.5](2026-11-20-decisions-and-candidates-r2.md)已列出來源格式與三個優先候選（E-Girl、Chinese Bluetooth Speaker lady、maobailing_rvc）。本節補「怎麼判斷一個社群模型穩不穩」與新增的來源。
+
+### 3.1 來源比較
+
+| 來源 | 強在哪 | 弱在哪 | 付費 | 證據 |
+|---|---|---|---|---|
+| **Hugging Face**（個人 repo 與合集，例 `chaye741/RVC-Voice-Models`、`maotianchen/maobailing_rvc`） | 權重直鏈、可看 commit 歷史；部分作者附推論參數 | 品質參差、多數沒有試聽與授權說明 | 免費 | C〔各 repo 頁面〕 |
+| **voice-models.com／v2.voice-models.com** | 有活躍榜、epoch 數、部分試聽與 NISQA 分；權重多指回 HF | 目錄站，不保證檔案還在 | 免費 | B〔第 2 輪已核對〕 |
+| **weights.gg** | 社群最大的線上目錄之一 | 本輪沒有核對到可直接下載的中文女聲；常需登入 | 免費（有付費功能） | D |
+| **AI Hub（aihub.gg 文件＋Discord）** | 社群知識庫最完整（推論參數、訓練、dataset、artifacting 說明） | 模型本身多散在 Discord 與 HF | 免費 | C〔docs.aihub.gg〕 |
+| **妙音变声（miaoyin.store）** | 宣稱 842 款中文音色、48k、自研 RVC 預訓練底模；教學文章寫得最實際 | **付費會員制**，本輪不評估、不下載；教學內容可參考 | **付費** | C〔官網自述〕 |
+| **Beatrice 聲線（`Project-Beatrice-V2/Beatrice-voice-models`、`wok000/vcclient_model`）** | VCClient 可直接匯入 `beatrice_paraphernalia_*` 格式 | 不是 RVC 格式，接不進現有 `rvc_runtime.py` | 免費 | C〔GitHub／HF〕 |
+
+### 3.2 判斷社群 RVC 女聲模型「穩不穩」的指標
+
+| 指標 | 為什麼重要 | 證據 |
+|---|---|---|
+| 訓練預訓練底模（TITAN、Ov2 Super、KLM 系列） | TITAN 被描述為對口音與噪音較穩、需要的 epoch 較少；Ov2 Super 適合乾淨小資料、明亮聲音；KLM 偏韓日與歌聲 | C〔`blaise-tk/TITAN`、`Anonlestia/RVC_pre-train` 說明〕、D〔AI Hub training docs〕 |
+| 取樣率（40k／48k） | 48k 高頻較完整，但過 Discord Opus 後差距會縮小 | D（推論） |
+| 是否附 `.index` | 沒有 index 時 index rate 要設 0；現行 `rvc_runtime.py` 要求 `.pth`＋`.index` 都已登錄 | A〔第 2 輪 §2.1〕 |
+| 作者是否附推論參數 | 例：maobailing 建議 rmvpe、index 0.6、rms mix 0.5、protect 0.4、女聲音高 +0～+2 | C〔HF model card〕 |
+| 訓練資料是「說話」還是「唱歌」 | 歌聲模型說話時常有奇怪的拉長與顫音；直播用說話資料訓練的較自然 | D〔xportstudio：用實際用途的素材測試〕 |
+| 資料乾淨度 | 有殘響或背景音樂的資料會讓 index 帶噪音、齒音刺耳 | C〔AI Hub dataset／artifacting docs〕 |
+
+### 3.3 本維度最強的 1–2 個選項
+
+| 選項 | 強在哪 | 弱在哪 | 證據 |
+|---|---|---|---|
+| **先用本機已有的三個（Sage、ChineseBluetooth_F、EGirl_F）做「過 Discord 後」的盲聽**，再決定要不要下載第 2 輪的 maobailing_rvc | 已在 PC2 能跑、延遲已量；不需新下載 | 只有 3 個樣本，可能都不是最佳 | A〔PC2 已量 Sage〕 |
+| **maobailing_rvc**（中文女聲、40k、作者附完整推論參數） | 中文說明最完整，參數可直接當起點 | 單一作者，社群評價少 | C〔HF〕 |
+
+---
+
+## 4. 維度四：直播 TTS 的加速與其他串流 TTS
+
+### 4.1 本機已量（A 級，PC1 RTX 5060 Ti 16GB 獨占）
+
+見 `exp/live-tts-bench` 的 `docs/reference/research/2026-11-20-live-tts-acceleration.md`（`255c12a`、腳本 `7eba880`）。摘要：GSV-TTS-Lite 首包 87–128 ms、RTF 0.10–0.13、VRAM 0.58 GiB；VoxCPM2 6 步首包 101–127 ms、RTF 0.76–0.78、5.5 GiB；CosyVoice2（WSL）首包 4.4–7.1 s；Qwen3-TTS 開源版非串流 6.1–24.2 s。
+
+### 4.2 加速方式：社群與官方數字
+
+| 引擎 | 加速方式 | 首包 | RTF | VRAM | 硬體 | Windows 可行性 | 證據 |
+|---|---|---|---|---|---|---|---|
+| GPT-SoVITS | **GSV-TTS-Lite**（CUDA Graph、巢狀 KV cache、continuous batching） | 150 ms（無 FA）／133 ms（FlashAttention） | 0.125／0.108 | 0.8 GB | RTX 3050 Laptop | pip 可裝；FA 需 Windows 預編 wheel | C〔README〕；A〔本機 87–128 ms〕 |
+| GPT-SoVITS | **Aqua-TTS**（Graph＋SDPA／FA2） | p50 短句 86–101 ms、中句 128–169 ms、長句 203–284 ms | — | — | RTX 4070 Ti SUPER（USB4）、Windows | 作者就是 Windows 量的 | C〔README，360 次量測，作者自測〕 |
+| GPT-SoVITS | GPT-SoVITS-cpp TensorRT 串流 | 0.46 s | 0.12 | 2.3 GB | RTX 2080 Ti | C++ 專案、要自建 engine | C〔README〕 |
+| GPT-SoVITS | minimal_inference ONNX 串流／TRT | 1.0 s／2.0 s | 0.31／0.21 | 4.5／3.4 GB | RTX 2080 Ti | — | C〔README〕 |
+| GPT-SoVITS | TRT 轉換踩雷 | 首段 4.6 s、短句音色怪 | 1.24 | — | Jetson 8G | 作者回覆「精度崩了」 | D〔minimal_inference issue #6〕 |
+| GPT-SoVITS | 原版 API streaming_mode 1／3 | Mode 1 首次播放 1.1–1.37 s；Mode 3 0.79–0.88 s 但長句音質劣化 | — | — | RTX 4070 | 官方 API | B〔hodaru 部落格，29 次實機請求〕 |
+| VoxCPM2 | **Nano-vLLM-VoxCPM v2.0.5** | 單併發 TTFB p50 36 ms（短）／43 ms（長） | 0.086／0.10 | 會多約 2.5 GB CUDA graph | RTX 4090 | **需 flash-attn**，Windows 要自備 wheel；依賴 `triton-windows<3.5`；不支援 Windows 多卡 | C〔PyPI 頁，作者量測〕 |
+| VoxCPM2 | 官方 PyTorch | — | 約 0.30 | 約 8 GB | RTX 4090 | 已裝 | C〔README〕；A〔本機 t10 RTF 1.10–1.15、t6 0.76–0.78〕 |
+| VoxCPM2 | vLLM-Omni | — | — | — | Linux | vLLM 不支援原生 Windows → 要 WSL／Docker | C〔README〕、D〔推論〕 |
+| CosyVoice2 | **TensorRT-LLM＋Triton（官方 runtime）** | 單併發 185 ms（spk cache）／218 ms | 0.12 | — | L20 | Linux／Docker | C〔runtime README〕 |
+| CosyVoice2 | 同上，社群 | 單併發 p50 335 ms；併發 4 時 P99 1.47 s | 0.11 | — | RTX 4090 | Linux | B〔issue #1835〕 |
+| CosyVoice2 | 同上，社群 | 單併發約 160 ms | — | — | H100 | Linux | B〔issue #1806〕 |
+| CosyVoice2 | 原版 `load_jit`／`load_trt`／`fp16` | TRT plan 要對 GPU 重建；fp16 本機反而更慢 | — | — | — | Windows 可，但要 TensorRT 與 ORT CUDA | C〔cosyvoice.py〕、A〔fp16 5.1–9.2 s〕 |
+| Qwen3-TTS | vLLM-Omni 串流（async chunk＋CUDA Graph） | TTFP 64 ms（未優化 733 ms） | — | — | H200 | Linux | C〔vLLM-Omni 設計文件、PR #1438／#1583〕 |
+| Fish S2 Pro | audio.cpp GGUF Q4_K | 0.14–0.31 s | 中位數 1.00 | 7.0 GB | **RTX 5060 Ti 16GB、Windows 11** | 可，要 VS Build Tools 自編 | B〔andreaabcj-cmd 實測〕 |
+| Fish S2 Pro | 串流程式 | 380 ms | — | — | RTX 5090 | — | B〔r/LocalLLaMA〕 |
+| Fish S2 Pro | vLLM-Omni | 約 100 ms | — | — | RTX PRO 6000 | Linux | C〔fish-s2-rtx〕 |
+| IndexTTS2 | Faster IndexTTS-2 串流 | 中文 396 ms（1 秒 chunk）／596 ms（2 秒） | — | — | GPU | — | C〔arXiv 2607.21042〕 |
+| IndexTTS2 | index-tts-vllm | 約 365 ms（暖 speaker cache） | — | — | RTX 4090 | vLLM → Linux | C〔repo 說明，搜尋摘要〕 |
+| Spark-TTS | TensorRT-LLM＋Triton | p50 210 ms（單併發） | — | — | L20 | Linux | C〔runtime README、NVIDIA 技術部落格〕 |
+| F5-TTS | 串流 | 使用者回報首包太長、RTF > 1 | > 1 | — | — | — | D〔issue #1225〕 |
+
+**中文品質旁證**（只作參考，來源是彙整資料集，不是本機聽評）：IndexTTS2 中文 CER 1.04%、相似度 0.765；CosyVoice2 1.29%／0.751；F5-TTS 1.64%／0.760；Spark-TTS 1.58%／0.659。〔D，`qwer-asdfzxcv/tts-baselines_opensource` 彙整〕
+
+**關鍵發現：**
+- 「首包 < 150 ms 而且 RTF 遠低於 1」在 Windows 原生能做到的，目前只有 **GPT-SoVITS 加速系（GSV-TTS-Lite、Aqua-TTS）**〔A＋C〕。其他引擎的漂亮數字幾乎都來自 **Linux＋vLLM／TensorRT-LLM＋資料中心卡**〔C〕。
+- VoxCPM2 是唯一一個「Windows 有路」的 vLLM 系加速（Nano-vLLM-VoxCPM 明寫支援 Windows，但 flash-attn 要自己裝）〔C〕。這和 Johnny 16:21 核准的 triton-windows 實驗方向一致。
+- CosyVoice2 要快就得離開 WSL 原版、改走 Triton＋TRT-LLM（Docker）。這屬於系統層變更（Docker／WSL 設定），依 13:10 規則應交 PC 管家 Bot。〔D〕
+
+### 4.3 本維度最強的 1–2 個選項
+
+| 選項 | 強在哪 | 弱在哪 | 證據 |
+|---|---|---|---|
+| **GSV-TTS-Lite 主線＋FlashAttention（Windows wheel，只裝實驗 venv）** | 本機已是最快；FA 在作者數字裡再省約 11% 首包與 RTF | 長句尾段截斷仍待修〔A〕；FA wheel 要對上 torch／CUDA 版本 | A、C |
+| **VoxCPM2＋Nano-vLLM-VoxCPM** | 作者數字 RTF 降到約 0.09、TTFB 約 40 ms；口齒本機最清楚〔A〕 | 需 flash-attn＋triton-windows；多 2.5 GB VRAM；和 RVC 同卡時要確認不擠爆 16 GB | C、A |
+
+---
+
+## 5. 維度五：變聲與 TTS 怎麼保持同一個人
+
+| 做法 | 強在哪 | 弱在哪 | 延遲成本 | 證據 |
+|---|---|---|---|---|
+| **(a) 用 RVC 女聲的輸出當 TTS 參考音**（zero-shot 克隆） | 只多一次離線準備；本機已做：VoxCPM2 念一段 → RVC Sage → 9 秒參考音，GSV-TTS-Lite 首包 87–128 ms、短句 CER 0 | 音色相似度受 zero-shot 天花板限制；參考音太短（約 3 秒）會吃字 | 0（離線） | A〔`exp/live-tts-bench` a837289／255c12a〕 |
+| **(b) TTS 輸出再即時過同一個 RVC** | 音色由同一個 RVC 決定，最一致；GPT-SoVITS 社群用 RVC 壓 v3 電音並恢復音質 | 兩次轉換可能疊加破綻；同一張卡同時跑 TTS＋RVC | 約一個 RVC chunk＋運算（推論約 80–130 ms，依 2.1 的 RVC 數字） | B〔GPT-SoVITS issue #2246〕、C〔JarodMica/rvc-tts-pipeline〕、D〔延遲為推論〕 |
+| **(c) 兩者都做**：(a) 產參考音，(b) 再把輸出過 RVC | 社群建議「GPT-SoVITS 與 RVC 用同一份乾淨資料」時最一致 | 我們不自己訓練（Johnny 13:47），只能做到 (a)＋(b) 的近似 | 同 (b) | C〔GPT-SoVITS issue #634：克隆音色跟著參考音走〕 |
+
+**關鍵發現：**
+- GPT-SoVITS 的克隆音色主要跟著**參考音**走（issue #634 的回答）〔C〕。所以 (a) 的品質上限就是那段 RVC 參考音的品質；參考音要選**乾淨、9 秒以上、語調自然**的一段〔A：3 秒會吃字〕。
+- (b) 的延遲可以預估但還沒量：GSV 首包約 0.1 s＋RVC 一個 chunk 約 0.1 s，打字到出聲約 0.2–0.25 s，仍在直播可接受範圍〔D，推論〕。但麥克風 VC 與 TTS→VC 是否要共用同一個 RVC 實例、會不會互搶 GPU，需要實驗。〔D〕
+
+最強選項：**(a) 已可用（A 級）；(b) 列為實驗 E7，若 Johnny 盲聽覺得 (a) 的音色和變聲差太多才上。**
+
+---
+
+## 6. 維度六：Discord／OBS 直播的音訊路由與音質設定
+
+| 設定 | 建議 | 理由 | 證據 |
+|---|---|---|---|
+| Discord 輸入裝置 | 選 Voicemeeter／CABLE 的虛擬輸出 | 既有路由 | A〔`audio-rack/routing/seed-vc-virtual-route.json`〕 |
+| Discord 雜訊抑制（Krisp） | **關閉（None）** | 會把變聲當噪音處理、切字頭、發悶 | B／C〔Soundpad FAQ、VoxBooster、Resound help〕 |
+| Discord 回音消除、自動增益 | **關閉** | 二次處理＝發悶＋電音；AGC 會壓平動態 | D〔miaoyin 第 8 條〕、C〔Soundpad FAQ〕 |
+| Discord 輸入模式 | 用 Push-to-Talk 或手動調低語音偵測門檻 | 自動語音偵測可能切掉轉換後較輕的字頭與氣音 | D（推論，未找到量測） |
+| Discord 頻道位元率 | 預設 64 kbps；Boost Lv1／2／3 可到 128／256／384 kbps | 低位元率會抹掉高頻；聽評要用實際位元率 | C〔Discord 官方 FAQ〕 |
+| 取樣率 | 全鏈 48 kHz 一致（Discord／Opus 原生 48 kHz） | 每次重採樣都多一點延遲與失真；VCClient 要求所有裝置同取樣率 | C〔DeepWiki w-okada 音訊設定〕、A〔現行 48 kHz〕 |
+| OBS | 變聲後的聲音用「監聽並輸出」送到虛擬線，或直接擷取 Voicemeeter 匯流排；OBS 的濾鏡（壓縮、EQ）只在 OBS 那條，不要和 Voicemeeter 重複 | 避免同一段處理做兩次 | C〔techtactician、Bossett Wiki〕 |
+| 自己監聽 | 監聽要聽「過 Discord 前」的訊號，但聽評要錄「過 Discord 後」的訊號 | 兩者音質不同 | D（推論） |
+
+最強選項：**「Discord 三個開關全關＋全鏈 48 kHz＋用實際頻道位元率錄聽評樣本」**，這是零成本、社群最一致的建議。〔B／C〕
+
+---
+
+## 7. 建議納入規範／值得採用（待 Johnny 確認）
+
+本節只是提案，**本輪沒有改任何正式文件**。每項要 Johnny 同意後，再由 AetherTune Bot 在分支上改對應文件。
+
+| # | 建議內容 | 理由 | 證據等級 | 預計併入的正式文件 |
+|---|---|---|---|---|
+| R1 | 延遲數字只認「聲學量測」（錄音比對）；引擎 trace、GUI 顯示的 `res`／`buf` 一律標 partial | 本機 trace 比聲學少 90–240 ms；VCClient GUI 130 ms 實測 622 ms | A＋B | `docs/specs/verification-plan.md`（效能 baseline 與改善判定）、`docs/specs/live-gate.md`（測量欄位） |
+| R2 | 延遲報告固定拆成「引擎淨延遲」與「路由延遲」兩欄，並記錄每一跳的緩衝設定 | 路由佔 120–130 ms，是目前最大可壓項 | A＋C | `docs/specs/live-gate.md`（測量欄位） |
+| R3 | 在 LIVE_GATE 之外，另訂「直播目標」等級：完整鏈路 p50 ≤ 300 ms（Johnny 目標 100–300 ms）；現行 `LIVE` 門檻 ≤ 5000 ms 只是可用下限 | 現行規範把 5 秒當 LIVE，和產品目標差一個量級 | A（規範現況） | `docs/specs/live-gate.md`、`docs/reference/decision-log.md` |
+| R4 | LIVE_GATE「研究優先級」把 RVC＋FCPE 從 `historical-baseline` 改回主線候選 | PC2 實測 RVC 是唯一進目標的引擎（淨 p50 102.5 ms），Seed-VC 533 ms、MeanVC2 478 ms 且不穩 | A | `docs/specs/live-gate.md`（研究優先級）、`docs/reference/decision-log.md` |
+| R5 | 聽評樣本一律錄「過 Discord（實際位元率）之後」的版本，另附過 Discord 前的版本 | Opus 64 kbps 會改變破綻是否被聽見 | C＋D | `docs/specs/verification-plan.md`、`docs/specs/live-gate.md`（human_review） |
+| R6 | 操作指南加「Discord 三個開關全關、全鏈 48 kHz、PTT」與「男轉女說話方式」段落 | 社群最一致的零成本建議 | B／C／D | `docs/guides/operation-guide.md`、`docs/guides/user-guide.md` |
+| R7 | RVC 參數矩陣加入 `formant`（上游已有、目前寫死 0.0），與 `pitch`、`index_rate`、`f0_method` 一起掃；標明 protect／RMS mix 在即時路徑不存在 | 共振峰是社群點名的第二大破綻；不需新依賴 | A＋C＋D | `docs/reference/parameter-matrix-template.csv`、`contracts/engines/rvc.json`、`docs/specs/voice-conversion-architecture.md` |
+| R8 | 直播 TTS 研究只把「Windows 原生可跑」與「需 Linux／WSL／Docker」分兩欄報告；後者屬系統層，交 PC 管家 Bot | 加速數字大多來自 Linux＋資料中心卡，混在一起會誤判 | C | `docs/specs/live-gate.md`（Speech Reconstruction）或新的直播 TTS 驗證報告 |
+| R9 | TTS 參考音規範：同人參考音至少 9 秒、附逐字稿、由 RVC 女聲轉出，記錄 hash | 3 秒參考音會吃字；克隆音色跟著參考音走 | A＋C | `docs/verification/desktop/manual-tts-verification-latest.md`、`docs/specs/verification-plan.md` |
+
+---
+
+## 8. 可以在本機驗證的實驗清單
+
+每項都只在 `exp/<主題>` 分支或實驗 venv；用 GPU 前先登記該機 `D:\BotOps\locks.md`，量完刪除。
+
+| ID | 實驗 | 機器／GPU | 需要新依賴？ | 怎樣算成功 | 對應維度 |
+|---|---|---|---|---|---|
+| E1 | `rvc_runtime.py` 把 formant 從 0.0 改成參數；掃 formant {0, +0.5, +1, +1.5, +2} × 音高 {+10, +12}，三個女聲各錄一段「過 Discord 前／後」樣本 | PC2 或 PC1；GPU | 否 | 延遲不增加超過 5 ms；Johnny 盲聽選得出偏好 | 1 |
+| E2 | index_rate {0, 0.3, 0.5, 0.75}（現行預設 0.75），量延遲、RTF 與聽感變化（protect 在即時路徑不存在，不掃） | 同上 | 否 | 找出「延遲不變、聽感最好」的組合 | 1、2 |
+| E3 | f0 方法 fcpe vs rmvpe，在同一組 chunk 下量延遲與破音次數（含笑聲、長 s、氣音句） | 同上 | 否 | 列出兩者的延遲差與破音差 | 1 |
+| E4 | 路由逐跳量測：引擎→CABLE、CABLE→Light Host、Light Host→Voicemeeter、Voicemeeter→B1，各自用 loopback 錄音量 | PC2 或 PC1；不需 GPU（可用 passthrough） | 否 | 找出 120–130 ms 裡最大的一跳 | 2 |
+| E5 | 縮緩衝：VB-CABLE 最大緩衝降到 ≤ 2048、Voicemeeter A1 改低延遲驅動、引擎端 WASAPI 低延遲；或砍掉 Light Host 一跳 | 同上 | 否（不裝新驅動，只改既有設定；系統層設定交 PC 管家） | 路由延遲 ≤ 60 ms 且 600 秒無 underrun | 2 |
+| E6 | RVC chunk 64 ms／crossfade 16 ms 再試一輪（目前最佳 80／20；contract 最小 chunk 是 80，要在 exp 分支放寬） | PC1（5060 Ti 比 2060 快） | 否 | 淨 p50 ≤ 90 ms 且無 underrun；否則確認 80 ms 是下限 | 2 |
+| E7 | TTS→RVC：GSV-TTS-Lite 串流輸出接 RVC Sage 即時轉換，量打字到出聲延遲、和麥克風變聲同時跑時的 GPU 佔用 | PC1；GPU | 否 | 打字到出聲 ≤ 300 ms；與 (a) 做盲聽 | 4、5 |
+| E8 | GSV-TTS-Lite＋FlashAttention（Windows wheel，只裝實驗 venv） | PC1；GPU | **是**（flash-attn wheel；屬 Johnny 16:21 核准的「加速套件只裝實驗環境」範圍，但仍先寫完成標準） | 首包與 RTF 比不加速好 ≥ 10% | 4 |
+| E9 | VoxCPM2＋Nano-vLLM-VoxCPM（需 flash-attn、triton-windows<3.5） | PC1；GPU | **是**（同上範圍） | RTF ≤ 0.3、首包 ≤ 150 ms、VRAM 與 RVC 同時跑不爆 | 4 |
+| E10 | Discord 設定 A/B：Krisp／回音消除／AGC 開 vs 關，64 vs 128 kbps，各錄一段 | 任何一台；不需 GPU（要 Discord 測試頻道） | 否 | 錄音頻譜與盲聽可分辨 | 6 |
+| E11 | Fish S2 Pro Q4_K（audio.cpp）在 PC1 重現社群數字 | PC1；GPU | **是**（要編譯 audio.cpp，需 VS Build Tools，屬系統層 → 先問 Johnny／交 PC 管家） | 重現 0.14–0.31 s 首包；若 RTF≈1 則確認不適合 | 4 |
+
+---
+
+## 9. 哪些維度還不夠深
+
+| 維度 | 缺什麼 | 下一步 |
+|---|---|---|
+| 1 自然度 | 沒有一篇有**盲聽量測**的「男轉女 RVC 被識破率」研究；大部分是教學與經驗（D） | 本機 E1–E3 自己做盲聽；Bilibili／YouTube 影片的實際試聽本輪沒有逐支看 |
+| 2 延遲 | 沒有找到 Voicemeeter＋Light Host 這條路由的獨立量測；VB-CABLE 手冊 PDF 沒有完整讀 | E4 逐跳量測 |
+| 3 模型 | weights.gg 與 AI Hub Discord 需要登入，本輪沒有實際核對中文女聲；沒有任何模型的獨立聽評分數 | 做 E1 時順便比較三個本機模型＋maobailing |
+| 4 TTS | 大多數加速數字是作者在 Linux／資料中心卡量的（C）；Windows＋5060 Ti 只有 Fish 一筆（B） | E8、E9、E11 |
+| 5 同人音色 | (b) 的延遲與疊加破綻完全沒有量測 | E7 |
+| 6 Discord／OBS | Discord 內部的音訊處理鏈（Opus 參數、Go Live 音訊）沒有官方技術文件可查 | E10 |
+
+---
+
+## 10. 來源清單
+
+**自然度與參數**
+- https://miaoyin.store/110137.html 、https://miaoyin.store/110248.html 、https://miaoyin.store/110249.html （付費商店的免費教學）
+- https://xportstudio.com/blog/best-rvc-settings
+- https://sameralqaisi.me/voice-generation/techniques-and-tools/rvc-and-real-time-voice-changing/
+- https://docs.aihub.gg/rvc/resources/inference-settings/ 、https://docs.aihub.gg/rvc/resources/dataset-isolation/ 、https://ai-hub-docs.vercel.app/rvc/resources/artifacting/ 、https://docs.aihub.gg/rvc/resources/training/
+- https://deepwiki.com/fumiama/Retrieval-based-Voice-Conversion-WebUI/4.5-inference-parameters-reference
+- https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/infer/rtrvc.py 、https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/realtime_gui.py
+- https://deepwiki.com/IAHispano/Applio/5.4-post-processing-effects 、https://docs.applio.org/reference/cli/
+- https://arxiv.org/html/2509.15140 （FCPE）、https://github.com/lars76/pitch-benchmark
+- https://github.com/m96-chan/babiniku.rs/issues/48
+- https://aivoicedetector.com/blog/how-to-tell-if-someone-is-using-a-voice-changer
+- https://github.com/sioaeko/OpenVoiceChanger
+- https://www.reddit.com/r/TransVoicechangers/comments/1eldh6h/every_time_i_use_a_voice_changer_people_clock_me/
+- https://note.com/uunin/n/n085e2f748f3b 、https://note.com/shellbe/n/ne47f7a2ed997
+
+**延遲**
+- https://zenn.dev/gokrack/articles/621a2872fd9ccd
+- https://blog.natade.net/2024/07/27/vrchat-ai-rvc-voice-changer/
+- https://cg202.exblog.jp/34026650/
+- https://github.com/w-okada/voice-changer/blob/master/tutorials/tutorial_rvc_en_latest.md 、https://github.com/w-okada/voice-changer/issues/1525 、https://github.com/w-okada/voice-changer/issues/1305 、https://deepwiki.com/w-okada/voice-changer/6-audio-device-configuration
+- https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/docs/en/README.en.md 、https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/issues/1283 、https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/RVCRealtimeVST/README.en.md
+- https://github.com/IAHispano/Applio/pull/1245
+- https://aivoices.gg/learn/rvc-live-conversion-benchmark
+- https://forum.vb-audio.com/viewtopic.php?t=600 、https://vb-audio.com/Cable/VBCABLE_ReferenceManual.pdf 、https://vb-audio.com/Voicemeeter/Voicemeeter_UserManual.pdf
+- https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudioclient3-initializesharedaudiostream 、https://learn.microsoft.com/en-us/windows-hardware/drivers/audio/low-latency-audio
+
+**模型來源**
+- https://huggingface.co/maotianchen/maobailing_rvc 、https://huggingface.co/chaye741/RVC-Voice-Models 、https://v2.voice-models.com/model/a2Y 、https://v2.voice-models.com/model/1w6EMKUoZSo
+- https://huggingface.co/blaise-tk/TITAN 、https://huggingface.co/Anonlestia/RVC_pre-train 、https://huggingface.co/SeoulStreamingStation/RVC_KLM-X-10_Pretrained-Model
+- https://github.com/Project-Beatrice-V2/Beatrice-voice-models 、https://huggingface.co/wok000/vcclient_model
+
+**直播 TTS**
+- https://github.com/chinokikiss/GSV-TTS-Lite 、https://github.com/Lucas1479/Aqua-TTS 、https://github.com/GPT-SoVITS-Devel/GPT-SoVITS-cpp 、https://github.com/GPT-SoVITS-Devel/GPT-SoVITS_minimal_inference 、https://github.com/GPT-SoVITS-Devel/GPT-SoVITS_minimal_inference/issues/6
+- https://blog.hodaru.com/posts/project/bettergi-questvoice/systems/gpt-sovits-streaming-pipeline/
+- https://github.com/OpenBMB/VoxCPM 、https://pypi.org/project/nano-vllm-voxcpm/ 、https://github.com/a710128/nanovllm-voxcpm
+- https://github.com/funaudiollm/cosyvoice/blob/main/runtime/triton_trtllm/README.Cosyvoice2.Unet.md 、https://github.com/FunAudioLLM/CosyVoice/issues/1835 、https://github.com/FunAudioLLM/CosyVoice/issues/1806 、https://github.com/FunAudioLLM/CosyVoice/blob/main/cosyvoice/cli/cosyvoice.py
+- https://github.com/vllm-project/vllm-omni/blob/10906e3a/docs/design/qwen3_omni_tts_performance_optimization.md 、https://github.com/vllm-project/vllm-omni/pull/1438 、https://github.com/vllm-project/vllm-omni/pull/1583
+- https://github.com/andreaabcj-cmd/fish-audio-s2-pro-realtime-local-tts 、https://www.reddit.com/r/LocalLLaMA/comments/1ru77ua/fishspeech_s2_pro_streaming_code_380ms_ttfa/ 、https://github.com/Genesis1231/fish-s2-rtx
+- https://arxiv.org/abs/2607.21042 、https://github.com/yangohuang/index-tts-vllm
+- https://github.com/SparkAudio/Spark-TTS/blob/main/runtime/triton_trtllm/README.md 、https://developer.nvidia.cn/blog/nvidia-triton-tensorrt-llm-tts-app/
+- https://github.com/SWivid/F5-TTS/issues/1225
+- https://huggingface.co/datasets/qwer-asdfzxcv/tts-baselines_opensource
+
+**同人音色**
+- https://github.com/RVC-Boss/GPT-SoVITS/issues/2246 、https://github.com/RVC-Boss/GPT-SoVITS/issues/634 、https://github.com/JarodMica/rvc-tts-pipeline/
+
+**Discord／OBS**
+- https://support.discord.com/hc/en-us/articles/11635925354775-Audio-Bitrate-FAQ
+- https://www.leppsoft.com/soundpad/en/help/faq/voice-discord 、https://getresound.app/help/discord 、https://voxbooster.com/blog/voice-changer-discord-krisp-conflict/
+- https://techtactician.com/how-to-use-obs-audio-with-discord-quick-tutorial/ 、https://wiki.bossett.io/books/general/page/using-obs-for-audio-processing-in-discord-and-streaming
