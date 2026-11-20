@@ -205,6 +205,83 @@ def _dry_run(args, analysis) -> int:
     return 0
 
 
+def _build_speech_train(args):
+    """speech 訊號：取參考語音能量最高的一段，以固定間隔重複。
+
+    以內容為主的引擎（MeanVC2、RVC）會把 chirp／click 這類非語音脈衝轉成近乎靜音，
+    脈衝互相關量不到；語音片段經轉換後音節包絡時間仍保留，可用包絡互相關估延遲。
+    """
+    import numpy as np
+    import soundfile as sf
+
+    sr = args.sample_rate
+    audio, rate = sf.read(str(args.speech_wav), dtype="float32", always_2d=True)
+    mono = audio.mean(axis=1)
+    if rate != sr:
+        positions = np.arange(int(len(mono) * sr / rate)) * (rate / sr)
+        mono = np.interp(positions, np.arange(len(mono)), mono).astype(np.float32)
+    n = int(round(sr * args.speech_ms / 1000.0))
+    hop = sr // 100
+    energy = np.convolve(mono.astype(np.float64) ** 2, np.ones(n), "valid")[::hop]
+    start = int(np.argmax(energy)) * hop
+    snippet = mono[start:start + n].astype(np.float32).copy()
+    snippet *= 0.5 / max(1e-6, float(np.abs(snippet).max()))
+    fade = sr // 200
+    ramp = np.linspace(0.0, 1.0, fade, dtype=np.float32)
+    snippet[:fade] *= ramp
+    snippet[-fade:] *= ramp[::-1]
+    interval = int(round(sr * args.interval_ms / 1000.0))
+    first = int(round(sr * 0.05))
+    onsets = [first + k * interval for k in range(args.pulses)]
+    total = onsets[-1] + n + int(round(sr * 0.2))
+    ref = np.zeros(total, dtype=np.float32)
+    for onset in onsets:
+        ref[onset:onset + n] = snippet
+    return ref.tolist(), onsets, snippet.tolist(), n
+
+
+def _estimate_speech_delays(recorded, onsets, template, sr: int, max_delay_ms: float, threshold: float = 0.5):
+    """對數 RMS 包絡（10 ms 窗、5 ms hop）正規化互相關；解析度 5 ms。"""
+    import numpy as np
+
+    hop = sr // 200
+    win = sr // 100
+
+    def envelope(x):
+        x = np.asarray(x, dtype=np.float64)
+        if len(x) < win:
+            return np.zeros(0)
+        csum = np.concatenate([[0.0], np.cumsum(x * x)])
+        starts = np.arange(0, len(x) - win + 1, hop)
+        rms = np.sqrt((csum[starts + win] - csum[starts]) / win)
+        return np.log(rms + 1e-4)
+
+    tpl = envelope(template)
+    a = (tpl - tpl.mean()) / (tpl.std() + 1e-9)
+    span = len(template) + int(round(sr * max_delay_ms / 1000.0))
+    rec = np.asarray(recorded, dtype=np.float64)
+    out = []
+    for index, onset in enumerate(onsets):
+        env = envelope(rec[onset:onset + span])
+        best, lag = -1.0, 0
+        for shift in range(0, len(env) - len(tpl) + 1):
+            b = env[shift:shift + len(tpl)]
+            s = b.std()
+            if s < 1e-9:
+                continue
+            c = float(np.dot(a, (b - b.mean()) / s) / len(tpl))
+            if c > best:
+                best, lag = c, shift
+        entry = {"pulse_index": index, "onset_sample": onset, "confidence": best, "method": "speech_envelope_xcorr_5ms"}
+        if best >= threshold:
+            entry["delay_ms"] = lag * hop * 1000.0 / sr
+            entry["delay_samples"] = lag * hop
+        else:
+            entry["missing"] = True
+        out.append(entry)
+    return out
+
+
 def _run_capture(args, analysis) -> int:
     if not args.input_device or not args.output_device:
         raise ValueError("--input-device and --output-device are required for capture (omit --dry-run)")
@@ -221,12 +298,15 @@ def _run_capture(args, analysis) -> int:
 
     out_dir = args.out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    ref, onsets, template, pulse_len = analysis.build_pulse_train(
-        args.signal,
-        args.sample_rate,
-        pulse_count=args.pulses,
-        interval_ms=args.interval_ms,
-    )
+    if args.signal == "speech":
+        ref, onsets, template, pulse_len = _build_speech_train(args)
+    else:
+        ref, onsets, template, pulse_len = analysis.build_pulse_train(
+            args.signal,
+            args.sample_rate,
+            pulse_count=args.pulses,
+            interval_ms=args.interval_ms,
+        )
     _validate_timing(args, pulse_len)
     duration = (len(ref) + args.sample_rate) / args.sample_rate
     hostapi_index = None
@@ -245,7 +325,9 @@ def _run_capture(args, analysis) -> int:
         if extra == (None, None):
             extra = None
 
-    playback = np.asarray(ref, dtype=np.float32)
+    # 播放後補 max_delay + 一個脈衝長度的靜音，否則最後一個脈衝的延遲回應會被錄音長度截掉。
+    tail = np.zeros(int(round(args.sample_rate * args.max_delay_ms / 1000.0)) + pulse_len, dtype=np.float32)
+    playback = np.concatenate([np.asarray(ref, dtype=np.float32), tail])
     recorded = sd.playrec(
         playback,
         args.sample_rate,
@@ -268,7 +350,9 @@ def _run_capture(args, analysis) -> int:
     (out_dir / "pulses.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     mode = "loopback_baseline" if args.mode == "loopback" else "through_engine"
-    per_pulse = analysis.estimate_delays(
+    per_pulse = _estimate_speech_delays(
+        rec_mono, onsets, template, args.sample_rate, args.max_delay_ms
+    ) if args.signal == "speech" else analysis.estimate_delays(
         ref,
         rec_mono.tolist(),
         args.sample_rate,
@@ -322,7 +406,10 @@ def main() -> int:
     parser.add_argument("--pulses", type=int, default=8)
     parser.add_argument("--interval-ms", type=float, default=1000.0)
     parser.add_argument("--max-delay-ms", type=float, default=900.0)
-    parser.add_argument("--signal", choices=["click", "chirp"], default="chirp")
+    parser.add_argument("--signal", choices=["click", "chirp", "speech"], default="chirp")
+    parser.add_argument("--speech-wav", type=Path, default=ROOT / "dataset" / "reference-voices" / "voice-female-f1.wav",
+                        help="speech 訊號來源（只用於實機 capture）")
+    parser.add_argument("--speech-ms", type=float, default=400.0)
     parser.add_argument("--blocksize", type=int, default=0)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "artifacts" / "e2e-latency")
     parser.add_argument("--dry-run", action="store_true")

@@ -26,7 +26,7 @@ param(
     [string]$HostApi = 'Windows WASAPI',
     [string]$Request = '',
     [string]$Reference = '',
-    [ValidateSet('click', 'chirp')]
+    [ValidateSet('click', 'chirp', 'speech')]
     [string]$Signal = 'chirp',
     [int]$Pulses = 8,
     [double]$IntervalMs = 1000,
