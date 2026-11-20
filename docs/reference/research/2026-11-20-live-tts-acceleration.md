@@ -98,6 +98,7 @@
 - cosyvoice2-win venv 另補：wget 3.2、pyworld 0.3.5；tensorrt-cu12 10.13.3.9 安裝中（17:36 開始）
 - 新 venv `cosyvoice2-win`（uv CPython 3.12.11）：torch/torchaudio 2.7.1+cu128、onnxruntime-gpu 1.22.0、transformers 4.51.3、wetext 0.0.4、kaldifst 1.9.0（1.9.1 無 Windows 輪檔）、其餘照 CosyVoice requirements（matplotlib、pyworld 不鎖版）、wget 3.2
 - 權重：`D:\AetherTune-exp\tts-models\cosyvoice2` 是 `D:\AetherTune\models\speech-reconstruction\cosyvoice` 的本機複本（不含 .cache），JIT/TRT 產物只寫在複本。
+- 聽感對照（19:05）：cosyvoice2-win venv 加 `opencc==1.4.2`；新 venv `asr-sensevoice`（uv CPython 3.12）：`sherpa-onnx==2.0.2`、`opencc==1.4.2`、numpy、soundfile；SenseVoice int8 權重下載到 `D:\AetherTune-exp\tts-models\sensevoice-sherpa`（HF 公開，約 240 MB）。ffmpeg 用本機既有 Gyan 9.0.1（只執行，不改 PATH）。
 
 ## GPU 時段
 
@@ -108,6 +109,7 @@
 | 3 | 17:55:48（登記 17:55，距上次放鎖 10 分 13 秒） | 18:08:07 | **18:08:07**（AetherTune Bot 行數 0） | CosyVoice2 hop-fix、hop-fix+JIT+TRT+fp16。VSF 要用 GPU，這組跑完就放鎖，Qwen3 fp16 與虛擬麥順延 |
 | 4 | 18:30:43（登記 18:30，VSF 18:17 那行 18:25 標完成後；距上次放鎖 22 分） | 18:37:53 | **18:40:15**（AetherTune Bot 行數 0） | CosyVoice2 TRT+fp16+簡體、Qwen3 fp16（失敗）、GSV FA+zh-fix 虛擬麥 |
 | 5 | 18:57:42（登記 18:57，距上次放鎖 17 分） | 19:00:00 | **19:00:18**（AetherTune Bot 行數 0） | 虛擬麥 不加速 / FA 交錯重量各 2 輪 |
+| 6 | 19:10:40（登記 19:10，距上次放鎖 10 分 22 秒） | 19:17:00 | **19:17:13**（AetherTune Bot 行數 0） | 聽感對照樣本：GSV、VoxCPM2、CosyVoice2 各 6 句 |
 
 nvidia-smi 前後：`D:\AetherTune-exp\logs\live-tts\accel\nvsmi-*.txt`。
 
@@ -162,6 +164,34 @@ RTF 為 3 次的 p50，括號內是第 1 次（對應 VSF 只量 1 次）。首�
 
 檔案：`D:\AetherTune-exp\artifacts\live-tts-bench\vsf-align\voxcpm2-vsfalign-hifi-result.json`（每次的原始列與摘要）、`voxcpm2-vsfalign-hifi-t{10,6}-{zh1,zh2,en1,en2}-r{1,2,3}.wav`；nvidia-smi 在 `D:\AetherTune-exp\logs\live-tts\accel\nvsmi-vsfalign-{start,end}.txt`；log 在 `accel\vsfalign.out`。
 
+
+## 聽感對照樣本（自然度優先，2026-11-20 19:10–19:17）
+
+樣本與說明：`D:\AetherTune-exp\artifacts\listening\live-tts-zh-20261120\`（`MANIFEST.md`、`blind-opus64\`、`score-sheet.csv`、`metrics.csv`、`SHA256SUMS.txt`；對照表 `blind-key-DO-NOT-OPEN.csv` 另存，本文件不寫編號對應）。
+
+- 三個引擎：GSV-TTS-Lite 不加速 + zh-fix；VoxCPM2 6 步不 compile（ultimate：prompt+reference 同一檔，cfg 2.0，不降噪）；CosyVoice2 簡體 + hop-fix + JIT + TRT + fp16（zero-shot 聲線 ID）。
+- 參考音 rvc-sage-zh.wav 與逐字稿；句子 `tools/live-tts-bench/listening_zh_20261120.json`（6 句，短中長各 2，含囉／唷／吧、數字、英文「OK」）。數字由 `common.num_to_zh` 先轉中文字；CosyVoice2 的繁轉簡用 OpenCC t2s（opencc 1.4.2 只裝在 cosyvoice2-win 實驗 venv）。
+- 流程：`LIVE_TTS_SENTENCES` 指到句子檔時，`common.run_bench` 先用一句暖機（不存），之後每句只生成一次。執行腳本 `tools/live-tts-bench/run_listening_zh_20261120.ps1`；盲測組由 `tools/live-tts-bench/make_listening_set.py` 產生（SenseVoice、Opus 64k、隨機編號、對照表、評分表、SHA256）。
+- CER：SenseVoice Small（sherpa-onnx 2.0.2 int8，CPU 2 執行緒，新實驗 venv `asr-sensevoice`；權重是 HF 公開 repo csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17），參考與轉寫都 t2s 後比，簡繁算同字。語助詞異寫（唷→哟/哦、囉→喽/啰）和 OK 寫成「o k」「ok k」也算錯，只能粗看。
+
+首包 ms／RTF／CER（每句一次，不是中位數）：
+
+| 句 | GSV 不加速 + zh-fix | VoxCPM2 t6 | CosyVoice2 簡體 TRT fp16 |
+|---|---|---|---|
+| s1 短 | 156 / 0.16 / 0.13 | 131 / 0.79 / **0** | 1127 / 1.60 / 0.13 |
+| s2 短 | 133 / 0.13 / 0.09 | 146 / 0.79 / 0.09 | 1228 / 1.67 / 0.09 |
+| s3 中 | 139 / 0.11 / 0.08 | 189 / 0.90 / 0.08 | 1218 / 0.57 / 0.08 |
+| s4 中（含 OK） | **5593** / 0.92 / 0.08 | 122 / 0.81 / 0.04 | 1103 / 0.56 / 0.13 |
+| s5 長 | 102 / 0.11 / 0.05 | 128 / 0.89 / **0** | 1396 / 0.64 / **0** |
+| s6 長 | 131 / 0.11 / 0.04 | 121 / 0.91 / 0.04 | 1605 / 0.71 / 0.05 |
+| 載入 | 4.9 s | 83.4 s | 130.6 s（TRT plan 已存在，磁碟 0.5%） |
+| VRAM（torch 峰值） | 0.58 GiB | 5.5 GiB | 3.2 GiB |
+
+觀察（ASR 推論，**不是真人評聽**，自然度要等 Johnny 盲聽）：
+- 三者轉寫都沒有整段掉字或亂詞。GSV s5 開頭「今天大概」轉成「今天的派」、s1「好啦」→「好了」；VoxCPM2 s2「愛心唷」→「愛心肉」；CosyVoice2 s6「顆」→「克」。「集氣」三者都轉成「急氣」（同音）。
+- **GSV 第一次遇到英文字母時首包 5.6 s（證據 B）**：zh-fix 遇到英文就走原本語言偵測，第一次載入英文前端；暖機句沒有英文，所以算在 s4 上。直播常駐要用含英文的句子暖機。
+- CosyVoice2 短句 RTF > 1（1.6）：短句只有 1 塊，首塊固定成本約 1.1 s 佔大部分；長句 RTF 0.6–0.7。首包仍 1.1–1.6 s。
+- VoxCPM2 全部 RTF < 1（0.79–0.91），首包 120–190 ms。
 ## CosyVoice2 首包與錯字調查
 
 ### 首包 3–5 s：呼叫方式 / 上游狀態沒有重設（已修，證據 A）

@@ -9,7 +9,9 @@ from __future__ import annotations
 import datetime as _dt
 import hashlib
 import json
+import os
 import platform
+import re
 import statistics
 import subprocess
 import threading
@@ -37,7 +39,60 @@ T2S = {t: s_ for k in SENTENCES for t, s_ in zip(SENTENCES[k], SENTENCES_ZHS[k])
 
 
 def use_simplified():
+    global WARMUP_TEXT
+    if LISTEN:  # 聽感對照句：用 OpenCC t2s 整句轉（只裝在 CosyVoice2 實驗 venv）
+        import opencc  # noqa: PLC0415
+        cc = opencc.OpenCC("t2s")
+        for k in SENTENCES:
+            SENTENCES[k] = cc.convert(SENTENCES[k])
+        WARMUP_TEXT = cc.convert(WARMUP_TEXT)
+        return
     SENTENCES.update(SENTENCES_ZHS)
+
+
+# 聽感對照模式（環境變數 LIVE_TTS_SENTENCES 指到 JSON：[{"id": "s1", "text": "..."}]）：
+# 數字先轉中文字；開頭用 WARMUP_TEXT 暖機一次（不存檔），之後每句只生成一次。
+LISTEN = False
+LISTEN_RAW: dict[str, str] = {}
+WARMUP_TEXT = "大家好，歡迎來到直播間。"
+_ZH_DIGIT = "零一二三四五六七八九"
+
+
+def int_to_zh(n: int) -> str:
+    if n >= 10000:
+        hi, lo = divmod(n, 10000)
+        return int_to_zh(hi) + "萬" + (("零" if lo < 1000 else "") + int_to_zh(lo) if lo else "")
+    if n == 0:
+        return "零"
+    out, zero, digits = "", False, str(n)
+    for i, ch in enumerate(digits):
+        d, u = int(ch), len(digits) - 1 - i
+        if d == 0:
+            zero = True
+            continue
+        if zero and out:
+            out += "零"
+        zero = False
+        out += _ZH_DIGIT[d] + ["", "十", "百", "千"][u]
+    return out[1:] if out.startswith("一十") else out
+
+
+def num_to_zh(text: str) -> str:
+    """阿拉伯數字轉中文讀法（整數用位數讀法，小數點後逐字），並去掉數字前後的空白。"""
+    def rep(m):
+        whole, _, frac = m.group(1).partition(".")
+        return int_to_zh(int(whole)) + ("點" + "".join(_ZH_DIGIT[int(c)] for c in frac) if frac else "")
+    return re.sub(r"\s*(\d+(?:\.\d+)?)\s*", rep, text)
+
+
+def load_listening(path) -> None:
+    global LISTEN, RUNS, WARMUP
+    items = json.loads(Path(path).read_text(encoding="utf-8"))
+    SENTENCES.clear()
+    for it in items:
+        LISTEN_RAW[it["id"]] = it["text"]
+        SENTENCES[it["id"]] = num_to_zh(it["text"])
+    LISTEN, RUNS, WARMUP = True, 1, 0
 
 # 兩組參考音（都存「音檔＋同名逐字稿 .txt」，VSF exp/research-archive 801c0b3 07-配音參考音來源.md）。
 REF_SETS = {
@@ -224,10 +279,14 @@ def run_bench(backend: str, synth: Callable[[str], Iterable], sr: int, out_dir: 
     }
     if torch:
         result["torch"] = {"version": torch.__version__, "device": torch.cuda.get_device_name(0)}
+    if LISTEN:
+        result["global_warmup"] = {"text": WARMUP_TEXT, "metrics": measure_once(synth, WARMUP_TEXT, sr)[0]}
     for key, text in SENTENCES.items():
         if torch:
             torch.cuda.reset_peak_memory_stats()
         entry = {"text": text, "chars": len(text), "warmup": [], "runs": []}
+        if LISTEN:
+            entry["raw_text"] = LISTEN_RAW.get(key)
         with GpuSampler() as sampler:
             for _ in range(WARMUP):
                 m, _a = measure_once(synth, text, sr)
@@ -260,3 +319,7 @@ def run_bench(backend: str, synth: Callable[[str], Iterable], sr: int, out_dir: 
     js.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print("RESULT_JSON", js, flush=True)
     return result
+
+
+if os.environ.get("LIVE_TTS_SENTENCES"):
+    load_listening(os.environ["LIVE_TTS_SENTENCES"])
