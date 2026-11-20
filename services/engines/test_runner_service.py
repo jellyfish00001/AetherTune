@@ -110,6 +110,23 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "REFERENCE_INVALID"):
             validate(self.root, "rvc", {**request, "source": "missing.wav"})
 
+    def test_rvc_formant_defaults_to_zero_and_is_validated(self):
+        # formant 以前在 rvc_runtime 寫死 0.0；現在走 manifest，預設 0 維持舊行為。
+        request = {**self.request, "parameters": {"source_mode": "file"}}
+        _, values = validate(self.root, "rvc", request)
+        self.assertEqual(values["formant"], 0)
+        request = {**self.request, "parameters": {"source_mode": "file", "formant": -0.5}}
+        _, values = validate(self.root, "rvc", request)
+        build_command(self.root, "rvc", request, values, self.root)
+        stored = json.loads((self.root / "rvc-request.json").read_text(encoding="utf-8"))
+        self.assertEqual(stored["parameters"]["formant"], -0.5)
+        for bad in (2.5, -3, 0.33, True, "1"):
+            with self.subTest(formant=bad), self.assertRaisesRegex(ValueError, "PARAMETER_INVALID"):
+                validate(self.root, "rvc", {**self.request, "parameters": {"source_mode": "file", "formant": bad}})
+        source = (ROOT / "services/engines/rvc_runtime.py").read_text(encoding="utf-8")
+        self.assertIn('float(values.get("formant", 0.0))', source)
+        self.assertNotIn('RVC(values["pitch"], 0.0,', source)
+
     def test_rvc_rejects_unknown_models_invalid_route_or_monitor(self):
         for patch in ({"parameters": {"model_id": "unknown"}}, {"parameters": {"pitch": True}},
                       {"input": "missing"}, {"output": "missing"},

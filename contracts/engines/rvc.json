@@ -75,6 +75,17 @@
       "runtime": false
     },
     {
+      "name": "formant",
+      "label": "共振峰（半音）",
+      "type": "number",
+      "level": "advanced",
+      "default": 0,
+      "min": -2,
+      "max": 2,
+      "step": 0.05,
+      "runtime": false
+    },
+    {
       "name": "index_rate",
       "label": "Index 比例",
       "type": "number",

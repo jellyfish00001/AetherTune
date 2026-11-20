@@ -159,7 +159,8 @@ class RvcProcessor:
         self.device = config.device
         self.values = values
         event("LOADING", "載入 HuBERT、角色模型與 index", phase="model_load")
-        self.rvc = RVC(values["pitch"], 0.0, model["weights"], model["index"], values["index_rate"], config)
+        # formant（共振峰位移，半音單位）原本寫死 0.0；改由參數設定，預設 0 維持舊行為。
+        self.rvc = RVC(values["pitch"], float(values.get("formant", 0.0)), model["weights"], model["index"], values["index_rate"], config)
         if self.rvc.net_g is None or not hasattr(self.rvc, "tgt_sr"):
             raise ValueError("MODEL_LOAD_FAILED: RVC upstream 未完成模型初始化")
         self.block = int(values["chunk"] * 48)
