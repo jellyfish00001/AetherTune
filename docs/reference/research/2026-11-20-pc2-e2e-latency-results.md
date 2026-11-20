@@ -147,3 +147,62 @@ $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $e
 驗證：在 `D:\AetherTune-exp\artifacts\listening\rvc-female-20261120\` 執行 `Get-FileHash *.wav -Algorithm SHA256` 對照 SHA256SUMS.txt。
 
 <!-- rvc-tune:end -->
+
+<!-- rvc-naturalness:start -->
+
+## RVC 自然度掃描（PC2，2026-11-20 晚上，exp/rvc-naturalness）
+
+- 基準：最佳即時設定 c80／x20／e0.5，Sage_CN_HeroicFemale，pitch 0；每組只改一個變數（formant、index_rate、f0）。formant 由 ae3d617 起可設定（原本寫死 0）。
+- 輸入：`wt-main-ref\dataset\reference-voices\voice-female-f1.wav`（JVNV F1 日語短句、女聲，CC BY-SA 4.0）。本機只有這一段輸入語音；`voice-male-m1.wav` 在 wt-main-ref、D:\AetherTune、D:\AetherTune-exp\dataset 都不存在，**男轉女 +10～+12 半音未做**。
+- 音檔：離線轉換（同 RvcProcessor、同 block／SOLA）`D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\render\<組>.wav`；即時錄音（經虛擬線）`...\realtime\<組>.wav`。
+- CER：SenseVoiceSmall（funasr 1.1.5，seed-vc venv 既有套件；模型下載到 `D:\AetherTune-exp\cache\modelscope`），language=ja、不做 ITN；以「來源音檔的辨識結果」為參考算**相對 CER**（去標點／空白、NFKC）。來源沒有人工逐字稿，ASR 也會錯，所以只適合組間比較，不是絕對可懂度。
+- 延遲：speech 訊號、起音估計器（等級 A），淨值 = 經引擎 p50 − 兩條虛擬線 p50。base 沿用重開機後的重複確認 run，rmvpe 沿用延遲調校的 c80-x20-e0.5-rmvpe run（設定相同）。
+
+參考文字（來源 ASR）：「最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいっている本当に幸せだ」
+
+| 組 | formant | index_rate | f0 | 相對 CER | ASR 結果 | 淨 p50 / p95 (ms) | RTF | underrun | 離線 RTF | 離線 wav SHA256 | run |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| base-fm0-ix075-fcpe | 0 | 0.75 | fcpe | 0.070 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいってゃいるだ本当に幸せな | 107.5 / 113.2 | 0.460 | 0 | 0.474 | `3D1A27F1AB6823C9BB121992A01DB164A83995D1602669BF555C725960C160DA` | `20261120-173312-rvc` |
+| fm-1.0 | -1 | 0.75 | fcpe | 0.093 | 最近自分の人生に忠実感を感じているんだ友達家族そして仕事もうまくいっちゃいる本当に幸せな | 122.5 / 143.2 | 0.548 | 0 | 0.535 | `85037E588D5ABD8DF3CA1919A0D03385FB788C3895BA1DDD84CCBF038BFA1136` | `20261120-174203-rvc` |
+| fm-0.5 | -0.5 | 0.75 | fcpe | 0.093 | 最近自分の人生に忠実感を感じているんだ友達家族そして仕事もうまくいっちゃいる本当に幸せな | 95.0 / 119.8 | 0.541 | 0 | 0.458 | `44125B5BB1EB35663CAE147B186CD781752DA11B3E3204BBA4CB096584EAD9D3` | `20261120-174503-rvc` |
+| fm+0.5 | 0.5 | 0.75 | fcpe | 0.047 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいってゃいる本当に幸せな | 120.0 / 146.5 | 0.474 | 0 | 0.399 | `16ACC3E6A67DD1593CD71807993A17AB5BB70F912F401C0328370B3F8CEC88FF` | `20261120-174800-rvc` |
+| fm+1.0 | 1 | 0.75 | fcpe | 0.093 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいっちゃいるぶ本当に幸せな | 110.0 / 154.0 | 0.474 | 0 | 0.388 | `39BC9D07D1CE8DAD75F1869D818B75670B20F2EA0F0FB559AB93167FC130D560` | `20261120-175048-rvc` |
+| ix0.30 | 0 | 0.3 | fcpe | 0.023 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいっている本当に幸せな | 112.5 / 131.5 | 0.478 | 0 | 0.465 | `362B5C0F03B3BE1F21949B27D824A050FF0516EFCD8DB1D0A3011F2FEAED4402` | `20261120-175335-rvc` |
+| ix0.50 | 0 | 0.5 | fcpe | 0.023 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいっている本当に幸せな | 120.0 / 128.2 | 0.485 | 0 | 0.398 | `8F7E22D87C32D49598EE025B1BCCBF4B434F85E9F7E441E6ABCDBF8124FA3EE7` | `20261120-175622-rvc` |
+| ix1.00 | 0 | 1.0 | fcpe | 0.070 | 最近自分の人生に忠実感を感じているんだ友達家族家そして仕事もうまくいっている本当に幸せな | 100.0 / 119.8 | 0.476 | 0 | 0.386 | `B25D4FDD0EE2EA77CD680691ACBC8A733AC7D6064BCEC7696D9D27FE0DDE3B39` | `20261120-175910-rvc` |
+| f0-rmvpe | 0 | 0.75 | rmvpe | 0.023 | 最近自分の人生に充実感を感じているんだ友達家族そして仕事もうまくいっている本当に幸せな | 155.0 / 170.0 | 0.641 | 0 | 0.611 | `9EFBDE2EB3D1D8C50ED23236F3A0E0A3F37C4F4AECC0F309563A545F6B56B4F5` | `20261120-164221-rvc` |
+
+### 經過「Discord」之後（Opus 64 kbps 模擬）與盲聽樣本
+
+- **不是真的經過 Discord**：本輪沒有登入 Discord、也沒有建立語音頻道，所以用 ffmpeg 9.0.2（libopus）模擬 Discord 語音的編碼：Opus、48 kHz、單聲道、64 kbps VBR、`-application voip`、20 ms frame，編碼後再解回 48 kHz PCM16。Discord 自己的噪音抑制、回音消除、自動增益、網路掉包沒有模擬。
+- 盲聽樣本：`D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\blind-opus64\S01.wav`～`S12.wav`，附 `SHA256SUMS.txt`。檔名由固定 seed 20261120 打亂。
+- 對照表另存在 `D:\AetherTune-exp\artifacts\listening\rvc-naturalness-20261120\blind-key-DO-NOT-OPEN.csv`（code、label、來源路徑、SHA256），聽完再打開。內容包括 Sage 的 9 組設定、ChineseBluetooth_F、EGirl_F 與原始輸入（作為參考錨點）。
+- 下表依 label 排序，看表就等於知道答案，盲聽前請不要看。
+
+| label | 盲聽代號 | 相對 CER（離線） | 相對 CER（Opus 64k 後） |
+|---|---|---|---|
+| ChineseBluetooth_F-c80x20e0.5 | S05 | — | 0.047 |
+| EGirl_F-c80x20e0.5 | S02 | — | 0.070 |
+| Sage-base-fm0-ix075-fcpe | S06 | 0.070 | 0.093 |
+| Sage-f0-rmvpe | S11 | 0.023 | 0.023 |
+| Sage-fm+0.5 | S08 | 0.047 | 0.047 |
+| Sage-fm+1.0 | S07 | 0.093 | 0.093 |
+| Sage-fm-0.5 | S04 | 0.093 | 0.116 |
+| Sage-fm-1.0 | S01 | 0.093 | 0.070 |
+| Sage-ix0.30 | S09 | 0.023 | 0.023 |
+| Sage-ix0.50 | S12 | 0.023 | 0.023 |
+| Sage-ix1.00 | S10 | 0.070 | 0.093 |
+| source-voice-female-f1 | S03 | 0.000 | 0.000 |
+
+### 自然度掃描的觀察（CER 只反映可懂度，自然度仍要靠人耳聽）
+
+- 參考句約 43 個字，1 個字的差別約等於 CER 0.023。所有組的 CER 都在 0～0.116 之間（0～5 個字），**差距很小**。
+- 同一組參數重跑結果不完全一樣：Sage base 和女聲樣本的 Sage 參數相同，輸出 SHA256 卻不同（GPU／faiss 有非決定性）。所以 ±1 個字的差距應該視為雜訊。
+- 相對好的組：index 0.3、index 0.5、f0 rmvpe。離線和 Opus 後都是 0.023，比 base（index 0.75）的 0.070／0.093 少錯 2～3 個字。
+- 相對差的組：formant −0.5 經過 Opus 後最差（0.116）；formant ±1.0 離線都是 0.093。
+- 延遲：formant、index 對延遲沒有可測的影響，淨 p50 都在 95～122.5 ms（重複量測本身就有 ±5～10 ms 的波動）。
+- formant 為負時要先重取樣更長的輸入，RTF 會從 0.47 升到 0.54～0.55，仍低於 0.7。
+- rmvpe 的淨 p50 是 155 ms（RTF 0.64），仍在 200 ms 目標內，但比 fcpe 多約 50 ms。
+- 建議人耳盲聽時優先比較：base、index 0.5、index 0.3、rmvpe、formant +0.5。如果聽感也是 index 0.5 較好，下一步可以把 index_rate 預設改成 0.5 再量一次（本輪不改預設）。
+
+<!-- rvc-naturalness:end -->
