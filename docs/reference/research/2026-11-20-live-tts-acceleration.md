@@ -30,6 +30,11 @@
 | Qwen3-TTS 0.6B | 不加速（bf16 sdpa，整句生成） | 6100–24200 | 1.69–1.82 | — | 0–0.08 | — | 基準，非串流 | A | 第一輪 |
 | Qwen3-TTS 0.6B | **自製串流**（攔截 talker 每步 codec，首包 4 幀、之後 12 幀，左側上下文 25 幀解碼） | **672 / 657 / 663** | 1.86 / 1.85 / 1.85 | 2.2 GiB | 0 / 0.12 / 0.06 | 尾句完整；中句「遊戲喔」轉寫成「咬細窩」 | 可行：首包從秒級降到 0.66 s；但 RTF>1 會斷音 | A | 17:08 |
 | Qwen3-TTS 0.6B | 自製串流 + flash-attn 2.8.2 | 692 / 693 / 698 | 2.04 / 1.94 / 1.94 | 2.2 GiB | 0 / 0.04 / 0.06 | 尾句完整 | 可行但較慢（小批次單句 decode，FA2 沒優勢） | A | 17:12 |
+| Qwen3-TTS 1.7B | 自製串流（同上） | 682 / 692 / 703 | 1.86 / 2.06 / 1.82 | 4.2 GiB | 0 / 0.08 / 0.02 | 尾句完整，轉寫最準 | 可行；首包同 0.6B，RTF 沒更差但仍 >1 | A | 17:34 |
+| CosyVoice2 | 不加速（WSL /mnt/d，fp32 + 預建聲線 ID，第一輪） | 4400–7100 | ≈0.93 | 2.6 GiB | 0.35–0.5 | 有亂詞 | 基準 | A | 第一輪 |
+| CosyVoice2 | **Windows 原生**實驗 venv（fp32 + 聲線 ID） | 2993 / 4562 / 4729 | **0.66 / 0.62 / 0.69** | 2.6 GiB | 0.50 / 0.19 / 0.42 | 短句轉寫「大家晚安嚇傻你懵快」，有亂詞（與 WSL 同樣問題，非加速造成） | 可行：RTF −30%，首包略降但仍 3–5 s；**載入 158 s（有下載佔用磁碟，首次讀複本）** | A | 17:27–17:31 |
+| CosyVoice2 | Windows 原生 + JIT（flow.encoder TorchScript，CPU 匯出） | 4147 / 5011 / 5156 | 0.75 / 0.68 / 0.72 | 2.6 GiB | 0.50 / 0.19 / 0.40 | 同上 | 可行但沒變快（反而略慢） | A | 17:31–17:33 |
+| CosyVoice2 | Windows 原生 + JIT + TensorRT + fp16 | — | — | — | — | — | 失敗：venv 沒裝 tensorrt（為了不和 61 GiB 下載搶頻寬先略過），17:36 已開始安裝 tensorrt-cu12 10.13.3.9，待下一段 | B | 17:33 |
 
 ## 虛擬麥原型（GSV + rvc-sage → VB-CABLE）
 
@@ -58,14 +63,16 @@
 | 項目 | 原因 | 證據 |
 |---|---|---|
 | GSV cut_minlen 4 | 觸發上面的空段落例外（長句整句失敗） | A |
-| CosyVoice2 vLLM | vLLM 不支援 Windows；WSL 需另建 Linux venv 並下載 vllm 與對應 torch（數 GB），會和創作工坊 Bot 的 61 GiB 下載搶頻寬，本輪先不做 | C |
-| CosyVoice2 Windows 原生 / JIT / TRT | 實驗 venv `cosyvoice2-win` 已裝好（torch 2.7.1+cu128、onnxruntime-gpu 1.22 含 TensorRT/CUDA provider）；JIT 匯出在 CPU 進行中；TRT plan 要在 GPU 時段建；待下一段 GPU | — |
-| Qwen3-TTS 1.7B 串流 / fp16 | 腳本已就緒，待下一段 GPU | — |
+| CosyVoice2 vLLM | vLLM 不支援 Windows；WSL 要另建 Linux venv 並下載 vllm 與對應 torch（數 GB）。本輪還沒做 | C |
+| CosyVoice2 TensorRT | 見矩陣，tensorrt 安裝中，待下一段 GPU | B |
+| CosyVoice2 首包 3–5 s | 在 WSL 與 Windows 原生都一樣，短/中句只出 1 塊（`streamed_all` 否），表示 stream=True 在這個 zero-shot 聲線 ID 用法下，等到整句 token 才出第一塊；另外 ASR 有亂詞（CER 0.2–0.5）。這是用法或前端（wetext 嘗試從 ModelScope 下載失敗，沒有文字正規化）的問題，不是加速能解的，待查 | B |
+| Qwen3-TTS fp16 | 腳本已有 `--dtype fp16`，還沒量 | — |
 
 ## 安裝紀錄（只在實驗 venv）
 
 - voxcpm2 venv：`triton-windows==3.3.1.post21`
 - qwen3-tts venv、gsv-tts-lite venv：`flash-attn==2.8.2+cu128torch2.7`（mjun0812/flash-attention-prebuild-wheels v0.4.10 公開輪檔，cp312 win_amd64）
+- cosyvoice2-win venv 另補：wget 3.2、pyworld 0.3.5；tensorrt-cu12 10.13.3.9 安裝中（17:36 開始）
 - 新 venv `cosyvoice2-win`（uv CPython 3.12.11）：torch/torchaudio 2.7.1+cu128、onnxruntime-gpu 1.22.0、transformers 4.51.3、wetext 0.0.4、kaldifst 1.9.0（1.9.1 無 Windows 輪檔）、其餘照 CosyVoice requirements（matplotlib、pyworld 不鎖版）、wget 3.2
 - 權重：`D:\AetherTune-exp\tts-models\cosyvoice2` 是 `D:\AetherTune\models\speech-reconstruction\cosyvoice` 的本機複本（不含 .cache），JIT/TRT 產物只寫在複本。
 
@@ -74,5 +81,57 @@
 | 段 | 開始 | GPU 結束 | 放鎖 | 內容 |
 |---|---|---|---|---|
 | 1 | 16:55:31（登記 16:55） | 17:16:20 | **17:16:29**（AetherTune Bot 行數 0） | GSV 參數/FA、虛擬麥、VoxCPM2 compile、Qwen3 串流 |
+| 2 | 17:27:10（登記 17:27，距上次放鎖 10 分 40 秒） | 17:44:58 | **17:45:35**（AetherTune Bot 行數 0） | CosyVoice2 Windows 原生/JIT、Qwen3 1.7B 串流、VoxCPM2 與 VSF 對齊 |
 
 nvidia-smi 前後：`D:\AetherTune-exp\logs\live-tts\accel\nvsmi-*.txt`。
+
+## VoxCPM2 與 VSF 對齊
+
+VSF 在 PC1 獨占、未加速量到的 VoxCPM2 RTF 是 1.03–1.53（VisualSoundForge `exp/tts-install` 309200a，`experiments/2026-11-20-tts-install/results.jsonl` 的 `listen_exclusive`）。我們用 `git show` 只讀 VSF 的 `scripts/vsf_run_voxcpm2.py` 和 `scripts/vsfmeasure.py`，在本 repo 寫了對齊版 `tools/live-tts-bench/bench_voxcpm2_vsf_align.py`。VSF repo 沒改；只在 D:\VisualSoundForge 做了一次 `git fetch origin exp/tts-install`，用來讀那個 commit。
+
+### 我們每組 VoxCPM2 的完整設定
+
+| 組 | API | inference_timesteps | cfg | 複製模式 | 參考音 | 句子 | 串流 | compile | retry_badcase | 次數 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 第一輪 t10 @qwen-zh | `build_prompt_cache` + `_generate_with_prompt_cache` | 10 | 2.0 | prompt_wav + prompt_text + reference_wav 三個同時給、同一檔 | qwen3-tts-clone_1.wav（與 VSF clone_1.wav SHA256 相同 46DBC998…CE50）「甚至出现交易几乎停滞的情况。」 | 本專案 short/medium/long（中文） | 是 | 否 | 否（不走這條） | 暖機 1 + 3 |
+| t10/t6/t4 @qwen-zh、@rvc-sage | 同上 | 10 / 6 / 4 | 2.0 | 同上 | qwen-zh 或 rvc-sage-zh.wav（9.26 s） | 同上 | 是 | 否 | 否 | 暖機 1 + 3 |
+| t6 compile @rvc-sage | 同上（`VoxCPM(optimize=True)`） | 6 | 2.0 | 同上 | rvc-sage | 同上 | 是 | **是**（triton-windows 3.3.1） | 否 | 暖機 1 + 3 |
+| **VSF 對齊 t10 / t6** | `VoxCPM.from_pretrained(load_denoiser=False, optimize=False)` + `model.generate(...)`；另量 `generate_streaming`（同參數） | 10 / 6 | 2.0 | 三個同時給、同一檔 | VSF `D:\VSF\tts\refs\clone_1.wav`（中）/`clone_2.wav`（英），只讀 | VSF zh1/zh2/en1/en2 | 整句 + 串流各量 | 否 | 是（套件預設） | 暖機 zh1 一次 + 每句 3 次 |
+
+之前每一組都是三個同時給，沒有「只給單一種」的組，所以沒有加量單一種的對照（腳本有 `--modes prompt,ref` 可以補）。
+
+### 與 VSF 的差異
+
+| 項目 | VSF 309200a | 我們的對齊版 | 我們的直播量測 |
+|---|---|---|---|
+| torch | 2.9.1+cu128 | 2.7.1+cu128 | 2.7.1+cu128 |
+| voxcpm / transformers | 2.0.3.post46 / 5.23.0 | 2.0.3 / 5.23.0 | 同左 |
+| 權重 | openbmb/VoxCPM2 `7936080b`（D:\VSF\tts\voxcpm2\weights） | D:\AetherTune-exp\tts-models\voxcpm2 | 同左 |
+| 載入 | `from_pretrained(load_denoiser=False)`，optimize 預設 True；venv 沒有 triton，compile 自動停用 | `from_pretrained(load_denoiser=False, optimize=False)`（venv 有 triton，要明確關） | `VoxCPM(..., enable_denoiser=False, optimize=False)` |
+| 生成 API | `generate`（整句），retry_badcase 預設 True、max_len 4096 | 同 VSF；另量 `generate_streaming` | `_generate_with_prompt_cache(streaming=True)`，不重試、max_len 預設 |
+| 量測 | 每句 1 次，synchronize + reset peak，time.time | 每句 3 次，其他同 VSF | 每句 3 次，首包 + perf_counter |
+| 下載 I/O | 有（同時有下載） | 下載已結束（鎖檔無下載列），開始時磁碟 3.1% | 第一輪無；17:00 後有 |
+| RTF 定義 | 生成秒數 ÷ 音檔秒數，不含載入和暖機 | 同左 | 同左 |
+
+### 結果（PC1 獨占，17:39:03–17:44:55；載入 82 s；nvidia-smi 量前 927 MiB / 1%）
+
+RTF 為 3 次的 p50，括號內是第 1 次（對應 VSF 只量 1 次）。首包是 `generate_streaming` 3 次的 p50。VRAM 是 torch 峰值配置量。
+
+| 步數 | 句 | 整句 RTF p50（第 1 次） | 串流 RTF p50 | 串流首包 p50 ms | VRAM GiB | VSF 獨占 RTF |
+|---|---|---|---|---|---|---|
+| 10 | zh1 | 1.207（1.632） | 1.091 | 202 | 5.51 | 1.477 |
+| 10 | zh2 | 1.153（1.181） | 1.101 | 233 | 5.54 | 1.027 |
+| 10 | en1 | 1.245（1.061） | 1.239 | 233 | 5.68 | 1.089 |
+| 10 | en2 | 1.157（1.157） | 1.187 | 235 | 5.68 | 1.525 |
+| 6 | zh1 | 0.918（0.843） | 0.818 | 154 | 5.52 | — |
+| 6 | zh2 | 0.778（0.762） | 0.826 | 177 | 5.54 | — |
+| 6 | en1 | 0.779（0.779） | 0.863 | 194 | 5.68 | — |
+| 6 | en2 | 0.787（0.937） | 0.853 | 292 | 5.68 | — |
+
+- **對齊後 10 步 RTF 1.01–1.63（單次值），p50 1.15–1.25，和 VSF 的 1.03–1.53 一致。** VoxCPM2 在 PC1 10 步本來就在 1 上下；單次波動大（同句 1.14–1.63），VSF 只量 1 次，所以範圍較寬。
+- **6 步 RTF 0.75–1.05（單次），p50 0.78–0.92**，在 VSF 的句子和參考音上也低於 1，和我們之前 t6 的 0.76–0.94 一致。
+- 我們先前 10 步量到 1.06–1.59，和 VSF 沒有矛盾；之前用 6 步得到 RTF < 1，差別在步數，不是設定錯。
+- 串流與整句的 RTF 差不多；串流首包 10 步約 200–235 ms、6 步約 150–290 ms。
+- 量後 nvidia-smi（7301 MiB / 70%）是在我們自己的行程還沒結束時取的，是自己的佔用，17:45 放鎖時整卡回到 927 MiB / 0%。
+
+檔案：`D:\AetherTune-exp\artifacts\live-tts-bench\vsf-align\voxcpm2-vsfalign-hifi-result.json`（每次的原始列與摘要）、`voxcpm2-vsfalign-hifi-t{10,6}-{zh1,zh2,en1,en2}-r{1,2,3}.wav`；nvidia-smi 在 `D:\AetherTune-exp\logs\live-tts\accel\nvsmi-vsfalign-{start,end}.txt`；log 在 `accel\vsfalign.out`。
