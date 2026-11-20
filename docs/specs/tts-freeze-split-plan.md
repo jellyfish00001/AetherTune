@@ -4,7 +4,7 @@
 
 **基線 commit：**`origin/main` @ `05b1ec4`（本 worktree 分支 `exp/tts-freeze-plan`）。
 
-**產品邊界（已採納）：**AetherTune 只負責即時變聲與混音。內容配音（TTS、角色聲線、語音克隆、離線／品質取向的語音重建）移交 創作工坊 Bot 的 VisualSoundForge（VSF）；重疊能力以 VSF 為準。本輪僅凍結標記與計畫，不刪除程式、不移除 UI、不改變行為。
+**產品邊界（已採納）：**AetherTune 只負責即時變聲與混音。內容配音（TTS、角色聲線、語音克隆、離線／品質取向的語音重建）移交 創作工坊 Bot 的 VisualSoundForge（VSF）；重疊能力以 VSF 為準。本輪不刪除程式。2026-11-20 14:05（Asia/Taipei）起，凍結期間隱藏 SpeechWorkspace 入口（可退回）；元件、路由與後端保留，裝置清單與 VC／F08 UI 不改。詳見 §3.2 與 §6。
 
 ---
 
@@ -20,7 +20,7 @@
 | F04.3 重建（STT→TTS） | 共用文字發聲佇列、backend_stt 提供者 | 同上 §F04.3（約 L43） |
 | M6 TTS 里程碑 | CosyVoice2／Breeze Manual 已接通 | `docs/status.md` M6 列（約 L115） |
 
-**不重複凍結為「純配音」者（留在 AetherTune 或另案）：**F02 四 VC、`services/engines/*` streaming／RVC；F10 Agent Reply 目前為 `PLANNED` 契約（`contracts/agent_reply.py`、`services/tts/service.py` 拒絕 agent source）；即時串流 TTS 邊界見 §3。
+**不重複凍結為「純配音」者（留在 AetherTune）：**F02 四 VC、`services/engines/*` streaming／RVC；**F10 Agent Reply**（2026-11-20 14:05）留在 AetherTune，負責即時觸發與播放編排，僅語音生成委派 VSF；目前仍為 `PLANNED` 契約（`contracts/agent_reply.py`、`services/tts/service.py` 拒絕 agent source）。即時串流 TTS 邊界見 §3。
 
 ### 1.2 Desktop／Rust orchestration
 
@@ -125,11 +125,16 @@
 - 產品架構保留 Generation／Playback 分層與 chunk 擴充（`docs/specs/app-requirements.md` 約 L244）。
 - **品質／角色 TTS 模型**應由 VSF 擁有；AetherTune 未來若實作即時語音，應透過 **介面／契約** 引用 VSF，不複製 checkpoint。
 
-### 3.2 待 Johnny 確認（open questions）
+### 3.2 已決與未決項
 
-1. **F10 Agent Reply：**是否仍由 AetherTune 負責「即時觸發 + 播放編排」，僅將**生成**委派 VSF？或 F10 整體改在 VSF 交付？
-2. **F04 常駐 STT：**Self STT 與 STT→TTS 重建中，哪些層留在 AetherTune（即時 capture）vs VSF（重建與克隆）？
-3. **Desktop SpeechWorkspace：**凍結期是否維持現有 UI 作為過渡，還是僅 hidden／委派至 VSF？（本輪決策：不移除 UI。）
+**已決（2026-11-20 14:05，Asia/Taipei）：**
+
+1. **F10 Agent Reply：**留在 AetherTune。AetherTune 負責即時觸發、播放編排與直播互動；**語音生成**委派 VSF（品質模型由 VSF 擁有，經 §3.1 介面／契約引用）。S4 不得把 F10 編排或 `contracts/agent_reply.py` 整包移出 AetherTune；僅生成適配層可在契約就緒後改呼叫 VSF。
+2. **Desktop SpeechWorkspace：**凍結期間隱藏入口，不刪程式、可退回。作法見 §6。元件、路由、後端與裝置清單資料層保留；F08／VC UI 不受影響。
+
+**仍待確認：**
+
+1. **F04 常駐 STT：**Self STT 與 STT→TTS 重建中，哪些層留在 AetherTune（即時 capture）vs VSF（重建與克隆）？
 
 記錄管道： [未決問題](../reference/open-questions.md)（若需正式登記可另開條目）。
 
@@ -143,7 +148,7 @@
 | **S1 抽出 playback／devices** | VC 不再依賴 `services.tts.playback` 路徑語意 | 新增 `services/audio/*`；改 `runner_service.py` L71、`rvc_runtime.py` L279、`service.py` import | 循環 import、sounddevice 行為差異 | `services/engines/test_runner_service.py`；`app/tests/vc-native.mjs`；RVC validate 路徑 | 保留舊 re-export shim | **M（8–16h）** |
 | **S2 脫鉤 TTS venv 與互鎖** | Speech service 不用 Seed-VC venv；互鎖改中立鎖 | `speech_manager/mod.rs` L33–36；`main.rs` L102–117 | 雙 service 搶 GPU／裝置 | `app/tests/manual-tts-native-smoke.mjs` + VC start 互斥手動案例 | 還原 venv 路徑與舊互鎖 | **L（16–32h）** |
 | **S3 VSF 呼叫契約** | 定義 cross-repo API（HTTP／IPC／檔案 mailbox） | 新 `contracts/vsf-*` 或文件；`adapters.py` 邊界 | 授權、延遲、取消語意不一致 | 契約測試 + 假 VSF stub | 保留本機 adapter | **M（8–16h）** |
-| **S4 移交／封存純配音程式** | 將 §1 清單移至 VSF repo 或 archive 分支 | §1 大量路徑 | 破壞 VC 尚未抽離的依賴 | `manual-tts*.mjs`、`resident-tts-smoke.py`、`speech-reconstruction-*` | VSF 未就緒則不做 S4 | **L（24–80h）** |
+| **S4 移交／封存純配音程式** | 將 §1 純配音清單（F03 Manual TTS、F04.3 重建、M6 品質 TTS 適配）移至 VSF 或 archive；**F10 觸發／播放編排與 `contracts/agent_reply.py` 留在 AetherTune**，僅生成改走 VSF 契約 | §1 純配音路徑（不含 F10 編排） | 破壞 VC 尚未抽離的依賴，或誤移 F10 | `manual-tts*.mjs`、`resident-tts-smoke.py`、`speech-reconstruction-*`；確認 agent reply 契約仍在本 repo | VSF 未就緒則不做 S4 | **L（24–80h）** |
 | **S5 清理（可選）** | 移除重複 catalogue、更新 discover | `desktop.ts`、`engine_manager` discover 列表 | 誤刪 VC manifest | 全契約 regression | 僅在 VSF 已承接後 | **M（8–16h）** |
 
 ---
@@ -154,11 +159,28 @@
 2. **§2 共用基礎設施：**允許重構與抽出，但需保持 VC 與既有測試行為不變（或先在計畫中增列驗證）。
 3. **契約：**不得為凍結而修改 `engine-manifest.schema.json` 破壞驗證；引擎凍結說明以本頁與 `backends/speech-reconstruction/README.md` 為準。
 4. **文檔：**新決策寫入 `decision-log.md`；進度摘要只改 `status.md`，細節留在本頁。
-5. **禁止：**刪除程式、移除 UI、改變使用者可見行為（除非明確解阻 VC 的 bugfix）。
+5. **禁止：**刪除程式。凍結期間可依 14:05 決策隱藏 SpeechWorkspace 入口，但元件、路由與後端必須保留且可退回（§6）。不得改動裝置清單資料層或 VC／F08 UI。其他使用者可見行為變更僅限於明確解阻 VC 的 bugfix。
 
 ---
 
-## 6. 相關連結（單行摘要）
+## 6. 入口隱藏與退回
+
+凍結旗標集中在 `app/src/services/speech-workspace-freeze.ts`。`app/src/main.tsx` 的 Mode 下拉只根據此旗標過濾 `speech_reconstruction`／`text_to_speech` 選項，並拒絕在凍結時切進這些模式。`SpeechWorkspace.tsx`、路由與後端均未刪除；`getAudioDevices`（`app/src/services/speech.ts` 約 L408–415，action `audio_devices`）與 VC 裝置清單維持原樣。
+
+**暫時顯示入口（開發／驗證 Manual TTS 測試）：**
+
+1. 在 WebView／瀏覽器開發者工具執行 `localStorage.setItem('aethertune.speech-workspace.unfreeze', '1')`，然後重新載入 App。
+2. 或將 `SPEECH_WORKSPACE_FROZEN_DEFAULT` 改為 `false` 後重新建置。
+
+關閉暫時解除：`localStorage.removeItem('aethertune.speech-workspace.unfreeze')` 後重新載入。
+
+**永久還原入口（讓預設再次顯示）：**對實作此隱藏的 commit 執行 `git revert <完整 SHA>`（本分支 `exp/tts-freeze-plan`，commit 訊息含「隱藏 SpeechWorkspace 入口」）。只改旗標而不 revert 也可以，但文件與決策紀錄會與行為不一致，正式退回以 `git revert` 為準。
+
+進入 SpeechWorkspace 的 UI 測試（例如 `app/tests/manual-tts.mjs`、`ui.mjs`）在凍結預設下會找不到 TTS Mode 選項；跑這些測試前請先寫入上述 localStorage 鍵，或先退回旗標。
+
+---
+
+## 7. 相關連結（單行摘要）
 
 | 文件 | 摘要 |
 |---|---|

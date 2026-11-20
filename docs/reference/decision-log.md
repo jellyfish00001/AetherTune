@@ -14,6 +14,12 @@
 
 依據與後續步驟：完整盤點、共用設施與 S0–S5 順序見 [`tts-freeze-split-plan.md`](../specs/tts-freeze-split-plan.md)。`contracts/schemas/engine-manifest.schema.json` 不允許額外 lifecycle 欄位，引擎凍結以文件與 backend README 註記為準。
 
+## 2026-11-20 14:05（Asia/Taipei）：F10 範圍與 SpeechWorkspace 入口隱藏
+
+**Q4 F10 Agent Reply：**留在 AetherTune。即時觸發、播放編排與直播互動由 AetherTune 負責；語音生成交給 VisualSoundForge（VSF）。S4 拆分範圍依此定：不把 F10 編排或 `contracts/agent_reply.py` 整包移出本 repo，僅生成適配層改走 VSF 契約。
+
+**Q5 SpeechWorkspace：**凍結期間隱藏入口，不刪程式、須可退回。集中旗標在 `app/src/services/speech-workspace-freeze.ts`（`SPEECH_WORKSPACE_FROZEN_DEFAULT`；開發者可用 `localStorage` 鍵 `aethertune.speech-workspace.unfreeze=1` 暫時顯示）。只隱藏 Mode 入口，不改裝置清單資料層，也不影響 VC／F08 UI。退回方式見 [`tts-freeze-split-plan.md`](../specs/tts-freeze-split-plan.md) §6。
+
 ## 2026-09-29：Desktop 單一圖形入口
 
 決定：移除舊 `AetherTune.cmd`、Tk 控制台及其專用操作腳本；在已準備的 Windows checkout，以根目錄 `AetherTune.exe` 作為圖形入口。`app/dev.ps1 -Build` 從 Tauri build 複製 exe 到根目錄並核對 SHA-256；生成的 exe 不進 Git。

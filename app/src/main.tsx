@@ -21,6 +21,7 @@ import { VcAudioControls } from './components/VcAudioControls';
 import { AudioEffectsSettings } from './components/AudioEffectsSettings';
 import { audioEffectsStorageKey, defaultAudioEffects, normalizeAudioEffects, readAudioEffects } from './services/audio-effects';
 import { getAudioDevices, outputDeviceChoices, type AudioDevices, type SpeechRoute } from './services/speech';
+import { isSpeechWorkspaceFrozen, isTtsWorkspaceMode } from './services/speech-workspace-freeze';
 import './style.css';
 
 const initial: Status = {
@@ -250,6 +251,7 @@ function App() {
 
   const selected = manifests.find((manifest) => manifest.id === engine) ?? previewManifests.find((manifest) => manifest.id === engine) ?? previewManifests[0];
   const available = manifests.filter((manifest) => manifest.capabilities.includes(capabilities[mode]));
+  const speechWorkspaceFrozen = isSpeechWorkspaceFrozen();
   const isSpeechMode = ttsModes.has(mode);
   const isStreamingVc = mode === 'streaming_vc';
   const active = !!status.service_alive;
@@ -325,6 +327,7 @@ function App() {
   }
 
   function changeMode(nextMode: string) {
+    if (speechWorkspaceFrozen && isTtsWorkspaceMode(nextMode)) return;
     setMode(nextMode);
     const first = manifests.find((manifest) => manifest.capabilities.includes(capabilities[nextMode]));
     if (first) setEngine(first.id);
@@ -409,6 +412,12 @@ function App() {
     }
   }, [audioEffects]);
 
+  useEffect(() => {
+    if (speechWorkspaceFrozen && isTtsWorkspaceMode(mode)) {
+      changeMode('streaming_vc');
+    }
+  }, [speechWorkspaceFrozen, mode]);
+
   const modes = <div className="window-modes" data-testid="control:視窗模式" aria-label={t("視窗模式")}>{(['full', 'compact', 'mini'] as const).map((windowMode) => <button key={windowMode} data-testid={`window-mode-${windowMode}`} aria-pressed={shell.mode === windowMode} onClick={() => void changeShell({ mode: windowMode, click_through: false, quick_input: false })}>{t(windowMode === 'full' ? 'Full' : windowMode === 'compact' ? 'Compact' : 'Mini')}</button>)}</div>;
   const controls = <div className="actions"><button className="start" disabled={!native || !implemented || !vcRouteValid || active || busy} onClick={() => void start()}>{t("▶ START")}</button><button disabled={!native || (!active && status.value === 'OFFLINE') || busy} onClick={() => void stop()}>{t("■ STOP")}</button></div>;
   const formatDb = (value: unknown, alreadyDb = false): string => {
@@ -460,7 +469,7 @@ function App() {
         {(page === 'LIVE' || shell.mode === 'compact') ? isSpeechMode ? speechWorkspace : <>
           <div className="headline"><div><span className="eyebrow">{t("VOICE WORKSPACE")}</span><h1>{t(shell.mode === 'full' ? '讓聲音，準備就緒。' : modeLabels[mode])}</h1></div><span className="state"><i className="dot"/>{t(status.value)}</span></div>
           <div className="live-grid"><section className="panel setup"><h2>{t("變聲控制")}</h2>
-            <label>{t("Mode")}<select data-testid="control:Mode" aria-label={t("Mode")} disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).map(([key, value]) => <option key={key} value={key}>{t(value)}</option>)}</select></label>
+            <label>{t("Mode")}<select data-testid="control:Mode" aria-label={t("Mode")} disabled={locked} value={mode} onChange={(event) => changeMode(event.target.value)}>{Object.entries(modeLabels).filter(([key]) => !(speechWorkspaceFrozen && isTtsWorkspaceMode(key))).map(([key, value]) => <option key={key} value={key}>{t(value)}</option>)}</select></label>
             <label>{t("Engine")}<span className="classification">{t(selected.classification)}</span><select data-testid="control:Engine" aria-label={t("Engine")} disabled={locked} value={engine} onChange={(event) => { setEngine(event.target.value); setValidation(null); }}>{available.map((manifest) => <option key={manifest.id} value={manifest.id}>{manifest.name}</option>)}</select></label>
             <p className="adapter-label">{t(rvcFile ? '來源 WAV 模式 · START 轉換並播放音檔，不讀取麥克風。' : '麥克風模式 · START 後等待 RUNNING，再開始說話；STOP 後可切換引擎。')}</p>
             <LoadStatus engine={engine} parameters={engineParameters[engine]} progress={status.progress} active={active}/>
