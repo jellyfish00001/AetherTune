@@ -39,7 +39,7 @@ engine --(lineB play)--> Voice Changer render ===> Voice Changer capture --(benc
 
 預檢（可 `-SkipPrecheck` 略過）：`virtual-line-probe.ps1` 對兩線做 loopback + crosstalk；若 python 含 sounddevice／soundfile 可再加 `virtual_cable_loopback.py`。
 
-**PC2 一行（真實 E2E 仍 WAITING；需另案提供含 sounddevice 的 `-Python`）**
+**PC2 一行**（完整環境變數版見下文「PC2 實機結果 → 一行指令」）
 
 ```powershell
 pwsh -NoProfile -File tools/e2e-latency-run.ps1 -Profile pc2-virtual -Root D:\AetherTune-exp\wt-main-ref -Python <runtime python> -Engine meanvc2
@@ -67,7 +67,7 @@ pwsh -NoProfile -File tools/e2e-latency-run-regression.ps1
 | `engine-stdout.jsonl`（引擎 run） | `runner_service` JSONL |
 | `stream-evidence.json`（若可用） | `stream_runtime` 路由／metrics 快照 |
 
-**本輪實機**（`Engine none|all` 接 Voicemeeter／CABLE）判定 **WAITING**（未執行）。合成 `-SelfTest` 可本地 PASS。
+**CABLE／Voicemeeter profile** 實機仍 **WAITING**（PC2 無該驅動）；**pc2-virtual** 實機結果見下文「PC2 實機結果」。合成 `-SelfTest` 可本地 PASS。
 
 仍須注意：經 CABLE／Voicemeeter **注入**的來源不是實體麥 E2E；engine 模式 baseline 須覆蓋**相同兩跳**（見上文 loopback 說明）。
 
@@ -95,24 +95,48 @@ python tools/e2e_latency_analysis.py --reference ref.wav --recorded rec.wav --pu
 
 輸出預設在 gitignored `artifacts/`；不得提交 WAV／報告。
 
-## 本輪狀態
+## PC2 實機結果（2026-11-20，exp/bench-e2e-latency）
+
+量測時間：15:07–15:45（Asia/Taipei）；commit 見 run 目錄 `e2e-latency-report.json` 的 `git_commit`；結果目錄 `D:\AetherTune-exp\artifacts\e2e-latency\`（不進 git）。詳細研究紀錄：[2026-11-20-pc2-e2e-latency-results](../../reference/research/2026-11-20-pc2-e2e-latency-results.md)。
+
+證據等級：**A** = PC2 實機聲學脈衝 bench 直接量到（偵測 ≥ 5/8、confidence ≥ 0.35）；**B** = 實機聲學但偵測少或 confidence 偏低（僅供參考）；**C** = 由 trace／baseline 推估，非聲學量測；**—** = 無法量到。trace `input_to_output_ms` 為 approximate internal（忽略 rolling context／lookahead），不是聲學 E2E。
+
+### baseline（`-Engine none`，各線單跳）
+
+| 線路 | 路徑 | 偵測 | min | p50 | p95 | max | 證據 | run 目錄 |
+|---|---|---|---:|---:|---:|---:|---|---|
+| lineA | 喇叭→麥克風 (Steam Streaming Microphone)，capture exclusive | 8/8 | 55.7 | 59.0 | 59.0 | 59.0 | A | `20261120-150711-baseline/baseline-lineA` |
+| lineB | 喇叭→麥克風 (Voice Changer Virtual Audio Device (WDM))，shared＋auto_convert | 8/8 | 74.3 | 74.3 | 79.5 | 82.3 | A | `20261120-150711-baseline/baseline-lineB` |
+
+### through-engine
+
+| 引擎（設定） | 訊號 | 偵測 | E2E min | p50 | p95 | max | baseline p50（兩跳） | engine−baseline p50 | trace in→out p50／p95 | 處理 p95／block | RTF | underrun／drop | 跟得上即時 | GPU util p50／max、VRAM | 證據 | run 目錄 |
+|---|---|---|---:|---:|---:|---:|---:|---:|---|---|---:|---|---|---|---|---|
+| seed-vc（realtime-tiny，block 0.3 s，diffusion 10）#1 | chirp | 5/8 | 655.9 | 669.9 | 689.7 | 689.8 | 129.0 | 540.9 | 450／466 | 154／300 | 0.46 | 0／in 0、out 0 | 是 | 36%／43%、1413 MiB | A | `20261120-151319-seed-vc` |
+| seed-vc（同上）#2 | chirp | 6/8 | 651.9 | 667.1 | 676.2 | 678.4 | 126.0 | 541.1 | 446／461 | 154／300 | 0.47 | 0／in 0、out 0 | 是 | 0%／0%、266 MiB | A | `20261120-152338-seed-vc` |
+| meanvc2（realtime 40ms，block 160 ms）#1 | chirp | 0/8 | — | — | — | — | 123.7 | — | 385／1076 | 174／160 | 0.77 | 0／in 0、out 21120 | 邊緣：處理 p95 174 ms > block；量測中延遲由 356 ms 升到 ~1080 ms 並丟 0.44 s 輸出 | 29%／35%、2161 MiB | —（脈衝 0/8） | `20261120-151553-meanvc2` |
+| meanvc2（同上）#4 | chirp | 0/8 | — | — | — | — | 133.7 | — | 370／393 | 128／160 | 0.71 | 0／in 0、out 0 | 是（本次無 drop） | 30%／42%、2163 MiB | C（僅 trace） | `20261120-153530-meanvc2` |
+
+### 備註
+
+- baseline 每次引擎 run 前重量；各 run 的 baseline p50（兩跳和）介於 125–134 ms，表中 engine−baseline 用該 run 自己的 baseline。
+- seed-vc 兩次可重現：E2E p50 667–670 ms，engine−baseline ≈ 541 ms；trace in→out p50 ≈ 446–450 ms，比聲學少約 90 ms（trace 忽略 0.3 s block 的 rolling context／extra_time）。#2 的 GPU 取樣器只記到閒置值，GPU 以 #1 為準。
+- seed-vc 偵測 5–6/8：轉換後的 chirp 與模板相關性 0.36–0.44，部分脈衝落在 missing 門檻下；有偵測到的脈衝彼此差 < 35 ms。
+- meanvc2 對 chirp／click 這類非語音訊號幾乎輸出靜音（錄到 peak 0.004），脈衝 bench 量不到（0/8）；trace in→out p50 350–385 ms（4 次）。手動 click 診斷（`diag-meanvc2-manual-click`）7/8 落在 714–762 ms 但 confidence 0.37–0.50，只列 B 級參考。
+- 環境變數：pc2-virtual 會自動設定 `AETHERTUNE_WASAPI_AUTOCONVERT=1` 與 `AETHERTUNE_WASAPI_EXCLUSIVE_INPUT=Steam Streaming Microphone`（只影響該程序及子程序，不改系統設定）；`AETHERTUNE_LATENCY_TRACE=1` 需手動設定；Seed-VC 的 `HF_HOME／HF_HUB_CACHE` 由 `stream_runtime` 指到 `tools/external/seed-vc/checkpoints`；`TCLLIBPATH=D:/AetherTune-exp/tcl-shim` 只在跑 Seed-VC setup 腳本或 GUI 時需要，量測不需要。
+
+### 一行指令（PC2）
+
+```powershell
+$env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $env:MODELSCOPE_CACHE='D:\AetherTune-exp\cache\modelscope'; $env:MPLCONFIGDIR='D:\AetherTune-exp\cache\mpl'; Set-Location D:\AetherTune-exp\wt-main-ref; pwsh -NoProfile -File tools\e2e-latency-run.ps1 -Profile pc2-virtual -Root D:\AetherTune-exp\wt-main-ref -Python D:\AetherTune-exp\wt-main-ref\.venv\Scripts\python.exe -Engine seed-vc -WarmupSec 20 -ResultsDir D:\AetherTune-exp\artifacts\e2e-latency
+```
+
+### 本輪狀態
 
 | 範圍 | 判定 | 備註 |
 |---|---|---|
-| `e2e_latency_analysis` 合成 regression | PASS | 120／450／600／850 ms、子樣本、anti-alias、missing、WAV、verdict |
-| `LatencyTrace` 單元測試 | PASS | stdlib only |
-| bench `--dry-run`／`--help`／`--self-test` | PASS | 無 sounddevice 依賴 |
-| `e2e-latency-run.ps1 -SelfTest` | PASS | 合成編排與 summary |
-| `e2e-latency-run-regression.ps1` | PASS | 解析／SelfTest／RequestOnly／probe `-List` |
-| `virtual-line-probe.ps1` winmm 粗 loopback（PC2 2026-11-20） | PASS | 見上表；非 E2E |
-| loopback 實機（pulse bench） | WAITING | PC2 缺 sounddevice runtime |
-| through-engine 實機 E2E | WAITING | 需引擎運行與 `-Python` |
-| 研究目標 100–300 ms p95 | WAITING | 無實測數字 |
-
-## 實測結果（placeholder）
-
-| 模式 | p50 ms | p95 ms | e2e_first_packet_ms | target_verdict |
-|---|---:|---:|---:|---|
-| loopback_baseline | WAITING | WAITING | WAITING | WAITING |
-| through_engine | WAITING | WAITING | WAITING | WAITING |
-| engine − baseline | WAITING | WAITING | — | WAITING |
+| baseline（Steam exclusive＋Voice Changer） | PASS | 8/8＋8/8，兩跳 p50 133 ms |
+| seed-vc through-engine | PASS（量到；研究目標 100–300 ms 未達） | p50 ≈ 668 ms |
+| meanvc2 through-engine | WAITING | trace 350–385 ms；聲學需語音訊號 |
+| rvc through-engine | 進行中 |  |
+| xvc through-engine | 進行中 | 有時間才做 |
