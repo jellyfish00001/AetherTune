@@ -273,4 +273,8 @@ $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $e
   - f-fm+0.5：淨 p50 115 ms（A 段 195），RTF 0.461，沒有 underrun。A 段的 195 ms 判定為與 Hub 測試重疊造成的干擾，作廢；formant +0.5 實際只比 base 多約 7.5 ms，在量測解析度（5 ms）與重複差異範圍附近。
   - 離線 render 與 CER 不受影響（重量只跑即時量測）。
 
+- 中文盲聽樣本（Opus 64 kbps VBR／voip／20 ms 模擬 Discord，非真的 Discord；已解回 PCM16 WAV）：
+  - 樣本：`D:\AetherTune-exp\artifacts\listening\rvc-naturalness-zh-20261120\blind-opus64\`，S01～S28 共 28 個（4 個原始輸入加 24 個轉換結果，順序已打亂），附 README.txt 與 SHA256SUMS.txt。
+  - 對照表另存於上一層 `blind-key-DO-NOT-OPEN.csv`，不放在樣本資料夾、不進 git，本文件也不寫代號與組別的對應。盲聽前不要打開 render\ 與 analysis\（檔名有標組別）。
+
 <!-- rvc-naturalness-zh:end -->
