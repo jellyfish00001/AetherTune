@@ -35,6 +35,7 @@ def main():
     ap.add_argument("--ref-lang", default="zh")
     ap.add_argument("--model-dir", default=r"D:\AetherTune-exp\tts-models\gsv-tts-lite")
     ap.add_argument("--no-boost", action="store_true")
+    ap.add_argument("--flash-attn", action="store_true")
     ap.add_argument("--loopback", help="同時錄虛擬線的錄音端（例如 CABLE Output），量「送出 → 線上真的出現聲音」")
     ap.add_argument("--threshold", type=float, default=0.01)
     ap.add_argument("--text-file", help="UTF-8 文字檔，一行一句（自動化量測用；不填就讀 stdin）")
@@ -64,7 +65,7 @@ def main():
     tp.LangSegment.getTexts = staticmethod(_zh_only)
     from gsv_tts import TTS
 
-    tts = TTS(models_dir=a.model_dir)
+    tts = TTS(models_dir=a.model_dir, use_flash_attn=a.flash_attn)
     tts.load_gpt_model()
     tts.load_sovits_model()
     tts.init_language_module("zh")
@@ -158,7 +159,7 @@ def main():
                "first_write_ms": round((first_written[n] - t0) * 1000, 1), "gen_total_ms": round(gen_done * 1000, 1),
                "out_stream_latency_ms": round(out_latency.get("s", 0) * 1000, 1),
                "heard_on_line_ms": round((heard[n] - t0) * 1000, 1) if n in heard else None,
-               "ref": Path(ref).name}
+               "ref": Path(ref).name, "flash_attn": a.flash_attn, "zh_fix": True}
         print(json.dumps(rec, ensure_ascii=False), flush=True)
         with log.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
