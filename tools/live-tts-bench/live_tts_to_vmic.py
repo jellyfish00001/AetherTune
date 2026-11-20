@@ -37,6 +37,7 @@ def main():
     ap.add_argument("--no-boost", action="store_true")
     ap.add_argument("--loopback", help="同時錄虛擬線的錄音端（例如 CABLE Output），量「送出 → 線上真的出現聲音」")
     ap.add_argument("--threshold", type=float, default=0.01)
+    ap.add_argument("--text-file", help="UTF-8 文字檔，一行一句（自動化量測用；不填就讀 stdin）")
     ap.add_argument("--log", default=r"D:\AetherTune-exp\artifacts\live-tts-bench\vmic\latency-log.jsonl")
     a = ap.parse_args()
     import sounddevice as sd
@@ -54,6 +55,13 @@ def main():
     from torch.nn.attention import SDPBackend
     import gsv_tts.GPT_SoVITS.GPT.t2s_model as t2s
     t2s.SDPBACKEND = SDPBackend.EFFICIENT_ATTENTION  # 5060 Ti/Windows 的 CUDNN 注意力會報錯
+    import re
+    import gsv_tts.TextProcessor as tp
+    _orig = tp.LangSegment.getTexts
+
+    def _zh_only(text, *args, **kw):  # 同 bench --zh-fix：避免「囉」等字讓整段被語言偵測丟掉
+        return _orig(text, *args, **kw) if re.search(r"[A-Za-z]", text) else [{"lang": "zh", "text": text}]
+    tp.LangSegment.getTexts = staticmethod(_zh_only)
     from gsv_tts import TTS
 
     tts = TTS(models_dir=a.model_dir)
@@ -115,7 +123,8 @@ def main():
         pass
     print("準備好了，輸入文字後按 Enter：", flush=True)
     n = 0
-    for line in sys.stdin:
+    lines = (Path(a.text_file).read_text(encoding="utf-8").splitlines() if a.text_file else sys.stdin)
+    for line in lines:
         text = line.strip()
         if not text:
             break
@@ -123,6 +132,7 @@ def main():
         t0 = time.perf_counter()
         armed["n"] = n
         first_chunk = None
+        audio_s = 0.0
         for clip in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=ref_text,
                                      text=text, text_language="zh", prompt_language=a.ref_lang, debug=False,
                                      boost_first_chunk=not a.no_boost):
@@ -132,6 +142,7 @@ def main():
             if first_chunk is None:
                 first_chunk = time.perf_counter() - t0
             q.put((n, buf))
+            audio_s += len(buf) / sr
         gen_done = time.perf_counter() - t0
         while n not in first_written:
             time.sleep(0.005)
@@ -139,6 +150,10 @@ def main():
             t_wait = time.perf_counter()
             while n not in heard and time.perf_counter() - t_wait < 3:
                 time.sleep(0.005)
+        # 等這句播完再送下一句，避免下一句的量測被前一句還在播的音訊干擾
+        while not q.empty():
+            time.sleep(0.01)
+        time.sleep(max(0.0, first_written[n] + audio_s + 0.4 - time.perf_counter()))
         rec = {"n": n, "text": text, "device": a.device, "first_chunk_ms": round(first_chunk * 1000, 1),
                "first_write_ms": round((first_written[n] - t0) * 1000, 1), "gen_total_ms": round(gen_done * 1000, 1),
                "out_stream_latency_ms": round(out_latency.get("s", 0) * 1000, 1),

@@ -50,7 +50,7 @@ def main():
             gen.close()
 
     sr = getattr(vc.tts_model, "sample_rate", None) or vc.tts_model.audio_vae.sample_rate
-    common.run_bench(f"voxcpm2-{a.mode}-t{a.timesteps}", synth, sr, out,
+    common.run_bench(f"voxcpm2-{a.mode}-t{a.timesteps}" + ("-compile" if a.optimize else ""), synth, sr, out,
                      {"package": "voxcpm==2.0.3", "model": "openbmb/VoxCPM2", "mode": a.mode,
                       "inference_timesteps": a.timesteps, "cfg_value": 2.0, "optimize": a.optimize,
                       "retry_badcase": False, "max_len": "預設 2000"}, Path(ref), load)

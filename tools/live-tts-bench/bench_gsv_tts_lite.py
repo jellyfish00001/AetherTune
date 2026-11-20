@@ -24,6 +24,8 @@ def main():
     ap.add_argument("--overlap", type=int, default=5)
     ap.add_argument("--flash-attn", action="store_true", help="use_flash_attn=True（需實驗 venv 內裝 flash-attn Windows 輪檔）")
     ap.add_argument("--cut-minlen", type=int, default=10, help="切句最短長度；預設 10 會把短子句併到下一句")
+    ap.add_argument("--zh-fix", action="store_true",
+                    help="純中日韓文字時略過 LangSegment 語言偵測、整段當中文；修 0.4.7 遇到「囉」等字整段被丟掉的尾句截斷")
     ap.add_argument("--sdp", choices=["efficient", "math", "auto"], default="efficient",
                     help="gsv-tts-lite 0.4.7 自動選 CUDNN_ATTENTION，在 PC1 5060 Ti/Windows 帶 mask 時報 No available kernel，預設改 EFFICIENT")
     a = ap.parse_args()
@@ -42,6 +44,17 @@ def main():
             t2sf.SDPBACKEND = t2s.SDPBACKEND
         except Exception:  # noqa: BLE001
             pass
+
+    if a.zh_fix:
+        import re
+        import gsv_tts.TextProcessor as tp
+        _orig = tp.LangSegment.getTexts
+
+        def _zh_only(text, *args, **kw):
+            if re.search(r"[A-Za-z]", text):
+                return _orig(text, *args, **kw)
+            return [{"lang": "zh", "text": text}]
+        tp.LangSegment.getTexts = staticmethod(_zh_only)
 
     t = time.perf_counter()
     tts = TTS(models_dir=a.model_dir, use_bert=a.bert, use_flash_attn=a.flash_attn,
@@ -66,6 +79,8 @@ def main():
         name += "-fa"
     if a.sdp != "efficient":
         name += f"-sdp{a.sdp}"
+    if a.zh_fix:
+        name += "-zhfix"
     if a.cut_minlen != 10:
         name += f"-cut{a.cut_minlen}"
     if (a.stream_chunk, a.overlap) != (25, 5):
@@ -74,7 +89,7 @@ def main():
                      {"package": "gsv-tts-lite==0.4.7", "model": "s1v3.ckpt + s2Gv2ProPlus.pth（內建底模）",
                       "stream_mode": "token", "stream_chunk": a.stream_chunk, "overlap_len": a.overlap,
                       "boost_first_chunk": not a.no_boost, "use_bert": a.bert,
-                      "flash_attn": bool(getattr(tts.tts_config, "use_flash_attn", False)), "sdp_backend": a.sdp, "cut_minlen": a.cut_minlen}, Path(ref), load)
+                      "flash_attn": bool(getattr(tts.tts_config, "use_flash_attn", False)), "sdp_backend": a.sdp, "cut_minlen": a.cut_minlen, "zh_fix": a.zh_fix}, Path(ref), load)
 
 
 if __name__ == "__main__":

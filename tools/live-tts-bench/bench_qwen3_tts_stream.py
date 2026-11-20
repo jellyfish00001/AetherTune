@@ -52,6 +52,9 @@ def main():
     box = {"q": None}
     orig_forward = talker.forward
 
+    import functools
+
+    @functools.wraps(orig_forward)  # 保留原簽名，HF generate 會檢查 forward 參數
     def wrapped(*args, **kw):
         o = orig_forward(*args, **kw)
         q = box["q"]
@@ -82,6 +85,10 @@ def main():
                 err["e"] = e
             finally:
                 q.put(None)
+        # 串流時已自己分塊解碼；把套件最後的整句解碼換成空操作，避免重複解碼算進 RTF。
+        st = core.speech_tokenizer
+        real_decode = st.decode
+        st.decode = lambda enc: ([__import__("numpy").zeros(16, dtype="float32") for _ in enc], sr)
         th = threading.Thread(target=run, daemon=True)
         th.start()
         frames = []
@@ -112,6 +119,7 @@ def main():
                 emitted = len(frames)
                 yield wav
         th.join()
+        st.decode = real_decode
         box["q"] = None
         if "e" in err:
             raise err["e"]
