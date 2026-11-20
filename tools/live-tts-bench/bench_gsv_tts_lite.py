@@ -22,6 +22,8 @@ def main():
     ap.add_argument("--no-boost", action="store_true", help="boost_first_chunk=False（官方說 True 會降首包但短句可能有雜音）")
     ap.add_argument("--stream-chunk", type=int, default=25)
     ap.add_argument("--overlap", type=int, default=5)
+    ap.add_argument("--flash-attn", action="store_true", help="use_flash_attn=True（需實驗 venv 內裝 flash-attn Windows 輪檔）")
+    ap.add_argument("--cut-minlen", type=int, default=10, help="切句最短長度；預設 10 會把短子句併到下一句")
     ap.add_argument("--sdp", choices=["efficient", "math", "auto"], default="efficient",
                     help="gsv-tts-lite 0.4.7 自動選 CUDNN_ATTENTION，在 PC1 5060 Ti/Windows 帶 mask 時報 No available kernel，預設改 EFFICIENT")
     a = ap.parse_args()
@@ -42,7 +44,7 @@ def main():
             pass
 
     t = time.perf_counter()
-    tts = TTS(models_dir=a.model_dir, use_bert=a.bert,
+    tts = TTS(models_dir=a.model_dir, use_bert=a.bert, use_flash_attn=a.flash_attn,
               sovits_cache=[a.stream_chunk * 2, a.stream_chunk * 2 + a.overlap])
     tts.load_gpt_model()
     tts.load_sovits_model()
@@ -56,17 +58,23 @@ def main():
         for clip in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=common.REF_TEXT,
                                      text=text, text_language="zh", prompt_language=common.REF_LANG, debug=False,
                                      boost_first_chunk=not a.no_boost, stream_chunk=a.stream_chunk,
-                                     overlap_len=a.overlap):
+                                     overlap_len=a.overlap, cut_minlen=a.cut_minlen):
             yield clip.audio_data
 
     name = "gsv-tts-lite" + ("-bert" if a.bert else "") + ("-noboost" if a.no_boost else "")
+    if a.flash_attn:
+        name += "-fa"
+    if a.sdp != "efficient":
+        name += f"-sdp{a.sdp}"
+    if a.cut_minlen != 10:
+        name += f"-cut{a.cut_minlen}"
     if (a.stream_chunk, a.overlap) != (25, 5):
         name += f"-c{a.stream_chunk}o{a.overlap}"
     common.run_bench(name, synth, tts.samplerate, out,
                      {"package": "gsv-tts-lite==0.4.7", "model": "s1v3.ckpt + s2Gv2ProPlus.pth（內建底模）",
                       "stream_mode": "token", "stream_chunk": a.stream_chunk, "overlap_len": a.overlap,
                       "boost_first_chunk": not a.no_boost, "use_bert": a.bert,
-                      "flash_attn": False, "sdp_backend": a.sdp}, Path(ref), load)
+                      "flash_attn": bool(getattr(tts.tts_config, "use_flash_attn", False)), "sdp_backend": a.sdp, "cut_minlen": a.cut_minlen}, Path(ref), load)
 
 
 if __name__ == "__main__":

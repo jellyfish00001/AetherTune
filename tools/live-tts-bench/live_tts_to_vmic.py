@@ -35,6 +35,8 @@ def main():
     ap.add_argument("--ref-lang", default="zh")
     ap.add_argument("--model-dir", default=r"D:\AetherTune-exp\tts-models\gsv-tts-lite")
     ap.add_argument("--no-boost", action="store_true")
+    ap.add_argument("--loopback", help="同時錄虛擬線的錄音端（例如 CABLE Output），量「送出 → 線上真的出現聲音」")
+    ap.add_argument("--threshold", type=float, default=0.01)
     ap.add_argument("--log", default=r"D:\AetherTune-exp\artifacts\live-tts-bench\vmic\latency-log.jsonl")
     a = ap.parse_args()
     import sounddevice as sd
@@ -64,9 +66,36 @@ def main():
     dev = pick_device(sd, a.device)
     q: "queue.Queue[np.ndarray | None]" = queue.Queue()
     first_written = {}
+    out_latency = {}
+    heard = {}
+    armed = {"n": None}
+    in_stream = None
+    if a.loopback:
+        ldev = None
+        for i, d in enumerate(sd.query_devices()):
+            if a.loopback.lower() in d["name"].lower() and d["max_input_channels"] > 0:
+                ldev = i
+                break
+        if ldev is None:
+            raise SystemExit(f"找不到錄音裝置：{a.loopback}")
+
+        def on_in(indata, frames, tinfo, status):
+            now = time.perf_counter()
+            n_ = armed["n"]
+            if n_ is None or n_ in heard:
+                return
+            amp = np.abs(indata[:, 0])
+            idx = np.nonzero(amp > a.threshold)[0]
+            if len(idx):
+                heard[n_] = now - (frames - int(idx[0])) / in_sr
+        in_sr = int(sd.query_devices(ldev)["default_samplerate"])
+        in_stream = sd.InputStream(samplerate=in_sr, channels=1, dtype="float32", device=ldev,
+                                   latency="low", blocksize=256, callback=on_in)
+        in_stream.start()
 
     def player():
         with sd.OutputStream(samplerate=sr, channels=1, dtype="float32", device=dev, latency="low") as st:
+            out_latency["s"] = st.latency
             while True:
                 item = q.get()
                 if item is None:
@@ -92,6 +121,7 @@ def main():
             break
         n += 1
         t0 = time.perf_counter()
+        armed["n"] = n
         first_chunk = None
         for clip in tts.infer_stream(spk_audio_path=ref, prompt_audio_path=ref, prompt_audio_text=ref_text,
                                      text=text, text_language="zh", prompt_language=a.ref_lang, debug=False,
@@ -105,8 +135,15 @@ def main():
         gen_done = time.perf_counter() - t0
         while n not in first_written:
             time.sleep(0.005)
+        if in_stream is not None:
+            t_wait = time.perf_counter()
+            while n not in heard and time.perf_counter() - t_wait < 3:
+                time.sleep(0.005)
         rec = {"n": n, "text": text, "device": a.device, "first_chunk_ms": round(first_chunk * 1000, 1),
-               "first_write_ms": round((first_written[n] - t0) * 1000, 1), "gen_total_ms": round(gen_done * 1000, 1)}
+               "first_write_ms": round((first_written[n] - t0) * 1000, 1), "gen_total_ms": round(gen_done * 1000, 1),
+               "out_stream_latency_ms": round(out_latency.get("s", 0) * 1000, 1),
+               "heard_on_line_ms": round((heard[n] - t0) * 1000, 1) if n in heard else None,
+               "ref": Path(ref).name}
         print(json.dumps(rec, ensure_ascii=False), flush=True)
         with log.open("a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")

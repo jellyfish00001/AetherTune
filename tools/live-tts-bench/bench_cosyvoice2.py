@@ -18,6 +18,10 @@ def main():
     ap.add_argument("--ref-src", action="append", required=True, help="格式 set=path，可重複")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--fp16", action="store_true")
+    ap.add_argument("--jit", action="store_true", help="load_jit：flow.encoder TorchScript（需先 export_jit）")
+    ap.add_argument("--trt", action="store_true", help="load_trt：flow decoder estimator 轉 TensorRT plan（首次會在 model_dir 建 plan）")
+    ap.add_argument("--vllm", action="store_true", help="load_vllm：LLM 走 vLLM（僅 Linux）")
+    ap.add_argument("--tag", default="", help="名稱尾碼，例如 win、wsl")
     ap.add_argument("--combos", default="qwen-zh:spk,qwen-zh:nospk,f1:spk,f1:nospk",
                     help="逗號分隔的 參考音組:spk|nospk；spk=預建聲線 ID，nospk=每次傳參考音與逐字稿")
     a = ap.parse_args()
@@ -26,7 +30,7 @@ def main():
     from cosyvoice.cli.cosyvoice import CosyVoice2
 
     t = time.perf_counter()
-    cv = CosyVoice2(a.model_dir, fp16=a.fp16)
+    cv = CosyVoice2(a.model_dir, load_jit=a.jit, load_trt=a.trt, load_vllm=a.vllm, fp16=a.fp16)
     load = time.perf_counter() - t
     for combo in a.combos.split(","):
         ref_set, mode = combo.split(":")
@@ -47,9 +51,10 @@ def main():
             for item in gen:
                 yield item["tts_speech"]
 
-        name = "cosyvoice2" + ("-fp16" if a.fp16 else "") + ("-nospkid" if mode == "nospk" else "")
+        name = ("cosyvoice2" + (f"-{a.tag}" if a.tag else "") + ("-fp16" if a.fp16 else "") + ("-jit" if a.jit else "")
+                + ("-trt" if a.trt else "") + ("-vllm" if a.vllm else "") + ("-nospkid" if mode == "nospk" else ""))
         common.run_bench(name, synth, cv.sample_rate, out,
-                         {"model": "CosyVoice2-0.5B", "stream": True, "fp16": a.fp16, "spk_id": mode == "spk",
+                         {"model": "CosyVoice2-0.5B", "stream": True, "fp16": a.fp16, "jit": a.jit, "trt": a.trt, "vllm": a.vllm, "tag": a.tag, "platform": sys.platform, "spk_id": mode == "spk",
                           "spk_cache_seconds": round(spk_seconds, 3),
                           "token_hop_len": getattr(cv.model, "token_hop_len", None)}, ref, load)
 
