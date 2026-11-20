@@ -129,6 +129,21 @@ $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $e
 - 延遲主要由 chunk 加 crossfade 決定：c80-x40（157.5 ms）比 c80-x20（117.5 ms）多約 40 ms。extra_time 從 1.0 降到 0.5，淨 p50 少約 15 ms；處理時間差不多。
 - rmvpe 的 RTF 比 fcpe 高（0.64 vs 0.47，同為 c80-x20-e0.5），延遲也比較高，因為 rmvpe 每個 block 要多處理約 20 ms。
 - 估計器在 96ec077 改用「起音」法。舊的互相關法遇到短 chunk 時會對錯音節，實測誤差約 150 ms。拿既有 run 重算，結果和先前一致。
-- 未完成（PC2 17:10 重開機中斷）：最佳設定的重複確認 run（`20261120-164838-rvc` 不完整，不採用），以及女聲試聽樣本。
+- **重複確認（PC2 重開機後，17:33 台北）**：同一設定 c80-x20-e0.5-fcpe 再量一次，8/8 偵測，經引擎 p50 242.5／p95 248.25 ms，基線 135 ms，淨 p50 107.5 ms（第一次 102.5 ms，差 5 ms＝1 個估計器解析度格），RTF 0.46，處理 p95 47.5 ms，underrun 0、drops 0，GPU util p50 27%、VRAM 792 MiB。run `20261120-173312-rvc`，即時 wav `D:\AetherTune-exp\artifacts\rvc-tune\realtime\c80-x20-e0.5-fcpe-repeat.wav`（SHA256 `88C63C9C9E2EAD02EE724AAF14B2AA226E5749249E7ADFE077F6B5EDDFA43090`）。重開機前中斷的 `20261120-164838-rvc` 不完整，不採用。
+
+### RVC 女聲試聽樣本（PC2，2026-11-20）
+
+- 輸入（三個模型共用同一段）：`D:\AetherTune-exp\wt-main-ref\dataset\reference-voices\voice-female-f1.wav`（SHA256 `37976F69F73FB13D6FEFAF80268794D545D6E19BE5059437DB067455A795F406`；女聲參考語音 voice-female-f1，JVNV 日語短句、CC BY-SA 4.0，轉 48 kHz 單聲道）
+- 轉換方式：`D:\AetherTune-exp\scripts\rvc_render.py`，以 wt-main-ref（exp/bench-e2e-latency）的 `services.engines.rvc_runtime.RvcProcessor` 逐 block 處理（與即時同樣的 rolling context／SOLA），離線、不經音訊裝置。
+- 參數（本輪最佳即時設定 c80-x20-e0.5-fcpe）：`{"chunk":80,"crossfade":20,"extra_time":0.5,"f0_method":"fcpe"}`；另有 pitch 0、index_rate 0.75。GPU：RTX 2060。
+- 輸出：48 kHz、PCM16、單聲道。
+
+| 檔案 | 模型 | 權重 SHA256 | index SHA256 | 長度 (s) | 離線 RTF | 峰值 | RMS | 輸出 SHA256 |
+|---|---|---|---|---|---|---|---|---|
+| `Sage_CN_HeroicFemale.wav` | Sage_CN_HeroicFemale（`D:\AetherTune-exp\wt-main-ref\models\weights\Sage_CN_HeroicFemale.pth`） | `57C2A770211A7F08C7AE973E6343006547CA4400752CE4DA17842117E1E556AD` | `4D9DDA9D71D9BB6A65283718F0390AA45951A818E69F57B8686583AC31BB9AF9` | 13.4 | 0.36 | 0.796 | 0.1019 | `214131858281A93CD2AFAD5621A31ECB79569163587100E396964EF666D4251E` |
+| `ChineseBluetooth_F.wav` | ChineseBluetooth_F（`D:\AetherTune-exp\wt-rvc-models\models\weights\ChineseBluetooth_F.pth`） | `A0C67C194B83A81D00339AEA3BAACF8CB69C41D4904DDAAA6862361303CF7B33` | `627C3FE5D48F513D3C518FB9900865891B557476E78B7CC35B2E042920ACDD23` | 13.4 | 0.356 | 0.943 | 0.1921 | `613B80AEBD52FE814AA1D2DB335ADCCE15267F028C5825721066950D0385A229` |
+| `EGirl_F.wav` | EGirl_F（`D:\AetherTune-exp\wt-rvc-models\models\weights\EGirl_F.pth`） | `FA099355523B09DCDE45489A567F7B5E1F843DF64BB6F532D2CB6C93606880A1` | `29F2731238F14B6C509B9B7BCCC75A21AE7414737C6C101C739FD95CC8F37839` | 13.4 | 0.385 | 0.858 | 0.1041 | `8B0763D033D20728BF3E03EEE7011A466EF7C7B26DBD46FA33772926A2961739` |
+
+驗證：在 `D:\AetherTune-exp\artifacts\listening\rvc-female-20261120\` 執行 `Get-FileHash *.wav -Algorithm SHA256` 對照 SHA256SUMS.txt。
 
 <!-- rvc-tune:end -->
