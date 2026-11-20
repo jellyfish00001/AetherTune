@@ -17,6 +17,9 @@ Agent 先用[快速地圖](../.agent/reference/agent-quick-map.md)找 owner；�
 - `audio-rack-evidence-regression.py`：涵蓋未配對、缺檔、hash/identity/timing/continuity/paired-run/output/delta mismatch、靜音與超過 5 秒；確認 rack fixture 送入 LIVE gate 仍是 WAITING。
 - `live-gate-validate.py`／`live-gate-regression.py`：驗證本次 mic input/output artifact、metrics hash 綁定完整 timing/continuity/source type/human review identity+audio hashes+ratings、run 時間與 600 秒穩定性；synthetic source 不能通過 LIVE，不完整的 PASS human review 會 BLOCKED。
 - `portaudio-callback-telemetry.py`／`portaudio-callback-telemetry-regression.py`：統計 callback、frame continuity、PortAudio status 與 ADC timestamp drift；不保留音訊 samples，合成 regression 不代表實際裝置通過。
+- `e2e_latency_analysis.py`／`e2e-latency-analysis-regression.py`：脈衝列互相關 E2E 延遲離線分析（stdlib 核心）；彙總 `e2e_*_ms` 與研究目標 100–300 ms verdict，不等於 LIVE gate。
+- `e2e-latency-bench.py`：playrec 脈衝基準（loopback／engine）；`--dry-run`／`--self-test` 不需 sounddevice；實測輸出至 `artifacts/`。
+- `e2e-latency-run.ps1`：一行編排 baseline＋引擎量測或 `-SelfTest`；彙總 `artifacts/e2e-latency/*-summary.json`／`.md`。
 - `wav-evidence.py`／`seed-vc-wav-check.py`：用 WAV header 與 PCM payload 檢查實際 metadata、hash、finite/non-zero 訊號；不能取代 paired rack 或 LIVE_GATE。
 - `seed-vc-live-capture.py`：在官方 Seed-VC GUI 已待命時，錄製使用者明確指定的實體 mic、backend loopback 與終端 loopback，輸出 WAV／callback evidence。onset delta 是估算值，報告保持 `WAITING`，不自動升格 LIVE。
 - `voice-backend-check.ps1`：唯讀檢查 RVC venv、Seed-VC source／isolated environment／checkpoint、男／女 reference voice 與 CosyVoice/Breeze TTS 2 模型狀態；不代表端到端品質通過。

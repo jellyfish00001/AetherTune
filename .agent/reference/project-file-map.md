@@ -298,6 +298,8 @@
 | [services/engines/runner_service.py](../../services/engines/runner_service.py) | JSONL engine control bridge；只協調既有 runner、以 stdout 傳狀態/ack，保留 backend runner ownership，不在 IPC 傳 PCM。 | command/event schema 變更同步 `contracts/schemas/backend-state.schema.json`、Rust EngineManager bridge、`app/src/services/desktop.ts` 與 runner service tests。 |
 | [services/engines/rvc_runtime.py](../../services/engines/rvc_runtime.py) | RVC 已登錄模型 hash、FCPE／RMVPE CUDA、rolling block／SOLA、PortAudio stream、監聽及 evidence；重用固定 upstream 推論核心。 | 同步 RVC manifest、runner validation、音訊 smoke、backend README 及 source audit。 |
 | [services/engines/stream_runtime.py](../../services/engines/stream_runtime.py) | Seed／Mean／X 共用 capture、推論 worker、bounded PCM queue、輸出／監聽、metrics 與 evidence。 | 同步 runner service、三 manifest、runtime queue tests、Desktop VC report。 |
+| [services/engines/latency_trace.py](../../services/engines/latency_trace.py) | 可選 `LatencyTrace`：輸入／模型／輸出 callback 的 bounded perf_counter 紀錄與 jsonl 匯出；預設關閉。 | 同步 `stream_runtime.py`、`test_latency_trace.py`、E2E 延遲驗證說明。 |
+| [services/engines/test_latency_trace.py](../../services/engines/test_latency_trace.py) | LatencyTrace 停用 no-op、maxlen、彙總 p50/p95、jsonl 寫入 regression。 | trace 欄位或配對邏輯變更同步 `latency_trace.py`。 |
 | [services/engines/streaming_adapters.py](../../services/engines/streaming_adapters.py) | 三引擎 resident 模型、reference、source revision、rolling context 與 host/model 重取樣。 | 同步 backend README、processor tests 與真實 streaming smoke。 |
 | [services/engines/postfx.py](../../services/engines/postfx.py) | 共用 EQ／壓縮／殘響／乾濕混合與範圍驗證。 | 同步 VC UI controls、四 runtime 接點與訊號 tests。 |
 | [services/engines/noise_reduction.py](../../services/engines/noise_reduction.py) | 四 VC 共用輸入頻譜降噪、跨區塊狀態、嚴格設定驗證、bypass、延遲與整檔尾端補償。 | 同步四 runtime、參數契約及固定底噪／連續性 regression；不視為模型電子感修復。 |
@@ -352,6 +354,10 @@
 | [tools/live-gate-regression.py](../../tools/live-gate-regression.py) | LIVE gate artifact/source/identity negative tests，確認 synthetic、不完整 review 或缺欄位不能通過。 | gate validator 改動時先同步此 regression 和 verification plan。 |
 | [tools/portaudio-callback-telemetry.py](../../tools/portaudio-callback-telemetry.py) | 統計 callback/frame continuity、PortAudio status、ADC timestamp drift，不保存 audio samples。 | telemetry output 或 device selection 變更同步 `portaudio-callback-telemetry-regression.py`、Seed live evidence。 |
 | [tools/portaudio-callback-telemetry-regression.py](../../tools/portaudio-callback-telemetry-regression.py) | callback status/frame continuity synthetic regression；不能代表實際裝置通過。 | telemetry 欄位或 threshold 變更同步 telemetry tool 和 live docs。 |
+| [tools/e2e_latency_analysis.py](../../tools/e2e_latency_analysis.py) | 脈衝列互相關 E2E 延遲離線分析（stdlib）；輸出 `aethertune-e2e-latency/v1` 與 live-gate 相容 `e2e_*` 欄位。 | 同步 `e2e-latency-bench.py`、regression、audio E2E 驗證。 |
+| [tools/e2e-latency-bench.py](../../tools/e2e-latency-bench.py) | loopback／engine playrec 基準；lazy 依賴 sounddevice；`--dry-run` 僅寫 plan／WAV 至 artifacts。 | 路由／欄位變更同步 analysis 與 verification。 |
+| [tools/e2e-latency-analysis-regression.py](../../tools/e2e-latency-analysis-regression.py) | 已知延遲、雜訊、missing pulse、WAV、verdict 合成 regression；含 bench `--self-test` subprocess；不依賴 numpy。 | analysis API 或 threshold 變更先跑本 regression。 |
+| [tools/e2e-latency-run.ps1](../../tools/e2e-latency-run.ps1) | pwsh／PS 5.1 可重跑 E2E 編排（loopback、runner_service 引擎、彙總表）；`-SelfTest` 僅合成 bench。 | 同步 bench、`runner_service` 與 audio E2E 驗證文件。 |
 | [tools/audio-quality-batch.py](../../tools/audio-quality-batch.py) | 四 backend WAV 的 signal-level batch compare，檢查 hash、dBFS、finite/non-zero、clipping/silence/DC。 | quality 欄位同步 `audio-quality-batch-regression.py`、quality report/template。 |
 | [tools/audio-quality-batch-regression.py](../../tools/audio-quality-batch-regression.py) | status aggregation regression，保證 BLOCKED row 不會彙總成 PASS。 | aggregation/status vocabulary 變更同步 batch tool 和 verification docs。 |
 | [tools/audio-output-validation-regression.py](../../tools/audio-output-validation-regression.py) | WAV output gate 的空值、非 finite、有效訊號 negative/positive cases。 | output gate 改動同步 `audio_output_validation.py`、TTS adapters。 |
@@ -508,6 +514,7 @@
 | [docs/verification/backends/vcclient-rvc-probe-latest.md](../../docs/verification/backends/vcclient-rvc-probe-latest.md) | RVC FCPE+CUDA Desktop block／callback 及歷史 offline output matrix；VCClient、physical Mic、LIVE 分開。 | RVC model、runtime、probe 或 output artifact 變更後更新，不能套用成 LIVE。 |
 | [docs/archive/wiring-deployment-report.md](../../docs/archive/wiring-deployment-report.md) | 歷史 deployed software/device/route onboarding report，供追溯初始配置。 | 只有部署配置或 onboarding evidence 變更時更新；目前狀態另看 wiring verification。 |
 | [docs/verification/audio/wiring-verification-latest.md](../../docs/verification/audio/wiring-verification-latest.md) | 最新 wiring verification，分離 file/runtime/device/service/audio evidence 並標記 PASS/WAITING/BLOCKED。 | `tools/verify_wiring.ps1`、device/route/service 或 probe 改動後重跑並附 artifact。 |
+| [docs/verification/audio/e2e-latency-verification-latest.md](../../docs/verification/audio/e2e-latency-verification-latest.md) | Round 1 E2E 脈衝延遲 harness、loopback／engine 方法、研究目標 100–300 ms 與實測 WAITING 表。 | 同步 `e2e-latency-bench.py`、`e2e_latency_analysis.py`、regression 與 `live-gate` 欄位命名。 |
 | [docs/archive/project-architecture-review-report-2026-09-27.md](../../docs/archive/project-architecture-review-report-2026-09-27.md) | 2026-09-27 architecture/opening review 的 counted scope、findings 與 remediation context。 | 只修訂該 review 的來源證據或明確後續；current architecture 以 `architecture.md` 為準。 |
 
 ## Ignored、generated 與 upstream 資料夾索引

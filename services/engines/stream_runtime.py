@@ -74,6 +74,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
     from services.engines.noise_reduction import NoiseReduction
     from services.engines.rvc_runtime import endpoint, digest
     from services.engines.streaming_adapters import create_processor
+    from services.engines.latency_trace import LatencyTrace
 
     stop = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -128,6 +129,11 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                      underruns=0, overruns=0, empty_output_callbacks=0, monitor_frames=0, monitor_peak=0.0)
         peaks = dict(input_peak=0.0, output_peak=0.0)
         timings = deque(maxlen=4096)
+        latency_trace = LatencyTrace.for_request(request)
+        trace_on = latency_trace.enabled
+        cumulative_input_frames = 0
+        cumulative_output_frames = 0
+        cumulative_consumed_input = 0
         callback_hash = hashlib.sha256()
         source_audio = None
         source_position = 0
@@ -154,7 +160,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
             pending.set()
 
         def input_callback(indata, _frames, _times, status):
-            nonlocal source_position, first_input
+            nonlocal source_position, first_input, cumulative_input_frames
             if stop.is_set():
                 raise sd.CallbackStop
             try:
@@ -172,6 +178,9 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                 stats["overruns"] += int(bool(status.input_overflow))
                 if first_input is None and peak > 1e-4:
                     first_input = time.perf_counter()
+                if trace_on:
+                    cumulative_input_frames += len(mono)
+                    latency_trace.record_input(cumulative_input_frames, len(mono))
                 incoming.push(mono)
                 pending.set()
             except Exception as exc:
@@ -179,7 +188,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                 raise sd.CallbackAbort from exc
 
         def output_callback(outdata, frames, _times, status):
-            nonlocal first_output, capture_frames
+            nonlocal first_output, capture_frames, cumulative_output_frames
             outdata.fill(0)
             if stop.is_set():
                 raise sd.CallbackStop
@@ -194,6 +203,9 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                 stats["empty_output_callbacks"] += int(len(samples) < frames)
                 if first_output is None and peak > 1e-4:
                     first_output = time.perf_counter()
+                if trace_on and len(samples):
+                    cumulative_output_frames += len(samples)
+                    latency_trace.record_output_written(cumulative_output_frames, len(samples))
                 callback_hash.update(outdata.tobytes())
                 if source_audio is not None and capture_frames < 48000 * (test_seconds + 2):
                     capture.append(outdata[:, 0].copy())
@@ -216,6 +228,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                 raise sd.CallbackAbort from exc
 
         def convert():
+            nonlocal cumulative_consumed_input
             try:
                 while not stop.is_set():
                     block = incoming.pop(processor.block)
@@ -226,6 +239,10 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                     started = time.perf_counter()
                     result = processor.process(denoiser.process(block))
                     timings.append((time.perf_counter()-started)*1000)
+                    if trace_on:
+                        cumulative_consumed_input += len(block)
+                        produced = len(result) if result is not None and len(result) else 0
+                        latency_trace.record_model_done(cumulative_consumed_input, produced)
                     stats["blocks"] += 1
                     if result is not None and len(result):
                         result = fx.process(result)
@@ -272,6 +289,9 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
                     stop.set()
             if errors:
                 raise ValueError("CALLBACK_FAILED: " + errors[0])
+        if latency_trace.enabled:
+            latency_trace.write_jsonl(folder / "latency-trace.jsonl")
+            report["latency_trace"] = latency_trace.summary()
         report.update(status="STOPPED", metrics={**report.get("metrics", {}), **stats}, nonzero=stats["output_peak"] > 1e-4, finite=True,
                       callback_sha256=callback_hash.hexdigest(), first_output_seconds=(first_output-stream_started) if first_output else None,
                       first_input_seconds=(first_input-stream_started) if first_input else None)
