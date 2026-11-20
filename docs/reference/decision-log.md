@@ -2,6 +2,18 @@
 
 本文件不是永久綁定；每個模組都可替換，但替換時要重新做相容性、授權、延遲與音質驗證。
 
+<a id="2026-11-20-aethertune-即時變聲邊界與純配音凍結"></a>
+
+## 2026-11-20（Asia/Taipei）：AetherTune 邊界與純配音凍結
+
+**13:08 產品範圍：**AetherTune 只負責即時變聲與混音。內容配音（TTS、角色聲線、語音克隆、品質取向語音重建）移至 創作工坊 Bot 的 VisualSoundForge（VSF）；與 VSF 重疊之處以 VSF 為準。
+
+**13:23 執行策略：**立即凍結純配音相關開發；待共用模組（播放、裝置列舉、runner 互鎖等）抽出後再拆分程式。當日僅撰寫計畫與凍結標記，不刪除程式、不移除 UI、不改變行為。
+
+理由：避免 AetherTune 與 VSF 平行投資相同 TTS／克隆能力；先保留 VC 所需共用音訊層，降低拆分時破壞 `services/engines` 與 Desktop 互鎖的風險。
+
+依據與後續步驟：完整盤點、共用設施與 S0–S5 順序見 [`tts-freeze-split-plan.md`](../specs/tts-freeze-split-plan.md)。`contracts/schemas/engine-manifest.schema.json` 不允許額外 lifecycle 欄位，引擎凍結以文件與 backend README 註記為準。
+
 ## 2026-09-29：Desktop 單一圖形入口
 
 決定：移除舊 `AetherTune.cmd`、Tk 控制台及其專用操作腳本；在已準備的 Windows checkout，以根目錄 `AetherTune.exe` 作為圖形入口。`app/dev.ps1 -Build` 從 Tauri build 複製 exe 到根目錄並核對 SHA-256；生成的 exe 不進 Git。

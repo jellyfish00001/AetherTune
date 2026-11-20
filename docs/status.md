@@ -28,7 +28,7 @@
 |---|---|---|---|
 | [F01 工作區／視窗](specs/app-requirements.md#f01) | 部分交付：三種 layout、WORKSPACE／SETTINGS、首屏 START、雙語與偏好保存；預設原生拖曳／快捷鍵／退出已補驗 | Tray 點擊未實測、本輪工具驗收略過；載入與錯誤流程再改善 | [UI](verification/desktop/usability-audit-latest.md#computer-use-20261003)、[語言](verification/desktop/ui-language-verification-latest.md)；UI-01／02、MOD-01 |
 | [F02 四 VC](specs/app-requirements.md#f02) | 部分交付：四 VC 串流／RVC File、Start／Stop、manifest 參數表單與獨立保存、進階收合 | RVC index 覆蓋、physical／完整路由；bridge／runtime 預檢雙向依賴 | [調音](verification/desktop/audio-tuning-verification-latest.md)、[Desktop VC](verification/desktop/realtime-vc-verification-latest.md)；FEAT-01、AUDIO-01、LIVE-01、MOD-04 |
-| [F03 Manual TTS](specs/app-requirements.md#f03) | 核心已交付：雙引擎、Queue／取消／快照、Recent／Favorites、完成播放寫 Transcript、同引擎 worker 重用 | 冷啟動與切換慢；完整 WAV 模式；近期新增音效仍需新生成原生 Speak 全鏈 | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[音效](verification/desktop/audio-effects-verification-latest.md)；PERF-01、AUDIO-02 |
+| [F03 Manual TTS](specs/app-requirements.md#f03) | **凍結（2026-11-20）：**移交 VSF 前僅維護；核心已交付：雙引擎、Queue／取消／快照、Recent／Favorites、完成播放寫 Transcript、同引擎 worker 重用 | 冷啟動與切換慢；完整 WAV 模式；近期新增音效仍需新生成原生 Speak 全鏈；拆分計畫見 [tts-freeze-split-plan](specs/tts-freeze-split-plan.md) | [Manual TTS](verification/desktop/manual-tts-verification-latest.md)、[音效](verification/desktop/audio-effects-verification-latest.md)；PERF-01、AUDIO-02 |
 | [F04 常駐 STT／重建](specs/app-requirements.md#f04) | Desktop 未交付；已有離線 CLI、provider／source 契約，畫面重建模式目前僅文字 | physical Mic／Remote capture、VAD、常駐 STT、backend_stt 串接及共存 | [操作審查](verification/desktop/usability-audit-latest.md)、[後端手冊](guides/user-guide.md)；FEAT-03 |
 | [F05 聲音／模型／Preset](specs/app-requirements.md#f05) | 部分交付：TTS catalogue、RVC register／模型選擇、四 VC 參數表單、來源 audit 工具 | Voice Library 管理、完整 Preset Save／Load；來源限制另驗 | [調音](verification/desktop/audio-tuning-verification-latest.md)、[模型 audit](verification/backends/rvc-model-audit-latest.md)；FEAT-01、SOURCE-01 |
 | [F06 裝置／音效／路由](specs/app-requirements.md#f06) | 部分交付：裝置／監聽提示、六引擎音效、四 VC 輸入降噪、手動症狀排查；有 WAV／指定 CABLE 分項證據 | RVC duplex 的 B1 近零問題、外部 VST bypass/full-chain、接收端及聽評 | [調音](verification/desktop/audio-tuning-verification-latest.md)、[音效](verification/desktop/audio-effects-verification-latest.md)、[VC](verification/desktop/realtime-vc-verification-latest.md)；AUDIO-01／02／03、LIVE-01 |
@@ -112,7 +112,7 @@ AUDIO-01 與 SOURCE-01 可從第一批起獨立推進；physical／聽評可在�
 | M3 參數／Preset | 四 VC manifest 表單／獨立保存已交付；完整 Preset 未交付 | F02／05、FEAT-01 |
 | M4 STT／history | TTS persistence 已有，常駐 STT／history GUI 未交付 | F04／07、DATA-01、FEAT-02／03 |
 | M5 Voice Library | catalogue 部分交付，管理介面未完成 | F05、FEAT-01、SOURCE-01 |
-| M6 TTS | CosyVoice2／Breeze Manual 已接通，Mic 重建未完成；CosyVoice3 未安裝 | F03／04、FEAT-03；CosyVoice3 另行 intake |
+| M6 TTS | CosyVoice2／Breeze Manual 已接通；**純配音凍結（2026-11-20）**，後續由 VSF 承接；Mic 重建未完成；CosyVoice3 未安裝 | F03／04、FEAT-03；[拆分計畫](specs/tts-freeze-split-plan.md)；CosyVoice3 另行 intake |
 | M7 Rack／routing | 內建 FX 與指定線路分項通過，外部 full-chain 未完成 | F06、AUDIO-01／02、LIVE-01 |
 | M8 發行 | 本機開發版可建置；正式交付未完成 | F09、SHIP-01 |
 

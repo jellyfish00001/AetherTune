@@ -30,6 +30,8 @@
 <a id="f03"></a>
 ### F03 文字發聲與語音佇列
 
+**凍結（2026-11-20）：**純 Manual TTS／CosyVoice2／Breeze 路線凍結，拆分與移交 VSF 的步驟見 [tts-freeze-split-plan.md](tts-freeze-split-plan.md)。
+
 - **F03.1 手動文字：**CosyVoice2／Breeze TTS 2 使用所選聲音生成 WAV，再送指定播放端；不依賴 Mic 開啟。
 - **F03.2 排程與取消：**Speak、FIFO、立即插播、拒絕新請求、排序、移除、停止目前工作與清除等待工作各自有明確語意。
 - **F03.3 快速輸入：**完整 Composer、Compact 輸入、Mini popup、Recent／Favorites 與 IME 防誤送。

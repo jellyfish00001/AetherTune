@@ -451,6 +451,7 @@
 | [docs/specs/architecture.md](../../docs/specs/architecture.md) | 系統研究目標、分層和跨路線不變條件；不保存 runtime 狀態。 | backend、rack 或 evidence boundary 改動同步 `AGENTS.md`、`voice-conversion-architecture.md`、相關 contracts。 |
 | [docs/specs/voice-conversion-architecture.md](../../docs/specs/voice-conversion-architecture.md) | Streaming VC 與 Speech Reconstruction 的 adapter 分工、輸入輸出及下游 handoff；不保存當次狀態。 | 新增 backend/profile 時同步 `backends/README.md`、engine manifests、model/backend register。 |
 | [docs/specs/app-requirements.md](../../docs/specs/app-requirements.md) | F01～F10 大／小功能、N01～N04 品質要求與詳細產品行為；進度只記在 status。 | UI/contract/native orchestration 變更同步對應 source／schema／verification 及任務 ID。 |
+| [docs/specs/tts-freeze-split-plan.md](../../docs/specs/tts-freeze-split-plan.md) | 純配音（F03／CosyVoice／Breeze／STT→TTS）凍結盤點、共用音訊設施抽出順序與 VSF 移交 S0–S5；不含 runtime 狀態。 | 凍結期決策同步 `decision-log.md`、`status.md` F03／M6、`backends/speech-reconstruction/README.md`；不得為凍結而破壞 `engine-manifest.schema.json`。 |
 | [docs/specs/application-feature-checklist.md](../../docs/specs/application-feature-checklist.md) | 使用者角度的編號應用需求單：文字轉語音、變聲、語音重建、混音等大功能與小功能摘要。 | 詳細行為連回 app-requirements 的 F ID；不維護第二套進度、測試結果或資料契約。 |
 | [docs/specs/app-architecture.md](../../docs/specs/app-architecture.md) | Desktop 分層、IPC／lifecycle、模組依賴、資料 writer／migration 與效能設計約束；區分現況／目標。 | app/native/service protocol、資料 owner 變更同步 contracts、Agent 維護手冊與對應 tests／verification。 |
 | [docs/guides/user-guide.md](../../docs/guides/user-guide.md) | 人類 backend 路線選擇、共同 preflight／輸入與對應 CLI 文件入口；單一 backend 的細節由其 README 擁有。 | 路線或入口變更同步 README、對應 backend README。 |

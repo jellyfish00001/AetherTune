@@ -2,6 +2,8 @@
 
 **文件邊界：**本頁負責 STT → TTS wrapper、CosyVoice／Breeze 特有 CLI 參數、reference transcript 與輸出契約；目前 CUDA、RTF 與品質結果由[CosyVoice 驗證](../../docs/verification/backends/cosyvoice-verification-latest.md)、[Breeze 驗證](../../docs/verification/backends/breeze-tts2-verification-latest.md)及[Manual TTS 驗證](../../docs/verification/desktop/manual-tts-verification-latest.md)分別負責。Desktop 按鈕操作看[使用手冊](../../docs/guides/desktop-user-guide.md)。
 
+**凍結（2026-11-20）：**CosyVoice2／Breeze TTS 2 與本目錄離線管線屬純配音，功能凍結並計畫移交 VisualSoundForge（VSF）；`contracts/engines/cosyvoice.json`、`breeze.json` 未改 schema（`engine-manifest.schema.json` 禁止額外欄位）。完整盤點與 S0–S5 見 [TTS 凍結拆分計畫](../../docs/specs/tts-freeze-split-plan.md)。
+
 這條路線是：
 
 ```text
