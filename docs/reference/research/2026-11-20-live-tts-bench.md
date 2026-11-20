@@ -113,4 +113,19 @@ PASS 必須全部達成；任何一項做不到就標 BLOCKED 或 WAITING 並寫
 
 ### 獨占 GPU 重量
 
-（15:40 起登記獨占 GPU 後重量，完成後填入）
+2026-11-20 15:36 起（台北）在 PC1 locks.md 登記獨占 GPU 後重量；量測前後 nvidia-smi 存在 `D:\AetherTune-exp\logs\live-tts\nvsmi-excl-*.txt` 與每個 JSON 的 `nvidia_smi_before/after`。（進行中）
+
+| 後端@參考音 | 句 | 首包 p50 ms | 首包 max ms | RTF p50 | 音長 s | torch VRAM 峰值 MiB | 整卡已用 max MiB | 真串流 | 量測時間 |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|
+| gsv-tts-lite@f1 | short | 120.5 | 121.9 | 0.127 | 2.89 | 594.8 | 1886.0 | 是 | 15:37 |
+| gsv-tts-lite@f1 | medium | 250.1 | 287.3 | 0.123 | 5.21 | 595.2 | 1864.0 | 是 | 15:37 |
+| gsv-tts-lite@f1 | long | 122.5 | 124.8 | 0.104 | 10.32 | 595.1 | 1886.0 | 是 | 15:37 |
+| gsv-tts-lite@qwen-zh | short | 244.7 | 266.3 | 0.129 | 2.69 | 593.3 | 1864.0 | 否 | 15:37 |
+| gsv-tts-lite@qwen-zh | medium | 211.4 | 212.7 | 0.114 | 7.18 | 592.1 | 1886.0 | 是 | 15:37 |
+| gsv-tts-lite@qwen-zh | long | 257.2 | 271.6 | 0.12 | 11.0 | 592.9 | 1886.0 | 是 | 15:37 |
+| voxcpm2-ultimate-t10@f1 | short | 164.8 | 166.5 | 1.121 | 3.04 | 5667.4 | 7068.0 | 是 | 15:39 |
+| voxcpm2-ultimate-t10@f1 | medium | 209.9 | 246.9 | 1.169 | 6.72 | 5668.3 | 7099.0 | 是 | 15:39 |
+| voxcpm2-ultimate-t10@f1 | long | 171.6 | 204.1 | 1.156 | 14.24 | 5670.2 | 7101.0 | 是 | 15:39 |
+| voxcpm2-ultimate-t10@qwen-zh | short | 143.5 | 146.0 | 1.104 | 2.88 | 5664.1 | 6874.0 | 是 | 15:37 |
+| voxcpm2-ultimate-t10@qwen-zh | medium | 138.1 | 183.0 | 1.136 | 6.88 | 5665.0 | 6876.0 | 是 | 15:37 |
+| voxcpm2-ultimate-t10@qwen-zh | long | 155.1 | 240.8 | 1.151 | 13.6 | 5666.9 | 6878.0 | 是 | 15:37 |
