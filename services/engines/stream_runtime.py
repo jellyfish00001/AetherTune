@@ -72,7 +72,7 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
     from scipy.signal import resample_poly
     from services.engines.postfx import PostFx
     from services.engines.noise_reduction import NoiseReduction
-    from services.engines.rvc_runtime import endpoint, digest
+    from services.engines.rvc_runtime import endpoint, digest, wasapi_settings
     from services.engines.streaming_adapters import create_processor
     from services.engines.latency_trace import LatencyTrace
 
@@ -254,14 +254,16 @@ def run(root: Path, engine: str, request: dict, folder: Path, *, test_source=Non
 
         with ExitStack() as streams:
             output_stream = streams.enter_context(sd.OutputStream(device=output_index, samplerate=48000,
-                channels=2, dtype="float32", blocksize=960, callback=output_callback))
+                channels=2, dtype="float32", blocksize=960, callback=output_callback,
+                extra_settings=wasapi_settings(sd, output_index)))
             monitor_stream = None
             if distinct_monitor:
                 monitor_index = endpoint(sd, monitor["output"], monitor["host_api"], "output", 2)
                 monitor_stream = streams.enter_context(sd.OutputStream(device=monitor_index, samplerate=48000,
                     channels=2, dtype="float32", blocksize=960, callback=monitor_callback))
             input_stream = streams.enter_context(sd.InputStream(device=input_index, samplerate=48000,
-                channels=1, dtype="float32", blocksize=960, callback=input_callback))
+                channels=1, dtype="float32", blocksize=960, callback=input_callback,
+                extra_settings=wasapi_settings(sd, input_index)))
             worker = threading.Thread(target=convert, daemon=True, name="vc-inference")
             worker.start()
             stream_started = time.perf_counter()

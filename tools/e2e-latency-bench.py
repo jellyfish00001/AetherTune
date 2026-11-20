@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -46,13 +47,19 @@ def _git_commit() -> str | None:
         return None
 
 
-def _resolve_device(query, needle: str, kind: str) -> tuple[int, str]:
+def _resolve_device(query, needle: str, kind: str, hostapi_index: int | None = None) -> tuple[int, str]:
     devices = [dict(item) for item in query()]
+    for position, item in enumerate(devices):
+        item.setdefault("index", position)
+    if hostapi_index is not None:
+        # 同一裝置在 MME／DirectSound／WASAPI／WDM-KS 各出現一次；只在指定 host API 內比對。
+        devices = [item for item in devices if int(item.get("hostapi", -1)) == hostapi_index]
     needle_l = needle.strip().lower()
     if needle_l.isdigit():
         idx = int(needle_l)
-        if 0 <= idx < len(devices):
-            return idx, str(devices[idx].get("name", ""))
+        for item in devices:
+            if int(item["index"]) == idx:
+                return idx, str(item.get("name", ""))
         raise ValueError(f"device index out of range: {idx}")
     matches = []
     for item in devices:
@@ -64,6 +71,9 @@ def _resolve_device(query, needle: str, kind: str) -> tuple[int, str]:
                 matches.append(item)
             elif kind == "output" and ch_out > 0:
                 matches.append(item)
+    exact = [item for item in matches if str(item.get("name", "")).strip().lower() == needle_l]
+    if len(matches) > 1 and len(exact) == 1:
+        matches = exact
     if len(matches) != 1:
         raise ValueError(f"{kind} device {needle!r}: expected 1 match, found {len(matches)}")
     dev = matches[0]
@@ -219,12 +229,18 @@ def _run_capture(args, analysis) -> int:
     )
     _validate_timing(args, pulse_len)
     duration = (len(ref) + args.sample_rate) / args.sample_rate
-    out_idx, out_name = _resolve_device(sd.query_devices, args.output_device, "output")
-    in_idx, in_name = _resolve_device(sd.query_devices, args.input_device, "input")
+    hostapi_index = None
     if args.host_api:
         hostapis = [h["name"] for h in sd.query_hostapis()]
         if args.host_api not in hostapis:
             raise ValueError(f"unknown host API {args.host_api!r}; available: {hostapis}")
+        hostapi_index = hostapis.index(args.host_api)
+    out_idx, out_name = _resolve_device(sd.query_devices, args.output_device, "output", hostapi_index)
+    in_idx, in_name = _resolve_device(sd.query_devices, args.input_device, "input", hostapi_index)
+    extra = None
+    if os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") == "1" and args.host_api == "Windows WASAPI":
+        # 虛擬麥 shared format 可能是 44.1 kHz；讓 WASAPI 轉換，baseline 與 engine 同條件。
+        extra = (sd.WasapiSettings(auto_convert=True), sd.WasapiSettings(auto_convert=True))
 
     playback = np.asarray(ref, dtype=np.float32)
     recorded = sd.playrec(
@@ -234,6 +250,7 @@ def _run_capture(args, analysis) -> int:
         output_mapping=[1],
         device=(in_idx, out_idx),
         blocking=True,
+        extra_settings=extra,
         dtype="float32",
     )
     rec_mono = recorded.reshape(-1) if recorded.ndim > 1 else recorded

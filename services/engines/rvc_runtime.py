@@ -63,6 +63,22 @@ def registered_model(root: Path, model_id: str) -> dict:
     return row
 
 
+def wasapi_settings(sd, index: int):
+    """AETHERTUNE_WASAPI_AUTOCONVERT=1 時讓 WASAPI shared mode 自動轉換取樣率（例如 44.1 kHz 虛擬麥）。
+
+    預設關閉，不改變既有行為；只在量測／特定裝置需要時由呼叫端以環境變數開啟。
+    """
+    if os.environ.get("AETHERTUNE_WASAPI_AUTOCONVERT") != "1":
+        return None
+    try:
+        api = sd.query_hostapis(sd.query_devices(index)["hostapi"])["name"]
+    except Exception:
+        return None
+    if api != "Windows WASAPI":
+        return None
+    return sd.WasapiSettings(auto_convert=True)
+
+
 def endpoint(sd, name: str, api: str, direction: str, channels: int) -> int:
     apis = sd.query_hostapis()
     matches = [i for i, device in enumerate(sd.query_devices())
@@ -232,6 +248,8 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
         sys.path.insert(0, str(root))
         from services.engines.postfx import PostFx
         from services.engines.noise_reduction import NoiseReduction
+        from services.engines.latency_trace import LatencyTrace
+        latency_trace = LatencyTrace.for_request(request)
         fx = PostFx(48000, request.get("postfx"))
         denoiser = NoiseReduction(48000, request.get("noise_reduction"))
         report["noise_reduction"] = denoiser.settings
@@ -295,6 +313,7 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
             monitor_stream = None
             pending = queue.Queue(maxsize=8)
             report["monitor_status"] = "same_output" if monitor.get("enabled") and monitor["output"] == request["output"] else "off"
+            trace_frames = {"input": 0, "output": 0}
 
             def callback(indata, outdata, frames, _times, status):
                 outdata.fill(0)
@@ -302,8 +321,16 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                     if stop.is_set():
                         raise sd.CallbackStop
                     started = time.perf_counter()
+                    if latency_trace.enabled:
+                        trace_frames["input"] += frames
+                        latency_trace.record_input(trace_frames["input"], frames)
                     converted = fx.process(processor.process(denoiser.process(indata.mean(axis=1))))
                     outdata[:] = converted[:, None]
+                    if latency_trace.enabled:
+                        # duplex callback：同一 callback 內完成推論並寫出；輸出實際播放再晚一個 host block。
+                        latency_trace.record_model_done(trace_frames["input"], len(converted))
+                        trace_frames["output"] += len(converted)
+                        latency_trace.record_output_written(trace_frames["output"], len(converted))
                     callback_digest.update(outdata.tobytes())
                     stats["blocks"] += 1
                     stats["input_peak"] = max(stats["input_peak"], float(np.max(np.abs(indata))))
@@ -353,7 +380,8 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                         monitor_stream = None
             try:
                 with sd.Stream(device=(input_index, output_index), samplerate=48000, channels=(1, 2),
-                               dtype="float32", blocksize=processor.block, callback=callback):
+                               dtype="float32", blocksize=processor.block, callback=callback,
+                               extra_settings=(wasapi_settings(sd, input_index), wasapi_settings(sd, output_index))):
                     event("RUNNING", "RVC duplex stream 已啟動；輸入與主輸出使用明確裝置")
                     while not stop.wait(0.5):
                         metrics = {**stats, **denoiser.metrics(), "p95_ms": float(np.percentile(list(timings), 95)) if timings else None,
@@ -373,6 +401,9 @@ def run(root: Path, request: dict, values: dict, folder: Path) -> int:
                             report["monitor_status"] = "stopped"
                     except Exception as exc:
                         report.update(monitor_status="failed", monitor_error=str(exc))
+            if latency_trace.enabled:
+                latency_trace.write_jsonl(folder / "latency-trace.jsonl")
+                report["latency_trace"] = latency_trace.summary()
             report.update(status="STOPPED", metrics=stats, finite=True, nonzero=stats["output_peak"] > 0,
                           callback_sha256=callback_digest.hexdigest(), output_frames=stats["blocks"] * processor.block,
                           p50_ms=float(np.percentile(list(timings), 50)) if timings else None,

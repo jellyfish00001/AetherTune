@@ -13,7 +13,7 @@ param(
     [string]$Python = '',
     [ValidateSet('pc2-virtual', 'cable-voicemeeter', 'custom')]
     [string]$Profile = 'pc2-virtual',
-    [ValidateSet('none', 'meanvc2', 'xvc', 'seed-vc', 'all')]
+    [ValidateSet('none', 'meanvc2', 'xvc', 'seed-vc', 'rvc', 'all')]
     [string]$Engine = 'none',
     [string]$In = '',
     [string]$Out = '',
@@ -87,13 +87,13 @@ function Get-ProfileDefaults {
         'pc2-virtual' {
             return @{
                 Out       = 'Steam Streaming Microphone'
-                In        = 'Voice Changer Virtual Audio'
+                In        = 'Voice Changer Virtual Aud'
                 EngineIn  = 'Steam Streaming Microphone'
-                EngineOut = 'Voice Changer Virtual Audio'
+                EngineOut = 'Voice Changer Virtual Aud'
                 LineAOut  = 'Steam Streaming Microphone'
                 LineAIn   = 'Steam Streaming Microphone'
-                LineBOut  = 'Voice Changer Virtual Audio'
-                LineBIn   = 'Voice Changer Virtual Audio'
+                LineBOut  = 'Voice Changer Virtual Aud'
+                LineBIn   = 'Voice Changer Virtual Aud'
                 HostApi   = 'Windows WASAPI'
             }
         }
@@ -523,20 +523,45 @@ function Stop-RunnerProcess {
 function Copy-StreamEvidence {
     param([string]$ArtifactDir, [string]$DestDir)
     if (-not $ArtifactDir) { return }
-    $src = Join-Path $ArtifactDir 'stream-evidence.json'
-    if (Test-Path -LiteralPath $src) {
-        Copy-Item -LiteralPath $src -Destination (Join-Path $DestDir 'stream-evidence.json') -Force
+    if (Test-Path -LiteralPath $ArtifactDir -PathType Leaf) { $ArtifactDir = Split-Path -Parent $ArtifactDir }
+    # stream_runtime 寫 stream-evidence.json；rvc_runtime 寫 rvc-evidence.json；trace 開啟時另有 latency-trace.jsonl。
+    foreach ($name in @('stream-evidence.json', 'rvc-evidence.json', 'latency-trace.jsonl')) {
+        $src = Join-Path $ArtifactDir $name
+        if (Test-Path -LiteralPath $src) {
+            Copy-Item -LiteralPath $src -Destination (Join-Path $DestDir $name) -Force
+        }
     }
 }
 
 function Get-EngineList {
     param([string]$Choice)
-    $list = switch ($Choice) {
-        'all' { @('meanvc2', 'xvc', 'seed-vc') }
-        { $_ -in @('meanvc2', 'xvc', 'seed-vc') } { @($Choice) }
-        default { @() }
-    }
-    return [string[]]$list
+    # 'none' 必須回傳空集合；舊版 switch 落空時會變成單一 $null，導致多出一列空白 through_engine。
+    # 'all' 維持三個 stream_runtime 引擎；rvc 需登錄角色模型，請以 -Engine rvc 單獨指定。
+    if ($Choice -eq 'all') { return [string[]]@('meanvc2', 'xvc', 'seed-vc') }
+    if ($Choice -in @('meanvc2', 'xvc', 'seed-vc', 'rvc')) { return [string[]]@($Choice) }
+    return [string[]]@()
+}
+
+function Resolve-ExactEndpointName {
+    # runner_service／rvc_runtime 以「完整名稱 + host API」比對端點；profile 只存片段，於此換成唯一完整名稱。
+    param([string]$Py, [string]$Fragment, [string]$HostApiName, [ValidateSet('input', 'output')][string]$Direction)
+    if (-not $Py -or -not $Fragment) { return $Fragment }
+    $code = @'
+import sys, sounddevice as sd
+frag, api, direction = sys.argv[1].lower(), sys.argv[2], sys.argv[3]
+apis = sd.query_hostapis()
+hits = [d["name"] for d in sd.query_devices()
+        if apis[d["hostapi"]]["name"] == api and frag in d["name"].lower() and d[f"max_{direction}_channels"] > 0]
+exact = [n for n in hits if n.lower() == frag]
+hits = exact or hits
+print(hits[0] if len(hits) == 1 else "")
+'@
+    try {
+        $out = & $Py -c $code $Fragment $HostApiName $Direction 2>$null
+        $name = [string]($out | Select-Object -Last 1)
+        if ($LASTEXITCODE -eq 0 -and $name.Trim()) { return $name.Trim() }
+    } catch { }
+    return $Fragment
 }
 
 function Common-BenchArgs {
@@ -574,6 +599,11 @@ foreach ($key in @('Out', 'In', 'EngineIn', 'EngineOut', 'LineAOut', 'LineAIn', 
 }
 if (-not $Reference) {
     $Reference = Join-Path $repoRoot 'dataset\reference-voices\voice-female-f1.wav'
+}
+if ($Profile -eq 'pc2-virtual' -and -not $env:AETHERTUNE_WASAPI_AUTOCONVERT) {
+    # PC2 的 Steam Streaming Microphone capture 為 44.1 kHz shared format；bench／runtime 固定 48 kHz，
+    # 以 WASAPI auto_convert 由 Windows 轉換（只影響本程序及其子程序，不改系統設定）。
+    $env:AETHERTUNE_WASAPI_AUTOCONVERT = '1'
 }
 
 $needAudioPython = (-not $SelfTest) -and (-not $RequestOnly)
@@ -721,6 +751,8 @@ if ($SelfTest) {
         }
     }
 
+    $engineInExact = Resolve-ExactEndpointName -Py $pyExe -Fragment $EngineIn -HostApiName $HostApi -Direction input
+    $engineOutExact = Resolve-ExactEndpointName -Py $pyExe -Fragment $EngineOut -HostApiName $HostApi -Direction output
     foreach ($engineId in @(Get-EngineList -Choice $Engine)) {
         $runDir = Join-Path $ResultsDir "$sessionStamp-$engineId"
         New-Item -ItemType Directory -Force -Path $runDir | Out-Null
@@ -745,11 +777,11 @@ if ($SelfTest) {
                 $anyBlocked = $true
                 continue
             }
-            $reqObj = New-AutoEngineRequest -RootPath $repoRoot -EngineId $engineId -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -ReferencePath $Reference
+            $reqObj = New-AutoEngineRequest -RootPath $repoRoot -EngineId $engineId -EngineInName $engineInExact -EngineOutName $engineOutExact -HostApiName $HostApi -ReferencePath $Reference
             ($reqObj | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $reqPath -Encoding UTF8
             $requestPath = $reqPath
         } else {
-            Merge-EngineRequest -RootPath $repoRoot -RequestPath $requestPath -EngineInName $EngineIn -EngineOutName $EngineOut -HostApiName $HostApi -DestPath $reqPath
+            Merge-EngineRequest -RootPath $repoRoot -RequestPath $requestPath -EngineInName $engineInExact -EngineOutName $engineOutExact -HostApiName $HostApi -DestPath $reqPath
             $requestPath = $reqPath
         }
 
