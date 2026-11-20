@@ -8,5 +8,6 @@
 |---|---|---|
 | 2026-11-20 | 第 0 輪：Seed-VC 封存、替代引擎、延遲缺口、配音拆分 | [2026-11-20-round0-seedvc-engines-latency-tts-split.md](2026-11-20-round0-seedvc-engines-latency-tts-split.md) |
 | 2026-11-20 | 即時變聲與直播即時 TTS 的分維度選項、可退回性、最小實驗、待問問題 | [2026-11-20-realtime-vc-tts-dimensions.md](2026-11-20-realtime-vc-tts-dimensions.md) |
+| 2026-11-20 | 13:47 定案與調整後候選（授權只標示不篩選；現成預訓練女聲；手動打字同音色 TTS） | [2026-11-20-decisions-and-candidates-r2.md](2026-11-20-decisions-and-candidates-r2.md) |
 
 新增研究：檔名用 `YYYY-MM-DD-<主題>.md`，在上表加一列，並同步[逐檔索引](../../../.agent/reference/project-file-map.md)。

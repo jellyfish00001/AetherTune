@@ -465,6 +465,7 @@
 | [docs/reference/research/README.md](../../docs/reference/research/README.md) | 研究快照目錄與證據等級邊界；連結各日研究筆記，不充當決策或驗收。 | 新增研究檔時更新目錄表，結論採納同步 decision-log／open-questions 與 `docs/README.md` 路由。 |
 | [docs/reference/research/2026-11-20-round0-seedvc-engines-latency-tts-split.md](../../docs/reference/research/2026-11-20-round0-seedvc-engines-latency-tts-split.md) | 第 0 輪：Seed-VC 封存、替代引擎、延遲缺口與配音拆分之研究快照。 | 決策落地時同步 decision log、source audit 與 backend register；不把研究結論寫成 PASS。 |
 | [docs/reference/research/2026-11-20-realtime-vc-tts-dimensions.md](../../docs/reference/research/2026-11-20-realtime-vc-tts-dimensions.md) | 即時變聲與直播即時 TTS 分維度選型、可退回性與最小實驗構想。 | 選型定案同步 decision log、architecture 與相關 verification；維持證據等級標註。 |
+| [docs/reference/research/2026-11-20-decisions-and-candidates-r2.md](../../docs/reference/research/2026-11-20-decisions-and-candidates-r2.md) | 2026-11-20 13:47 定案與調整後 VC／直播 TTS 候選；授權只標示不篩選。 | 研究快照，不充當驗收；採納時同步 decision log。 |
 
 ### Manual TTS、app 與 runtime verification
 
