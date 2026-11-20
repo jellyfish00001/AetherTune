@@ -241,7 +241,7 @@ def _build_speech_train(args):
 
 
 def _estimate_speech_delays(recorded, onsets, template, sr: int, max_delay_ms: float, threshold: float = 0.5):
-    """對數 RMS 包絡（10 ms 窗、5 ms hop）正規化互相關；解析度 5 ms。"""
+    """RMS 包絡（10 ms 窗、5 ms hop）起音延遲為主、互相關為輔；解析度 5 ms。"""
     import numpy as np
 
     hop = sr // 200
@@ -258,13 +258,24 @@ def _estimate_speech_delays(recorded, onsets, template, sr: int, max_delay_ms: f
 
     tpl = envelope(template)
     a = (tpl - tpl.mean()) / (tpl.std() + 1e-9)
+    tpl_lin = np.exp(tpl)
+    tpl_onset = int(np.argmax(tpl_lin >= 0.25 * float(tpl_lin.max())))
     span = len(template) + int(round(sr * max_delay_ms / 1000.0))
     rec = np.asarray(recorded, dtype=np.float64)
     out = []
     for index, onset in enumerate(onsets):
         env = envelope(rec[onset:onset + span])
+        # 能量門檻：候選窗平均 RMS 須 ≥ 最大值的一半。否則尾端「少量殘響＋靜音」的窗經正規化後
+        # 也能拿到 0.6 以上的相關，PC2 實測曾把 ~240 ms 的回應誤判成 ~1040 ms。
+        count = len(env) - len(tpl) + 1
+        if count > 0:
+            lin = np.concatenate([[0.0], np.cumsum(np.exp(env))])
+            energy = (lin[len(tpl):] - lin[:-len(tpl)]) / len(tpl)
+            gate = 0.5 * float(energy.max())
         best, lag = -1.0, 0
-        for shift in range(0, len(env) - len(tpl) + 1):
+        for shift in range(0, max(0, count)):
+            if energy[shift] < gate:
+                continue
             b = env[shift:shift + len(tpl)]
             s = b.std()
             if s < 1e-9:
@@ -272,11 +283,24 @@ def _estimate_speech_delays(recorded, onsets, template, sr: int, max_delay_ms: f
             c = float(np.dot(a, (b - b.mean()) / s) / len(tpl))
             if c > best:
                 best, lag = c, shift
-        entry = {"pulse_index": index, "onset_sample": onset, "confidence": best, "method": "speech_envelope_xcorr_5ms"}
+        # 主值用「起音」：包絡第一次超過自身峰值 25% 的時間差（模板同規則）。短 chunk／短上下文時
+        # 轉換後的包絡形狀會變，互相關可能對到相鄰音節（PC2 實測差 ~150 ms）；起音只看第一個聲音，
+        # 正是 E2E 要量的東西。互相關結果保留在 xcorr_delay_ms 供對照。
+        lin_env = np.exp(env)
+        peak = float(lin_env.max()) if len(lin_env) else 0.0
+        floor = max(1e-4, float(np.percentile(lin_env, 10))) if len(lin_env) else 1e-4
+        entry = {"pulse_index": index, "onset_sample": onset, "method": "speech_onset_25pct_5ms",
+                 "xcorr_confidence": best, "snr_db": 20.0 * float(np.log10(max(peak, 1e-12) / floor))}
         if best >= threshold:
-            entry["delay_ms"] = lag * hop * 1000.0 / sr
-            entry["delay_samples"] = lag * hop
+            entry["xcorr_delay_ms"] = lag * hop * 1000.0 / sr
+        if peak >= 10.0 * floor:
+            first = int(np.argmax(lin_env >= 0.25 * peak))
+            delay_hops = first - tpl_onset
+            entry["delay_ms"] = delay_hops * hop * 1000.0 / sr
+            entry["delay_samples"] = delay_hops * hop
+            entry["confidence"] = min(1.0, (entry["snr_db"] - 20.0) / 20.0 + 0.5)
         else:
+            entry["confidence"] = 0.0
             entry["missing"] = True
         out.append(entry)
     return out
