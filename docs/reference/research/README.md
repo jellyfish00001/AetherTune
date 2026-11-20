@@ -1,0 +1,12 @@
+# 研究筆記
+
+**文件邊界：**本資料夾放 AetherTune 的研究快照（選型、替代方案、社群缺陷、實驗構想）。每份只代表撰寫當日的資料；採用的決定寫進[決策紀錄](../decision-log.md)，待決問題寫進[未決問題](../open-questions.md)，實測 PASS／WAITING／BLOCKED 由 `docs/verification/` 分項報告擁有。研究不得冒充驗收。
+
+證據等級：A＝AetherTune repo 實測；B＝社群獨立量測（附連結）；C＝論文或作者宣稱；D＝論壇、個案或推論。
+
+| 日期 | 主題 | 文件 |
+|---|---|---|
+| 2026-11-20 | 第 0 輪：Seed-VC 封存、替代引擎、延遲缺口、配音拆分 | [2026-11-20-round0-seedvc-engines-latency-tts-split.md](2026-11-20-round0-seedvc-engines-latency-tts-split.md) |
+| 2026-11-20 | 即時變聲與直播即時 TTS 的分維度選項、可退回性、最小實驗、待問問題 | [2026-11-20-realtime-vc-tts-dimensions.md](2026-11-20-realtime-vc-tts-dimensions.md) |
+
+新增研究：檔名用 `YYYY-MM-DD-<主題>.md`，在上表加一列，並同步[逐檔索引](../../../.agent/reference/project-file-map.md)。

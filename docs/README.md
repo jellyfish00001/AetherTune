@@ -32,7 +32,7 @@
 |---|---|
 | 功能進度、工作順序與未解項 | [目標與任務進度](status.md)；驗證結果以分項報告的日期與 artifact 為準 |
 | 待驗收條件 | [驗證計畫](specs/verification-plan.md)、[LIVE gate](specs/live-gate.md) |
-| 已採納與未定案選擇 | [決策紀錄](reference/decision-log.md)、[未決問題](reference/open-questions.md) |
+| 已採納與未定案選擇 | [決策紀錄](reference/decision-log.md)、[未決問題](reference/open-questions.md)、[研究筆記](reference/research/README.md) |
 | 來源、資產、模型 | [來源審核](reference/source-audit.md)、[Seed 資產](reference/seed-vc-assets.md)、[RVC 模型盤點](reference/current-rvc-model-inventory.md)、[參數模板](reference/parameter-matrix-template.csv) |
 
 ### 分項驗證：只對報告日期與測試範圍有效

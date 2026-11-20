@@ -462,6 +462,9 @@
 | [docs/specs/verification-plan.md](../../docs/specs/verification-plan.md) | P0–P3 evidence levels、UI／效能 baseline／模組化／migration 的驗收方法與完成條件；不保存實測狀態。 | 驗收條件變更同步受影響任務、tests 與報告模板；LIVE 分類仍由 live-gate 擁有。 |
 | [docs/reference/decision-log.md](../../docs/reference/decision-log.md) | backend、runtime、routing 與 architecture choices 的原因、取捨及日期記錄。 | 重大架構或 source decision 先新增決策，再同步 architecture/source audit。 |
 | [docs/reference/open-questions.md](../../docs/reference/open-questions.md) | 尚未決定的 backend/license/audio/runtime 問題與待釐清事項。 | 問題結案或狀態變更同步 decision log、相關 verification，不把 open item 改寫成 ready。 |
+| [docs/reference/research/README.md](../../docs/reference/research/README.md) | 研究快照目錄與證據等級邊界；連結各日研究筆記，不充當決策或驗收。 | 新增研究檔時更新目錄表，結論採納同步 decision-log／open-questions 與 `docs/README.md` 路由。 |
+| [docs/reference/research/2026-11-20-round0-seedvc-engines-latency-tts-split.md](../../docs/reference/research/2026-11-20-round0-seedvc-engines-latency-tts-split.md) | 第 0 輪：Seed-VC 封存、替代引擎、延遲缺口與配音拆分之研究快照。 | 決策落地時同步 decision log、source audit 與 backend register；不把研究結論寫成 PASS。 |
+| [docs/reference/research/2026-11-20-realtime-vc-tts-dimensions.md](../../docs/reference/research/2026-11-20-realtime-vc-tts-dimensions.md) | 即時變聲與直播即時 TTS 分維度選型、可退回性與最小實驗構想。 | 選型定案同步 decision log、architecture 與相關 verification；維持證據等級標註。 |
 
 ### Manual TTS、app 與 runtime verification
 
