@@ -68,3 +68,67 @@ bench --play--> 喇叭 (Steam Streaming Microphone) ==> 麥克風 (Steam Streami
 ```powershell
 $env:AETHERTUNE_LATENCY_TRACE='1'; $env:HF_HOME='D:\AetherTune-exp\cache\hf'; $env:MODELSCOPE_CACHE='D:\AetherTune-exp\cache\modelscope'; $env:MPLCONFIGDIR='D:\AetherTune-exp\cache\mpl'; Set-Location D:\AetherTune-exp\wt-main-ref; pwsh -NoProfile -File tools\e2e-latency-run.ps1 -Profile pc2-virtual -Root D:\AetherTune-exp\wt-main-ref -Python D:\AetherTune-exp\wt-main-ref\.venv\Scripts\python.exe -Engine rvc -WarmupSec 20 -Signal speech -IntervalMs 1600 -MaxDelayMs 1100 -ResultsDir D:\AetherTune-exp\artifacts\e2e-latency
 ```
+
+<!-- rvc-tune:start -->
+
+## RVC 延遲調校（PC2，2026-11-20 下午）
+
+- 訊號：speech（voice-female-f1 能量最高 400 ms 片段，間隔 1600 ms，8 段），估計器 = 起音（包絡首次達峰值 25%，5 ms 解析度），證據等級 A（聲學、經實體虛擬線）。
+- 每組都先量兩條虛擬線基線（同一次執行內），「引擎淨延遲」= 經引擎 p50 − 兩條線 p50 之和。
+- 模型：Sage_CN_HeroicFemale（index_rate 0.75、pitch 0）；RTF／處理 p95 來自引擎 metrics；underrun／drops 來自引擎計數。
+- 達標條件：淨 p50 ≤ 200 ms、RTF < 0.7、underrun = 0、8/8 偵測。
+
+| 設定 (chunk/crossfade/extra/f0) | 經引擎 p50 / p95 | 基線 p50 | 淨 p50 / p95 | 首包淨值 | RTF | 處理 p95 (ms) | underrun / drops | GPU util p50 / VRAM | 達標 | run |
+|---|---|---|---|---|---|---|---|---|---|---|
+| c160-x40-e1.0-fcpe | 382.5 / 403.2 | 135.0 | 247.5 / 265.0 | 260.0 | 0.346 | 89.6 | 0 / 0+0+0 | 29.0% / 780.0 MiB | ❌ | `20261120-162025-rvc` |
+| c120-x40-e1.0-fcpe | 330.0 / 340.0 | 130.0 | 200.0 / 203.5 | 190.0 | 0.376 | 55.2 | 0 / 0+0+0 | 28.0% / 780.0 MiB | ✅ | `20261120-162306-rvc` |
+| c100-x30-e1.0-fcpe | 290.0 / 318.0 | 140.0 | 150.0 / 178.0 | 190.0 | 0.476 | 51.7 | 0 / 0+0+0 | 36.0% / 780.0 MiB | ✅ | `20261120-162548-rvc` |
+| c80-x40-e1.0-fcpe | 292.5 / 336.5 | 135.0 | 157.5 / 201.5 | 140.0 | 0.538 | 51.0 | 0 / 0+0+0 | 35.0% / 780.0 MiB | ✅ | `20261120-162832-rvc` |
+| c80-x20-e1.0-fcpe | 257.5 / 260.0 | 140.0 | 117.5 / 111.8 | 110.0 | 0.474 | 49.4 | 0 / 0+0+0 | 29.0% / 780.0 MiB | ✅ | `20261120-163119-rvc` |
+| c80-x20-e0.5-fcpe | 237.5 / 249.8 | 135.0 | 102.5 / 114.8 | 110.0 | 0.471 | 47.5 | 0 / 0+0+0 | 29.5% / 780.0 MiB | ✅ | `20261120-163406-rvc` |
+| c80-x10-e0.5-fcpe | 237.5 / 246.5 | 130.0 | 107.5 / 116.5 | 75.0 | 0.477 | 47.5 | 0 / 0+0+0 | 29.0% / 780.0 MiB | ✅ | `20261120-163651-rvc` |
+| c100-x20-e0.5-fcpe | 277.5 / 311.2 | 140.0 | 137.5 / 171.2 | 135.0 | 0.468 | 50.3 | 0 / 0+0+0 | 36.0% / 780.0 MiB | ✅ | `20261120-163938-rvc` |
+| c80-x20-e0.5-rmvpe | 285.0 / 306.5 | 130.0 | 155.0 / 170.0 | 180.0 | 0.641 | 69.7 | 0 / 0+0+0 | 28.0% / 882.0 MiB | ✅ | `20261120-164221-rvc` |
+| c100-x30-e1.0-rmvpe | 292.5 / 295.0 | 140.0 | 152.5 / 155.0 | 150.0 | 0.531 | 74.0 | 0 / 0+0+0 | 29.0% / 884.0 MiB | ✅ | `20261120-164529-rvc` |
+
+各脈衝延遲（ms，經引擎）：
+
+- c160-x40-e1.0-fcpe：385, 395, 400, 405, 380, 370, 365, 375
+- c120-x40-e1.0-fcpe：330, 330, 330, 330, 340, 340, 335, 330
+- c100-x30-e1.0-fcpe：325, 305, 290, 285, 285, 290, 295, 280
+- c80-x40-e1.0-fcpe：275, 330, 295, 290, 270, 340, 280, 315
+- c80-x20-e1.0-fcpe：260, 250, 255, 260, 260, 260, 240, 250
+- c80-x20-e0.5-fcpe：235, 235, 240, 255, 240, 210, 240, 235
+- c80-x10-e0.5-fcpe：205, 235, 240, 230, 235, 250, 240, 240
+- c100-x20-e0.5-fcpe：275, 275, 320, 280, 280, 295, 275, 275
+- c80-x20-e0.5-rmvpe：310, 260, 265, 270, 300, 255, 300, 300
+- c100-x30-e1.0-rmvpe：290, 295, 275, 275, 295, 295, 295, 290
+
+### 音質輸出（供日後比較）
+
+- 即時：bench 收到的 `recorded.wav`（經虛擬線、48 kHz float32），複製到 `D:\AetherTune-exp\artifacts\rvc-tune\realtime\<設定>.wav`。
+- 離線：同一 RvcProcessor（同 block／SOLA／上下文）把整段 `wt-main-ref\dataset\reference-voices\voice-female-f1.wav` 轉成 `D:\AetherTune-exp\artifacts\rvc-tune\offline\<設定>.wav`（48 kHz PCM16），沒有裝置路徑干擾。
+
+| 設定 | 即時 wav SHA256 | 離線 wav SHA256 | 離線 RTF | 離線處理 p95 (ms) |
+|---|---|---|---|---|
+| c160-x40-e1.0-fcpe | `8C1CB0C57D564121E88EB3809BA47A779BF62826312D3B7A8B51AF122C150864` | `081191D5C88D24107E6E0EE592237209E63E35DA8915212A82A3B7DC85E9F459` | 0.202 | 36.0 |
+| c120-x40-e1.0-fcpe | `763C8040DB0C1CFA38C5EC357F704C85839E651A89B7813AFDEE08071C956A92` | `2F0CBCC6ABC045AF65D489350A6958DD7E0963232BDBA85058DC164F7C0A5BBE` | 0.259 | 32.3 |
+| c100-x30-e1.0-fcpe | `2DE21C3747E58CE2CE2983F86A08E72D0407CE3890ADFCBEF528C46AB01B2AA3` | `9B5D096545096578A74B0EFC3F3056A9F1F7C4AF87AF0C8531159A9BD7F27DEF` | 0.342 | 39.3 |
+| c80-x40-e1.0-fcpe | `92A665809D3C2B54F26B42A316C9D996B5B3FCE6F7D78B48D1FAD61D08EFE406` | `6CFC5E9493BB090A54FC4D51E82623C3A9EA2F5D7AD39C3D1DCA51E478E71C92` | 0.385 | 32.1 |
+| c80-x20-e1.0-fcpe | `BBA0AC9C81804C3C1111DC636A7CC2CEFDAEB5D77F3328B25DBBD44404558877` | `9BAF7D39FD2E72507F6E40332AEBCBD9CF2842F3D2AD74D721CA46E812AF4EFA` | 0.401 | 37.0 |
+| c80-x20-e0.5-fcpe | `49434A4E992A08677AAF8B8A29317C6B86593E9654BB9B2A9B6798F7E8D21881` | `F8A1CD5B482BF76B1506FD18D4E758DC4545CEC9FF1E1FCB8ACE85BEBAF616D0` | 0.382 | 32.0 |
+| c80-x10-e0.5-fcpe | `8EA3E71FCE5CA38244859F3F6093111B81293AF664CD299559559F660C4223A2` | `C2CAC73E8D71A10202C47FE80A8A29044A28D014DE4051BDB71864E3B3DB34FC` | 0.392 | 34.5 |
+| c100-x20-e0.5-fcpe | `B20CAD429B7E06E711DEA284D42C677075BDE54328CF043B1B5E1236C600504E` | `FB42963899600E71E5BC107F8873DE35FFCF5DD3E0168A17EDE2FD74E641BF15` | 0.317 | 35.1 |
+| c80-x20-e0.5-rmvpe | `3D59275BDAD8ED01CC2E7C46808DC130E56FD4DD174BBDB9C51D2205586E43FD` | `6089C50C427F487A4DE805BBEEB1766161F55348B4BC33A30FFD7FE00476538B` | 0.581 | 49.8 |
+| c100-x30-e1.0-rmvpe | `6FAB78B0D1854CCCDFC131E1C905BD5620E880BAA297B2B8C2A821AA6817D5BC` | `E46D5B55145D644626648C4ABD77FE4C6A350933DC34BE8E78E052632136A36F` | 0.449 | 46.6 |
+
+### 結論與備註
+
+- **最佳設定：chunk 80 ms／crossfade 20 ms／extra_time 0.5 s／f0 fcpe**：淨 p50 102.5 ms，RTF 0.47，underrun 0。c80-x10-e0.5-fcpe 幾乎一樣（107.5 ms），但 crossfade 10 ms 的接縫比較容易聽出來，所以選 20 ms。
+- chunk 80 是 manifest 允許的下限（80–1000），要更低就得改 manifest 範圍，本輪沒有改。
+- 延遲主要由 chunk 加 crossfade 決定：c80-x40（157.5 ms）比 c80-x20（117.5 ms）多約 40 ms。extra_time 從 1.0 降到 0.5，淨 p50 少約 15 ms；處理時間差不多。
+- rmvpe 的 RTF 比 fcpe 高（0.64 vs 0.47，同為 c80-x20-e0.5），延遲也比較高，因為 rmvpe 每個 block 要多處理約 20 ms。
+- 估計器在 96ec077 改用「起音」法。舊的互相關法遇到短 chunk 時會對錯音節，實測誤差約 150 ms。拿既有 run 重算，結果和先前一致。
+- 未完成（PC2 17:10 重開機中斷）：最佳設定的重複確認 run（`20261120-164838-rvc` 不完整，不採用），以及女聲試聽樣本。
+
+<!-- rvc-tune:end -->
